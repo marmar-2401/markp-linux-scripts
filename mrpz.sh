@@ -13,9 +13,9 @@ WHITE='\033[0;37m'
 NC='\033[0m' #No Color
 
 print_version() {
-	printf "\n\n          ################\n"
-	printf "              ## Ver: 1.0.0 ##\n"
-	printf "              ################\n"
+  printf "\n\n          ################\n"
+  printf "              ## Ver: 1.0.0 ##\n"
+  printf "              ################\n"
   printf " __   __   ____     _____    ______  \n"
   printf "|  \\/  | |  _  \  |  __ \  |__   /  \n"
   printf "| |\\/| | | |_) |  | |__) |   /  /   \n"
@@ -33,20 +33,20 @@ print_version() {
 
 print_help() {
   printf "\n${MAGENTA}Basic syntax:${NC}\n"
-	printf "${YELLOW}bash mrpz.sh <OPTION>${NC}\n"
+  printf "${YELLOW}bash mrpz.sh <OPTION>${NC}\n"
   printf "\n${MAGENTA}Command Options:${NC}\n"
   printf "${YELLOW}--help${NC}# Gives script overview information\n\n"
   printf "${YELLOW}--ver${NC}# Gives script versioning related information\n\n"
   printf "${YELLOW}--ver${NC}# Gives exit code definitions for script along with last exit code\n\n"
-	printf "\n"
-	exit 0
+  printf "\n"
+  exit 0
 }
 
 print_exitcodes() {
-  printf "${RED}Last Exit Code: echo $? ${NC}
+  printf "${RED}Last Exit Code: echo $? ${NC}"
   printf "\n${MAGENTA}Exit Codes:${NC}\n"
-	printf "${YELLOW} 1 ${NC}# Unknown Option Was Ran With Script\n\n"
-	exit 0
+  printf "${YELLOW} 1 ${NC}# Unknown Option Was Ran With Script\n\n"
+  exit 0
 }
 
 # Switch Statement 
