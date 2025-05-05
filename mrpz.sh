@@ -11,11 +11,6 @@ CYAN='\033[0;36m'
 WHITE='\033[0;37m'
 NC='\033[0m' #No Color
 
-# Script Variables
-
-local last_code=$? #Exit Codes
-
-
 print_version() {
   printf "\n          ################\n"
   printf "          ## Ver: 1.0.0 ##\n"
