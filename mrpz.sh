@@ -55,23 +55,44 @@ print_exitcodes() {
 print_ntpcheck() {
 
   ntpsync=$(timedatectl | head -5 | tail -1 | awk '{ print $NF }')
-  ntppersistence=(systemctl status chronyd | grep -i enabled | awk ' { print $4 } ')
-
+  ntppersistence=$(systemctl status chronyd | grep -i enabled | awk ' { print $4 } ')
+  ntpstatus=$(systemctl status chronyd | grep active | awk '{ print $2 }')
 
   printf "\n${MAGENTA}NTP Status${NC}\n"
+  printf "${MAGENTA}===========${NC}\n"
 
-  if [ ${ntpsync} == "yes" ]; then
+  if [[ ${ntpsync} == "yes" ]]; then
     printf "NTP Syncronization: ${GREEN}Syncronized${NC}\n"
   else
     printf "NTP Syncronization: ${RED}Not Syncronized${NC}\n"
   fi
 
-  if [ ${ntppersistence} == "enabled;" ]; then
-    printf "NTP Syncronization: ${GREEN}Syncronized${NC}\n"
+  if [[ ${ntppersistence} == "enabled;" ]]; then
+    printf "Survives Reboot: ${GREEN}Yes${NC}\n"
   else
-    printf "NTP Syncronization: ${RED}Not Syncronized${NC}\n"
+    printf "Survives Reboot: ${RED}No${NC}\n"
   fi
+  
+  if [[ ${ntpstatus} == "active" ]]; then
+    printf "NTP Status: ${GREEN}Running${NC}\n"
+  else
+    printf "NTP Status: ${RED}Not Running${NC}\n"
+  fi    
+  
+  for server in $(grep "^server" /etc/chrony.conf | awk '{print $2}'); do
+   printf "Checking NTP server: $server \n"
+   leapstatus=$(chronyc tracking 0.us.pool.ntp.org | grep -i Leap | awk '{print $NF}')
+   timediff=$(chronyc tracking 0.us.pool.ntp.org | grep -i system | awk '{print $4}') 
+   fastorslow=$(chronyc tracking 0.us.pool.ntp.org | grep -i system | awk '{print $6}')
 
+	if [[ ${leapstatus} == "Normal" ]]; then
+       		 printf "Leap Status: ${GREEN}Normal${NC}\n"
+ 	else
+   		 printf "Leap Status: ${RED}Insane${NC}\n"
+ 	fi 
+  printf "Time Drift From NTP Source: ${CYAN}${timediff} ${fastorslow} from NTP time.${NC}\n" 
+   
+  done
 
 }
 
