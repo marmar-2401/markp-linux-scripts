@@ -31,6 +31,7 @@ print_version() {
   printf " 1.0.2 | 05/5/2025 | - Help function was built \n"
   printf " 1.0.3 | 05/5/2025 | - Exit codes function was built \n"
   printf " 1.0.4 | 05/5/2025 | - Ntpcheck function was built \n"
+  printf " 1.0.5 | 05/7/2025 | - SMTPcheck function was built \n"
   exit 0
 }
 
@@ -43,6 +44,7 @@ print_help() {
   printf "${YELLOW}--codes${NC}# Gives exit code definitions for script along with last exit code\n\n"
   printf "\n${MAGENTA}Utility Based Options:${NC}\n"
   printf "${YELLOW}--ntpcheck${NC}# Gives you system NTP related information\n\n"
+  printf "${YELLOW}--smtpcheck${NC}# Gives you system SMTP related information\n\n"
   printf "\n"
   exit 0
 }
@@ -107,12 +109,82 @@ print_ntpcheck() {
   done
 }
 
+
+print_smtpcheck() {
+
+printf "\n${MAGENTA}SMTP Status${NC}\n"
+printf "${MAGENTA}===========${NC}\n"
+
+which postconf >> /dev/null
+exitpostconf=$(echo $?)
+smtppersistence=$(systemctl status postfix | grep -i enabled | awk '{ print $4 }')
+smptstatus=$(systemctl status postfix | grep active | awk '{ print $2 }')  
+relayhost=$(postconf relayhost | awk '{print $3}')
+maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
+
+if [[ ${exitpostconf} == "0" ]]; then
+        printf "Postfix Instalation Status: ${GREEN}Installed${NC}\n"
+    else
+        printf "Postfix Instalation Status: ${RED}!!!Not Installed!!!${NC}\n"
+fi      
+
+if [[ ${smtppersistence} == "enabled;" ]]; then
+        printf "Survives Reboot: ${GREEN}Yes${NC}\n"
+    else
+        printf "Survives Reboot: ${RED}No${NC}\n"
+fi         
+
+if [[ ${smptstatus} == "active" ]]; then
+        printf "Postfix Running Status: ${GREEN}Running${NC}\n"
+    else
+        printf "Postfix Running Status: ${RED}Not Running${NC}\n"
+fi  
+
+if [ -n "$relayhost" ]; then
+  printf "Configured Relayhost: ${GREEN}$relayhost${NC}\n"
+else
+  printf "Configured Relayhost: ${RED}There Is None${NC}\n"
+fi
+
+printf "Path To Configured Maillog: ${GREEN}$maildir${NC}\n"
+
+ping -c 3 $relayhost > /dev/null 2>&1
+relayreach=$(echo $?)
+
+if [[ ${relayreach} == "0" ]]; then
+        printf "Is The Relayhost Online?: ${GREEN}Yes${NC}\n"
+    else
+        printf "Is The Relayhost Online?: ${RED}No${NC}\n"
+fi    
+
+nc -z -w3 ${relayhost} 25 > /dev/null 2>&1
+smtp25=$(echo $?)
+
+if [[ ${smtp25} == "0" ]]; then
+        printf "Is Relayhost Reachable On Port 25?: ${GREEN}Yes${NC}\n"
+    else
+        printf "Is Relayhost Reachable On Port 25?: ${RED}No${NC}\n"
+fi
+
+nc -z -w3 ${relayhost} 587 > /dev/null 2>&1
+smtp587=$(echo $?)
+
+if [[ ${smtp587} == "0" ]]; then
+        printf "Is Relayhost Reachable On Port 587?: ${GREEN}Yes${NC}\n"
+    else
+        printf "Is Relayhost Reachable On Port 587?: ${RED}No${NC}\n"
+fi
+
+}
+
+
 #Switch Statement
 case "$1" in
   --ver) print_version ;;
   --help) print_help ;;
   --codes) print_exitcodes ;;
   --ntpcheck) print_ntpcheck ;;
+  --smtpcheck) print_smtpcheck ;;
   *)
     printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
     printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
