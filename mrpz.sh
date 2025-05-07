@@ -13,7 +13,7 @@ NC='\033[0m' #No Color
 
 print_version() {
   printf "\n          ################\n"
-  printf "          ## Ver: 1.0.0 ##\n"
+  printf "          ## Ver: 1.0.5 ##\n"
   printf "          ################\n"
   printf "=====================================\n"
   printf " __   __   ____     _____    ______  \n"
@@ -30,8 +30,9 @@ print_version() {
   printf " 1.0.1 | 05/5/2025 | - Version function was built \n"
   printf " 1.0.2 | 05/5/2025 | - Help function was built \n"
   printf " 1.0.3 | 05/5/2025 | - Exit codes function was built \n"
-  printf " 1.0.4 | 05/5/2025 | - Ntpcheck function was built \n"
-  printf " 1.0.5 | 05/7/2025 | - SMTPcheck function was built \n"
+  printf " 1.0.4 | 05/5/2025 | - NTP check function was built \n"
+  printf " 1.0.5 | 05/7/2025 | - SMTP check function was built \n"
+  printf " 1.0.6 | 05/7/2025 | - SMTP test function was built \n"
   exit 0
 }
 
@@ -45,6 +46,7 @@ print_help() {
   printf "\n${MAGENTA}Utility Based Options:${NC}\n"
   printf "${YELLOW}--ntpcheck${NC}# Gives you system NTP related information\n\n"
   printf "${YELLOW}--smtpcheck${NC}# Gives you system SMTP related information\n\n"
+  printf "${YELLOW}--smtptest${NC}# Allows you to send a test email and retrieve the status from the mail log\n\n"
   printf "\n"
   exit 0
 }
@@ -59,7 +61,7 @@ print_ntpcheck() {
 
   ntpsync=$(timedatectl | head -5 | tail -1 | awk '{ print $NF }')
   ntppersistence=$(systemctl status chronyd | grep -i enabled | awk ' { print $4 } ')
-  ntpstatus=$(systemctl status chronyd | grep active | awk '{ print $2 }')
+  ntpstatus=$(systemctl status chronyd | grep running | awk '{print $3}')
 
   printf "\n${MAGENTA}NTP Status${NC}\n"
   printf "${MAGENTA}===========${NC}\n"
@@ -76,7 +78,7 @@ print_ntpcheck() {
     printf "Survives Reboot: ${RED}No${NC}\n"
   fi
   
-  if [[ ${ntpstatus} == "active" ]]; then
+  if [[ ${ntpstatus} == "(running)" ]]; then
     printf "NTP Status: ${GREEN}Running${NC}\n"
   else
     printf "NTP Status: ${RED}Not Running${NC}\n"
@@ -118,7 +120,7 @@ printf "${MAGENTA}===========${NC}\n"
 which postconf >> /dev/null
 exitpostconf=$(echo $?)
 smtppersistence=$(systemctl status postfix | grep -i enabled | awk '{ print $4 }')
-smptstatus=$(systemctl status postfix | grep active | awk '{ print $2 }')  
+smtpstatus=$(systemctl status postfix | grep running | awk '{print $3}')  
 relayhost=$(postconf relayhost | awk '{print $3}')
 maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
 
@@ -134,7 +136,7 @@ if [[ ${smtppersistence} == "enabled;" ]]; then
         printf "Survives Reboot: ${RED}No${NC}\n"
 fi         
 
-if [[ ${smptstatus} == "active" ]]; then
+if [[ ${smtpstatus} == "(running)" ]]; then
         printf "Postfix Running Status: ${GREEN}Running${NC}\n"
     else
         printf "Postfix Running Status: ${RED}Not Running${NC}\n"
@@ -177,6 +179,38 @@ fi
 
 }
 
+print_testemail() {
+
+    maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
+    tmpfile="/tmp/testsmtpfile.txt"
+    
+    cp ${maildir} ${maildir}.bak
+    
+    > ${maildir}
+    
+    echo "This is a test email" > "$tmpfile"
+
+    read -p "Enter sender: " sender
+
+    read -p "Enter recipient: " recipient
+
+    mail -r "$sender" -s "SMTP Test Email From $(hostname)" "$recipient" < "$tmpfile"
+
+    rm "$tmpfile"
+    
+    sleep 5 
+    
+    relay=$(tail ${maildir} | grep -i ${recipient} | awk '{print $8}' | sed 's/^relay=//;s/,$//')
+
+    dsn=$(tail ${maildir} | grep -i ${recipient} | awk '{print $11}' | sed 's/,$//') 
+    
+    printf "DSN Number Of Test Email: \n${YELLOW}${dsn}${NC}\n"
+    
+    printf "Relayed To: \n${YELLOW}${relay}${NC}\n"
+    
+    cat ${maildir}.bak > ${maildir}
+}
+
 
 #Switch Statement
 case "$1" in
@@ -185,6 +219,7 @@ case "$1" in
   --codes) print_exitcodes ;;
   --ntpcheck) print_ntpcheck ;;
   --smtpcheck) print_smtpcheck ;;
+  --smtptest) print_testemail ;;
   *)
     printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
     printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
