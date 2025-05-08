@@ -207,8 +207,15 @@ print_testemail() {
     printf "DSN Number Of Test Email: \n${YELLOW}${dsn}${NC}\n"
     
     printf "Relayed To: \n${YELLOW}${relay}${NC}\n"
+
+    messageid=$(tail ${maildir} | grep -i ${recipient} | awk '{print $6}' | sed 's/^relay=//;s/:$//')
+  
+    printf "Email MessageID: \n${YELLOW}${messageid}${NC}\n"
+	
+    cat ${maildir} >> ${maildir}.bak
     
     cat ${maildir}.bak > ${maildir}
+
 }
 
 
