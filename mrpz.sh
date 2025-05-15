@@ -118,75 +118,75 @@ print_ntpcheck() {
 
 print_smtpcheck() {
 
-printf "\n${MAGENTA}SMTP Status${NC}\n"
-printf "${MAGENTA}===========${NC}\n"
+   printf "\n${MAGENTA}SMTP Status${NC}\n"
+   printf "${MAGENTA}===========${NC}\n"
 
-which postconf >> /dev/null
-exitpostconf=$(echo $?)
-smtppersistence=$(systemctl status postfix | grep -i enabled | awk '{ print $4 }')
-relayhost=$(postconf relayhost | awk '{print $3}' | sed 's/\[\(.*\)\]:.*/\1/')
-maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
-sasl_passwd_db="/etc/postfix/sasl_passwd.db"
+   which postconf >> /dev/null
+   exitpostconf=$(echo $?)
+   smtppersistence=$(systemctl status postfix | grep -i enabled | awk '{ print $4 }')
+   relayhost=$(postconf relayhost | awk '{print $3}' | sed 's/\[\(.*\)\]:.*/\1/')
+   maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
+   sasl_passwd_db="/etc/postfix/sasl_passwd.db"
 
-if [[ ${exitpostconf} == "0" ]]; then
+   if [[ ${exitpostconf} == "0" ]]; then
         printf "Postfix Installation Status: ${GREEN}Installed${NC}\n"
     else
         printf "Postfix Installation Status: ${RED}!!!Not Installed!!!${NC}\n"
-fi      
+   fi      
 
-if [[ ${smtppersistence} == "enabled;" ]]; then
+   if [[ ${smtppersistence} == "enabled;" ]]; then
         printf "Survives Reboot: ${GREEN}Yes${NC}\n"
     else
         printf "Survives Reboot: ${RED}No${NC}\n"
-fi         
+   fi         
 
-if systemctl is-active --quiet postfix; then
-    printf "Postfix Running Status: ${GREEN}Running${NC}\n"
-else
-    printf "Postfix Running Status: ${RED}Not Running${NC}\n"
-fi
+   if systemctl is-active --quiet postfix; then
+   	 printf "Postfix Running Status: ${GREEN}Running${NC}\n"
+   	else
+   	 printf "Postfix Running Status: ${RED}Not Running${NC}\n"
+   fi
 
 
-if [ -n "${relayhost}" ]; then
-  printf "Configured Relayhost: ${GREEN}$relayhost${NC}\n"
-else
-  printf "Configured Relayhost: ${RED}There Is None${NC}\n"
-fi
+   if [ -n "${relayhost}" ]; then
+  	 printf "Configured Relayhost: ${GREEN}$relayhost${NC}\n"
+   	else
+   	 printf "Configured Relayhost: ${RED}There Is None${NC}\n"
+   fi
 
-printf "Path To Configured Maillog: ${GREEN}$maildir${NC}\n"
+   printf "Path To Configured Maillog: ${GREEN}$maildir${NC}\n"
 
-if [ -r "${sasl_password_db}" ]; then
-  printf "Configuration Type: ${GREEN}SASL Based Configuration${NC}\n"
-else
-  printf "Configured Relayhost: ${GREEN}Non-SASL Based Configuration${NC}\n"
-fi
+   if [ -r "${sasl_passwd_db}" ]; then
+  	 printf "Configuration Type: ${GREEN}SASL Based Configuration${NC}\n"
+   	else
+  	 printf "Configured Relayhost: ${GREEN}Non-SASL Based Configuration${NC}\n"
+   fi
 
-ping -c 3 ${relayhost} > /dev/null 2>&1
-relayreach=$(echo $?)
+   ping -c 3 ${relayhost} > /dev/null 2>&1
+   relayreach=$(echo $?)
 
-if [[ ${relayreach} == "0" ]]; then
-        printf "Is The Relayhost Online?: ${GREEN}Yes${NC}\n"
-    else
-        printf "Is The Relayhost Online?: ${RED}No${NC}\n"
-fi    
+   if [[ ${relayreach} == "0" ]]; then
+   	     printf "Is The Relayhost Online?: ${GREEN}Yes${NC}\n"
+   	 else
+   	     printf "Is The Relayhost Online?: ${RED}No${NC}\n"
+   fi    
 
-timeout 5 nc -zv -w 3 ${relayhost} 25 &>/dev/null
-smtp25=$(echo $?)
+   timeout 5 nc -zv -w 3 ${relayhost} 25 &>/dev/null
+   smtp25=$(echo $?)
 
-if [[ ${smtp25} == "0" ]]; then
-        printf "Is Relayhost Reachable On Port 25?: ${GREEN}Yes${NC}\n"
-    else
-        printf "Is Relayhost Reachable On Port 25?: ${RED}No${NC}\n"
-fi
+   if [[ ${smtp25} == "0" ]]; then
+   	     printf "Is Relayhost Reachable On Port 25?: ${GREEN}Yes${NC}\n"
+  	  else
+   	     printf "Is Relayhost Reachable On Port 25?: ${RED}No${NC}\n"
+   fi
 
-timeout 5 nc -zv -w 3 ${relayhost} 587 &>/dev/null
-smtp587=$(echo $?)
+   timeout 5 nc -zv -w 3 ${relayhost} 587 &>/dev/null
+   smtp587=$(echo $?)
 
-if [[ ${smtp587} == "0" ]]; then
-        printf "Is Relayhost Reachable On Port 587?: ${GREEN}Yes${NC}\n"
-    else
-        printf "Is Relayhost Reachable On Port 587?: ${RED}No${NC}\n"
-fi
+   if [[ ${smtp587} == "0" ]]; then
+             printf "Is Relayhost Reachable On Port 587?: ${GREEN}Yes${NC}\n"
+   	 else
+   	     printf "Is Relayhost Reachable On Port 587?: ${RED}No${NC}\n"
+   fi
 
 }
 
