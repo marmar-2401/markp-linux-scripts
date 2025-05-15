@@ -243,7 +243,7 @@ print_smtpconfig() {
    if command -v postfix &>/dev/null; then
         read -p "Enter Relay Host's IP Or FQDN: " relayhost
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
-        systemctl enable --now postfix
+        systemctl enable --now postfix &>/dev/null
 	postconf -e "relayhost = [${relayhost}]:${port}"
 	systemctl restart postfix
 	printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
@@ -251,7 +251,7 @@ print_smtpconfig() {
         read -p "Enter Relay Host's IP Or FQDN: " relayhost
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
         dnf install postfix -y &>/dev/null
-	systemctl enable --now postfix
+	systemctl enable --now postfix &>/dev/null
 	postconf -e "relayhost = [${relayhost}]:${port}"
 	systemctl restart postfix 
 	printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
@@ -270,7 +270,7 @@ print_saslconfig() {
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
 	read -p "Enter the authorized SASL sender: " saslsender
 	read -p "Enter the SASL password for the authorized SASL sender: " saslpassword
-	systemctl enable --now postfix
+	systemctl enable --now postfix &>/dev/null
         postconf -e "relayhost = [${relayhost}]:${port}"
         postconf -e "smtp_use_tls = yes"
         postconf -e "smtp_sasl_auth_enable = yes"
@@ -287,7 +287,7 @@ print_saslconfig() {
 	read -p "Enter the authorized SASL sender: " saslsender
 	read -p "Enter the SASL password for the authorized SASL sender: " saslpassword
         dnf install postfix -y &>/dev/null
-	systemctl enable --now postfix
+	systemctl enable --now postfix &>/dev/null
         postconf -e "relayhost = [${relayhost}]:${port}"
         postconf -e "smtp_use_tls = yes"
         postconf -e "smtp_sasl_auth_enable = yes"
