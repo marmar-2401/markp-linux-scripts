@@ -124,7 +124,6 @@ printf "${MAGENTA}===========${NC}\n"
 which postconf >> /dev/null
 exitpostconf=$(echo $?)
 smtppersistence=$(systemctl status postfix | grep -i enabled | awk '{ print $4 }')
-smtpstatus=$(postconf relayhost | awk '{print $3}' | sed 's/\[\(.*\)\]:.*/\1/')  
 relayhost=$(postconf relayhost | awk '{print $3}' | sed 's/\[\(.*\)\]:.*/\1/')
 maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
 sasl_passwd_db="/etc/postfix/sasl_passwd.db"
@@ -141,11 +140,12 @@ if [[ ${smtppersistence} == "enabled;" ]]; then
         printf "Survives Reboot: ${RED}No${NC}\n"
 fi         
 
-if [[ ${smtpstatus} == "(running)" ]]; then
-        printf "Postfix Running Status: ${GREEN}Running${NC}\n"
-    else
-        printf "Postfix Running Status: ${RED}Not Running${NC}\n"
-fi  
+if systemctl is-active --quiet postfix; then
+    printf "Postfix Running Status: ${GREEN}Running${NC}\n"
+else
+    printf "Postfix Running Status: ${RED}Not Running${NC}\n"
+fi
+
 
 if [ -n "${relayhost}" ]; then
   printf "Configured Relayhost: ${GREEN}$relayhost${NC}\n"
@@ -170,7 +170,7 @@ if [[ ${relayreach} == "0" ]]; then
         printf "Is The Relayhost Online?: ${RED}No${NC}\n"
 fi    
 
-timeout 5 nc -zv -w 3 ${relayhost}  25 &>/dev/null
+timeout 5 nc -zv -w 3 ${relayhost} 25 &>/dev/null
 smtp25=$(echo $?)
 
 if [[ ${smtp25} == "0" ]]; then
@@ -179,7 +179,7 @@ if [[ ${smtp25} == "0" ]]; then
         printf "Is Relayhost Reachable On Port 25?: ${RED}No${NC}\n"
 fi
 
-timeout 5 nc -zv -w 3 ${relayhost} 587 &>/dev/nul
+timeout 5 nc -zv -w 3 ${relayhost} 587 &>/dev/null
 smtp587=$(echo $?)
 
 if [[ ${smtp587} == "0" ]]; then
