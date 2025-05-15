@@ -13,7 +13,7 @@ NC='\033[0m' #No Color
 
 print_version() {
   printf "\n          ################\n"
-  printf "          ## Ver: 1.0.5 ##\n"
+  printf "          ## Ver: 1.0.8 ##\n"
   printf "          ################\n"
   printf "=====================================\n"
   printf " __   __   ____     _____    ______  \n"
@@ -33,6 +33,8 @@ print_version() {
   printf " 1.0.4 | 05/5/2025 | - NTP check function was built \n"
   printf " 1.0.5 | 05/7/2025 | - SMTP check function was built \n"
   printf " 1.0.6 | 05/7/2025 | - SMTP test function was built \n"
+  printf " 1.0.7 | 05/7/2025 | - SMTP config function was built \n"
+  printf " 1.0.8 | 05/7/2025 | - SMTP SASL config function was built \n"
   exit 0
 }
 
@@ -47,6 +49,8 @@ print_help() {
   printf "${YELLOW}--ntpcheck${NC}# Gives you system NTP related information\n\n"
   printf "${YELLOW}--smtpcheck${NC}# Gives you system SMTP related information\n\n"
   printf "${YELLOW}--smtptest${NC}# Allows you to send a test email and retrieve the status from the mail log\n\n"
+  printf "${YELLOW}--smtpconfig${NC}# Allows you to setup and configure a non-SASL relayhost in postfix\n\n"
+  printf "${YELLOW}--smtpsaslconfig${NC}# Allows you to setup and configure a SASL relayhost in postfix\n\n"
   printf "\n"
   exit 0
 }
@@ -54,11 +58,11 @@ print_help() {
 print_exitcodes() {
   printf "\n${MAGENTA}Exit Codes:${NC}\n"
   printf "${YELLOW} 1 ${NC}# Unknown Option Was Ran With Script\n\n"
+  printf "${YELLOW} 2 ${NC}# Script Must Be Ran As Root User\n\n"
   exit 0
 }
 
 print_ntpcheck() {
-
   ntpsync=$(timedatectl | head -5 | tail -1 | awk '{ print $NF }')
   ntppersistence=$(systemctl status chronyd | grep -i enabled | awk ' { print $4 } ')
   ntpstatus=$(systemctl status chronyd | grep running | awk '{print $3}')
@@ -67,9 +71,9 @@ print_ntpcheck() {
   printf "${MAGENTA}===========${NC}\n"
 
   if [[ ${ntpsync} == "yes" ]]; then
-    printf "NTP Syncronization: ${GREEN}Syncronized${NC}\n"
+    printf "NTP Syncronization: ${GREEN}Synchronized${NC}\n"
   else
-    printf "NTP Syncronization: ${RED}Not Syncronized${NC}\n"
+    printf "NTP Syncronization: ${RED}Not Synchronized${NC}\n"
   fi
 
   if [[ ${ntppersistence} == "enabled;" ]]; then
@@ -123,11 +127,12 @@ smtppersistence=$(systemctl status postfix | grep -i enabled | awk '{ print $4 }
 smtpstatus=$(systemctl status postfix | grep running | awk '{print $3}')  
 relayhost=$(postconf relayhost | awk '{print $3}')
 maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
+sasl_passwd_db="/etc/postfix/sasl_passwd.db"
 
 if [[ ${exitpostconf} == "0" ]]; then
-        printf "Postfix Instalation Status: ${GREEN}Installed${NC}\n"
+        printf "Postfix Installation Status: ${GREEN}Installed${NC}\n"
     else
-        printf "Postfix Instalation Status: ${RED}!!!Not Installed!!!${NC}\n"
+        printf "Postfix Installation Status: ${RED}!!!Not Installed!!!${NC}\n"
 fi      
 
 if [[ ${smtppersistence} == "enabled;" ]]; then
@@ -149,6 +154,12 @@ else
 fi
 
 printf "Path To Configured Maillog: ${GREEN}$maildir${NC}\n"
+
+if [ -r "$sasl_password_db" ]; then
+  printf "Configuration Type: ${GREEN}SASL Based Configuration${NC}\n"
+else
+  printf "Configured Relayhost: ${RED}Non-SASL Based Configuration${NC}\n"
+fi
 
 ping -c 3 $relayhost > /dev/null 2>&1
 relayreach=$(echo $?)
@@ -180,6 +191,11 @@ fi
 }
 
 print_testemail() {
+    
+    if [ "$EUID" -ne 0 ]; then
+        printf "${RED}This script must be ran as root user ${NC}\n"    
+   	exit 2
+    fi
 
     maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
     tmpfile="/tmp/testsmtpfile.txt"
@@ -218,6 +234,73 @@ print_testemail() {
 
 }
 
+print_smtpconfig() {
+   if [ "$EUID" -ne 0 ]; then
+        printf "${RED}This script must be ran as root user ${NC}\n"
+        exit 2
+   fi
+
+   if command -v postfix &>/dev/null; then
+        read -p "Enter Relay Host's IP Or FQDN: " relayhost
+        read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
+        systemctl enable --now postfix
+	postconf -e "relayhost = [${relayhost}]:${port}"
+	systemctl restart postfix
+	printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
+   else
+        read -p "Enter Relay Host's IP Or FQDN: " relayhost
+        read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
+        dnf install postfix -y &>/dev/null
+	systemctl enable --now postfix
+	postconf -e "relayhost = [${relayhost}]:${port}"
+	systemctl restart postfix 
+	printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
+   fi
+}
+
+
+print_saslconfig() {
+    if [ "$EUID" -ne 0 ]; then
+        printf "${RED}This script must be ran as root user ${NC}\n"
+        exit 2
+    fi
+
+    if command -v postfix &>/dev/null; then
+        read -p "Enter Relay Host's IP Or FQDN: " relayhost
+        read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
+	read -p "Enter the authorized SASL sender: " saslsender
+	read -p "Enter the SASL password for the authorized SASL sender: " saslpassword
+	systemctl enable --now postfix
+        postconf -e "relayhost = [${relayhost}]:${port}"
+        postconf -e "smtp_use_tls = yes"
+        postconf -e "smtp_sasl_auth_enable = yes"
+        postconf -e "smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd"
+        postconf -e "smtp_sasl_security_options = noanonymous"
+        echo "[${relayhost}]:${port}    ${saslsender}:${saslpassword}" > /etc/postfix/sasl_passwd
+        postmap /etc/postfix/sasl_passwd
+        chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
+        systemctl restart postfix
+	printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
+    else
+        read -p "Enter Relay Host's IP Or FQDN: " relayhost
+        read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
+	read -p "Enter the authorized SASL sender: " saslsender
+	read -p "Enter the SASL password for the authorized SASL sender: " saslpassword
+        dnf install postfix -y &>/dev/null
+	systemctl enable --now postfix
+        postconf -e "relayhost = [${relayhost}]:${port}"
+        postconf -e "smtp_use_tls = yes"
+        postconf -e "smtp_sasl_auth_enable = yes"
+        postconf -e "smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd"
+        postconf -e "smtp_sasl_security_options = noanonymous"
+        echo "[${relayhost}]:${port}    ${saslsender}:${saslpassword}" > /etc/postfix/sasl_passwd
+        postmap /etc/postfix/sasl_passwd
+        chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
+        systemctl restart postfix
+	printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
+    fi
+
+}
 
 #Switch Statement
 case "$1" in
@@ -227,6 +310,8 @@ case "$1" in
   --ntpcheck) print_ntpcheck ;;
   --smtpcheck) print_smtpcheck ;;
   --smtptest) print_testemail ;;
+  --smtpconfig) print_smtpconfig ;;
+  --smtpsaslconfig) print_saslconfig ;;
   *)
     printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
     printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
