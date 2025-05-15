@@ -124,7 +124,7 @@ printf "${MAGENTA}===========${NC}\n"
 which postconf >> /dev/null
 exitpostconf=$(echo $?)
 smtppersistence=$(systemctl status postfix | grep -i enabled | awk '{ print $4 }')
-smtpstatus=$(systemctl status postfix | grep running | awk '{print $3}')  
+smtpstatus=$(postconf relayhost | awk '{print $3}' | sed 's/\[\(.*\)\]:.*/\1/')  
 relayhost=$(postconf relayhost | awk '{print $3}')
 maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
 sasl_passwd_db="/etc/postfix/sasl_passwd.db"
