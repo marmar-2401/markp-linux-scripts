@@ -160,6 +160,12 @@ print_smtpcheck() {
    	else
   	 printf "Configured Relayhost: ${GREEN}Non-SASL Based Configuration${NC}\n"
    fi
+  
+   if rpm -q cyrus-sasl-plain &>/dev/null; then
+        printf "cyrus-sasl-plain Package: ${GREEN}Installed${NC}\n"
+       else
+        printf "cyrus-sasl-plain Package: ${RED}Not Installed${NC}\n"
+   fi
 
    ping -c 3 ${relayhost} > /dev/null 2>&1
    relayreach=$(echo $?)
@@ -270,6 +276,7 @@ print_saslconfig() {
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
 	read -p "Enter the authorized SASL sender: " saslsender
 	read -p "Enter the SASL password for the authorized SASL sender: " saslpassword
+	dnf install cyrus-sasl-plain -y &>/dev/null
 	systemctl enable --now postfix &>/dev/null
         postconf -e "relayhost = [${relayhost}]:${port}"
         postconf -e "smtp_use_tls = yes"
@@ -287,6 +294,7 @@ print_saslconfig() {
 	read -p "Enter the authorized SASL sender: " saslsender
 	read -p "Enter the SASL password for the authorized SASL sender: " saslpassword
         dnf install postfix -y &>/dev/null
+	dnf install cyrus-sasl-plain -y &>/dev/null
 	systemctl enable --now postfix &>/dev/null
         postconf -e "relayhost = [${relayhost}]:${port}"
         postconf -e "smtp_use_tls = yes"
