@@ -158,7 +158,7 @@ printf "Path To Configured Maillog: ${GREEN}$maildir${NC}\n"
 if [ -r "${sasl_password_db}" ]; then
   printf "Configuration Type: ${GREEN}SASL Based Configuration${NC}\n"
 else
-  printf "Configured Relayhost: ${RED}Non-SASL Based Configuration${NC}\n"
+  printf "Configured Relayhost: ${GREEN}Non-SASL Based Configuration${NC}\n"
 fi
 
 ping -c 3 ${relayhost} > /dev/null 2>&1
