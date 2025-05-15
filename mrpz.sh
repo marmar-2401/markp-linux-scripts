@@ -104,9 +104,9 @@ print_ntpcheck() {
 
   for server in $(grep -E "^(server|pool)" /etc/chrony.conf | awk '{print $2}'); do
     printf "${MAGENTA}============================================= ${NC} \n"
-    printf "NTP source: ${YELLOW}$server ${NC} \n"
+    printf "NTP source: ${YELLOW}${server} ${NC} \n"
     count=3 
-    if ping -c $count $server > /dev/null 2>&1; then
+    if ping -c ${count} ${server} > /dev/null 2>&1; then
        printf "${GREEN}!!!Server is Reachable!!! ${NC}\n"
     else
        printf "${RED}!!!Server is NOT Reachable!!! ${NC}\n" 
@@ -147,7 +147,7 @@ if [[ ${smtpstatus} == "(running)" ]]; then
         printf "Postfix Running Status: ${RED}Not Running${NC}\n"
 fi  
 
-if [ -n "$relayhost" ]; then
+if [ -n "${relayhost}" ]; then
   printf "Configured Relayhost: ${GREEN}$relayhost${NC}\n"
 else
   printf "Configured Relayhost: ${RED}There Is None${NC}\n"
@@ -155,13 +155,13 @@ fi
 
 printf "Path To Configured Maillog: ${GREEN}$maildir${NC}\n"
 
-if [ -r "$sasl_password_db" ]; then
+if [ -r "${sasl_password_db}" ]; then
   printf "Configuration Type: ${GREEN}SASL Based Configuration${NC}\n"
 else
   printf "Configured Relayhost: ${RED}Non-SASL Based Configuration${NC}\n"
 fi
 
-ping -c 3 $relayhost > /dev/null 2>&1
+ping -c 3 ${relayhost} > /dev/null 2>&1
 relayreach=$(echo $?)
 
 if [[ ${relayreach} == "0" ]]; then
@@ -170,7 +170,7 @@ if [[ ${relayreach} == "0" ]]; then
         printf "Is The Relayhost Online?: ${RED}No${NC}\n"
 fi    
 
-timeout 5 nc -zv -w 3 smtp.google.com 25 &>/dev/null
+timeout 5 nc -zv -w 3 ${relayhost}  25 &>/dev/null
 smtp25=$(echo $?)
 
 if [[ ${smtp25} == "0" ]]; then
@@ -179,7 +179,7 @@ if [[ ${smtp25} == "0" ]]; then
         printf "Is Relayhost Reachable On Port 25?: ${RED}No${NC}\n"
 fi
 
-timeout 5 nc -zv -w 3 smtp.google.com 587 &>/dev/nul
+timeout 5 nc -zv -w 3 ${relayhost} 587 &>/dev/nul
 smtp587=$(echo $?)
 
 if [[ ${smtp587} == "0" ]]; then
@@ -210,7 +210,7 @@ print_testemail() {
 
     read -p "Enter recipient: " recipient
 
-    mail -r "$sender" -s "SMTP Test Email From $(hostname)" "$recipient" < "$tmpfile"
+    mail -r "${sender}" -s "SMTP Test Email From $(hostname)" "${recipient}" < "$tmpfile"
 
     rm "$tmpfile"
     
