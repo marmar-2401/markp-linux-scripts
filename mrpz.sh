@@ -170,7 +170,7 @@ if [[ ${relayreach} == "0" ]]; then
         printf "Is The Relayhost Online?: ${RED}No${NC}\n"
 fi    
 
-nc -z -w3 ${relayhost} 25 > /dev/null 2>&1
+timeout 5 nc -zv -w 3 smtp.google.com 25 &>/dev/null
 smtp25=$(echo $?)
 
 if [[ ${smtp25} == "0" ]]; then
@@ -179,7 +179,7 @@ if [[ ${smtp25} == "0" ]]; then
         printf "Is Relayhost Reachable On Port 25?: ${RED}No${NC}\n"
 fi
 
-nc -z -w3 ${relayhost} 587 > /dev/null 2>&1
+timeout 5 nc -zv -w 3 smtp.google.com 587 &>/dev/nul
 smtp587=$(echo $?)
 
 if [[ ${smtp587} == "0" ]]; then
