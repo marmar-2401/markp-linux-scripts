@@ -127,6 +127,7 @@ print_smtpcheck() {
    relayhost=$(postconf relayhost | awk '{print $3}' | sed 's/\[\(.*\)\]:.*/\1/')
    maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
    sasl_passwd_db="/etc/postfix/sasl_passwd.db"
+   virtual_db="/etc/postfix/virtual.db"
 
    if [[ ${exitpostconf} == "0" ]]; then
         printf "Postfix Installation Status: ${GREEN}Installed${NC}\n"
@@ -158,13 +159,19 @@ print_smtpcheck() {
    if [ -r "${sasl_passwd_db}" ]; then
   	 printf "Configuration Type: ${GREEN}SASL Based Configuration${NC}\n"
    	else
-  	 printf "Configured Relayhost: ${GREEN}Non-SASL Based Configuration${NC}\n"
+  	 printf "Configured Type: ${GREEN}Non-SASL Based Configuration${NC}\n"
    fi
   
    if rpm -q cyrus-sasl-plain &>/dev/null; then
         printf "cyrus-sasl-plain Package: ${GREEN}Installed${NC}\n"
        else
         printf "cyrus-sasl-plain Package: ${RED}Not Installed${NC}\n"
+   fi
+
+   if [ -r "${virtual_db}" ]; then
+         printf "Virtual Table: ${GREEN}Configured${NC}\n"
+        else
+         printf "Virtual Table: ${RED}Not Configured${NC}\n"
    fi
 
    ping -c 3 ${relayhost} > /dev/null 2>&1
@@ -260,6 +267,17 @@ print_smtpconfig() {
 	systemctl enable --now postfix &>/dev/null
 	postconf -e "relayhost = [${relayhost}]:${port}"
 	systemctl restart postfix 
+	virtual_db="/etc/postfix/virtual.db"
+
+        if [ -r "${virtual_db}" ]; then
+          exit 0
+        else
+          echo "@softcomputer.com       seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+   	  echo "@isd.dp.ua     seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+   	  echo "@softsystem.pl seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+          postmap /etc/postfix/virtual
+          systemctl restart postfix
+        fi
 	printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
    fi
 }
@@ -287,6 +305,17 @@ print_saslconfig() {
         postmap /etc/postfix/sasl_passwd
         chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
         systemctl restart postfix
+	virtual_db="/etc/postfix/virtual.db"
+
+        if [ -r "${virtual_db}" ]; then
+          exit 0
+        else
+          echo "@softcomputer.com       seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+          echo "@isd.dp.ua     seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+          echo "@softsystem.pl seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+          postmap /etc/postfix/virtual
+          systemctl restart postfix
+        fi
 	printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
     else
         read -p "Enter Relay Host's IP Or FQDN: " relayhost
@@ -305,7 +334,19 @@ print_saslconfig() {
         postmap /etc/postfix/sasl_passwd
         chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
         systemctl restart postfix
-	printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
+	virtual_db="/etc/postfix/virtual.db"
+
+        if [ -r "${virtual_db}" ]; then
+          exit 0
+        else
+          echo "@softcomputer.com       seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+          echo "@isd.dp.ua     seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+          echo "@softsystem.pl seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+          postmap /etc/postfix/virtual
+          systemctl restart postfix
+        fi
+        printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
+
     fi
 
 }
