@@ -29,36 +29,31 @@ print_version() {
   printf " 1.0.0 | 05/5/2025 | - Initial release colors were defined \n"
   printf " 1.0.1 | 05/5/2025 | - Version function was built \n"
   printf " 1.0.2 | 05/5/2025 | - Help function was built \n"
-  printf " 1.0.3 | 05/5/2025 | - Exit codes function was built \n"
-  printf " 1.0.4 | 05/5/2025 | - NTP check function was built \n"
-  printf " 1.0.5 | 05/7/2025 | - SMTP check function was built \n"
-  printf " 1.0.6 | 05/7/2025 | - SMTP test function was built \n"
-  printf " 1.0.7 | 05/7/2025 | - SMTP config function was built \n"
-  printf " 1.0.8 | 05/7/2025 | - SMTP SASL config function was built \n"
+  printf " 1.0.3 | 05/5/2025 | - NTP check function was built \n"
+  printf " 1.0.4 | 05/7/2025 | - SMTP check function was built \n"
+  printf " 1.0.5 | 05/7/2025 | - SMTP test function was built \n"
+  printf " 1.0.6 | 05/15/2025 | - SMTP config function was built \n"
+  printf " 1.0.7 | 05/15/2025 | - SMTP SASL config function was built \n"
+  printf " 1.0.8 | 05/16/2025 | - SMTP SASL config remove function was built \n"
   exit 0
 }
 
 print_help() {
   printf "\n${MAGENTA}Basic syntax:${NC}\n"
   printf "${YELLOW}bash mrpz.sh <OPTION>${NC}\n"
-  printf "\n${MAGENTA}Command Based Options:${NC}\n"
+  printf "\n${MAGENTA}mrpz.sh Based Options:${NC}\n"
   printf "${YELLOW}--help${NC}# Gives script overview information\n\n"
   printf "${YELLOW}--ver${NC}# Gives script versioning related information\n\n"
   printf "${YELLOW}--codes${NC}# Gives exit code definitions for script along with last exit code\n\n"
-  printf "\n${MAGENTA}Utility Based Options:${NC}\n"
+  printf "\n${MAGENTA}NTP Based Options:${NC}\n"
   printf "${YELLOW}--ntpcheck${NC}# Gives you system NTP related information\n\n"
+  printf "\n${MAGENTA}SMTP Based Options:${NC}\n"
   printf "${YELLOW}--smtpcheck${NC}# Gives you system SMTP related information\n\n"
   printf "${YELLOW}--smtptest${NC}# Allows you to send a test email and retrieve the status from the mail log\n\n"
   printf "${YELLOW}--smtpconfig${NC}# Allows you to setup and configure a non-SASL relayhost in postfix\n\n"
   printf "${YELLOW}--smtpsaslconfig${NC}# Allows you to setup and configure a SASL relayhost in postfix\n\n"
+  printf "${YELLOW}--smtpsaslremove${NC}# Allows you to remove a SASL relayhost and configuration in postfix\n\n"
   printf "\n"
-  exit 0
-}
-
-print_exitcodes() {
-  printf "\n${MAGENTA}Exit Codes:${NC}\n"
-  printf "${YELLOW} 1 ${NC}# Unknown Option Was Ran With Script\n\n"
-  printf "${YELLOW} 2 ${NC}# Script Must Be Ran As Root User\n\n"
   exit 0
 }
 
@@ -351,16 +346,34 @@ print_saslconfig() {
 
 }
 
+print_saslremove() {
+    if [ "$EUID" -ne 0 ]; then
+        printf "${RED}This script must be ran as root user ${NC}\n"
+        exit 2
+    fi
+    printf "${MAGENTA}SASL Configuration Is Being Removed.....${NC}\n"
+    postconf -e "smtp_use_tls = no"
+    postconf -e "smtp_sasl_auth_enable = no"
+    postconf -e "smtp_sasl_password_maps ="
+    postconf -e "smtp_sasl_security_options = noplaintext, noanonymous"
+    postconf -e "relayhost ="
+    > /etc/postfix/sasl_passwd
+    postmap /etc/postfix/sasl_passwd &>/dev/null
+    rm -rf /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
+    systemctl restart postfix &>/dev/null
+    printf "${GREEN}!!!SASL Configuration Has Been Removed!!!${NC}\n"
+}
+
 #Switch Statement
 case "$1" in
   --ver) print_version ;;
   --help) print_help ;;
-  --codes) print_exitcodes ;;
   --ntpcheck) print_ntpcheck ;;
   --smtpcheck) print_smtpcheck ;;
   --smtptest) print_testemail ;;
   --smtpconfig) print_smtpconfig ;;
   --smtpsaslconfig) print_saslconfig ;;
+  --smtpsaslremove) print_saslremove ;;
   *)
     printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
     printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
