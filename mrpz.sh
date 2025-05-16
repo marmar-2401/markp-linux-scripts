@@ -44,7 +44,6 @@ print_help() {
   printf "\n${MAGENTA}mrpz.sh Based Options:${NC}\n"
   printf "${YELLOW}--help${NC}# Gives script overview information\n\n"
   printf "${YELLOW}--ver${NC}# Gives script versioning related information\n\n"
-  printf "${YELLOW}--codes${NC}# Gives exit code definitions for script along with last exit code\n\n"
   printf "\n${MAGENTA}NTP Based Options:${NC}\n"
   printf "${YELLOW}--ntpcheck${NC}# Gives you system NTP related information\n\n"
   printf "\n${MAGENTA}SMTP Based Options:${NC}\n"
