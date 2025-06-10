@@ -45,28 +45,28 @@ check_dependencies() {
     "dnf"
   )
 
-  printf "Checking dependencies...\n" # Add this line
+  printf "Checking dependencies...\n" 
   for cmd in "${commands_to_check[@]}"; do
     if ! command -v "$cmd" &>/dev/null; then
       missing_commands+=("$cmd")
-      printf "  - Missing: %s\n" "$cmd" # Add this line
+      printf "  - Missing: %s\n" "$cmd" 
     else
-      printf "  - Found: %s\n" "$cmd" # Add this line
+      printf "  - Found: %s\n" "$cmd" 
     fi
   done
 
   if [ ${#missing_commands[@]} -gt 0 ]; then
     printf "${YELLOW}Error: The following required commands are missing:${NC}\n"
     for missing_cmd in "${missing_commands[@]}"; do
-      echo -e "  - %s\n" "${RED}${missing_cmd}${NC}"
+      echo -e " \n - " "${RED}${missing_cmd}${NC}"
     done
     printf "${RED}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
     exit 1
   fi
-  printf "All dependencies found.\n" # Add this line
+  printf "All dependencies found.\n" # 
 }
 
-# Functions ran to make sure root user is being used and dependencies are installed
+# Functions ran to make sure root user is being used 
 check_root
 check_dependencies
 
