@@ -40,14 +40,14 @@ check_dependencies() {
   done
 
   if [ ${#missing_commands[@]} -gt 0 ]; then
-    printf "${YELLOW}Error: The following required commands are missing for ${function_name}:${NC}\n"
+    printf "${YELLOW}Error: The following required commands are missing:${NC}\n"
     for missing_cmd in "${missing_commands[@]}"; do
       echo -e " - ${RED}${missing_cmd}${NC}"
     done
     printf "${YELLOW}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
     exit 1
   fi
-  printf "All dependencies for ${function_name} found.\n"
+  printf "All dependencies found.\n"
 }
 
 print_version() {
@@ -86,16 +86,16 @@ print_help() {
   printf "\n${MAGENTA}Basic syntax:${NC}\n"
   printf "${YELLOW}bash mrpz.sh <OPTION>${NC}\n"
   printf "\n${MAGENTA}mrpz.sh Based Options:${NC}\n"
-  printf "${YELLOW}--help${NC}         # Gives script overview information\n\n"
-  printf "${YELLOW}--ver${NC}          # Gives script versioning related information\n\n"
+  printf "${YELLOW}--help${NC}		# Gives script overview information\n\n"
+  printf "${YELLOW}--ver${NC}		# Gives script versioning related information\n\n"
   printf "\n${MAGENTA}NTP Based Options:${NC}\n"
-  printf "${YELLOW}--ntpcheck${NC}     # Gives you system NTP related information\n\n"
+  printf "${YELLOW}--ntpcheck${NC}		# Gives you system NTP related information\n\n"
   printf "\n${MAGENTA}SMTP Based Options:${NC}\n"
-  printf "${YELLOW}--smtpcheck${NC}    # Gives you system SMTP related information\n\n"
-  printf "${YELLOW}--smtptest${NC}     # Allows you to send a test email and retrieve the status from the mail log\n\n"
-  printf "${YELLOW}--smtpconfig${NC}   # Allows you to setup and configure a non-SASL relayhost in postfix\n\n"
-  printf "${YELLOW}--smtpsaslconfig${NC}# Allows you to setup and configure a SASL relayhost in postfix\n\n"
-  printf "${YELLOW}--smtpsaslremove${NC}# Allows you to remove a SASL relayhost and configuration in postfix\n\n"
+  printf "${YELLOW}--smtpcheck${NC}		# Gives you system SMTP related information\n\n"
+  printf "${YELLOW}--smtptest${NC}		# Allows you to send a test email and retrieve the status from the mail log\n\n"
+  printf "${YELLOW}--smtpconfig${NC}		# Allows you to setup and configure a non-SASL relayhost in postfix\n\n"
+  printf "${YELLOW}--smtpsaslconfig${NC}		# Allows you to setup and configure a SASL relayhost in postfix\n\n"
+  printf "${YELLOW}--smtpsaslremove${NC}		# Allows you to remove a SASL relayhost and configuration in postfix\n\n"
   printf "\n"
   exit 0
 }
