@@ -42,12 +42,16 @@ check_dependencies() {
     "read"
     "postmap"
     "chmod"
-    "dnf" 
+    "dnf"
   )
 
+  printf "Checking dependencies...\n" # Add this line
   for cmd in "${commands_to_check[@]}"; do
     if ! command -v "$cmd" &>/dev/null; then
       missing_commands+=("$cmd")
+      printf "  - Missing: %s\n" "$cmd" # Add this line
+    else
+      printf "  - Found: %s\n" "$cmd" # Add this line
     fi
   done
 
@@ -59,8 +63,10 @@ check_dependencies() {
     printf "${RED}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
     exit 1
   fi
+  printf "All dependencies found.\n" # Add this line
 }
 
+# Functions ran to make sure root user is being used and dependencies are installed
 check_root
 check_dependencies
 
