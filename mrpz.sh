@@ -58,9 +58,9 @@ check_dependencies() {
   if [ ${#missing_commands[@]} -gt 0 ]; then
     printf "${YELLOW}Error: The following required commands are missing:${NC}\n"
     for missing_cmd in "${missing_commands[@]}"; do
-      echo -e " \n - " "${RED}${missing_cmd}${NC}"
+      echo -e " - " "${RED}${missing_cmd}${NC} \n"
     done
-    printf "${RED}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
+    printf "${YELLOW}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
     exit 1
   fi
   printf "All dependencies found.\n" # 
