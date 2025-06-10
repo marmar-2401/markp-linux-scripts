@@ -11,6 +11,7 @@ CYAN='\033[0;36m'
 WHITE='\033[0;37m'
 NC='\033[0m' #No Color
 
+# Function to check if the script is run as root
 check_root() {
   if [ "$EUID" -ne 0 ]; then
     printf "${RED}Error: This script must be run as root.${NC}\n"
@@ -18,303 +19,48 @@ check_root() {
   fi
 }
 
-# Functions ran to make sure root user is being used 
+# Run check_root at the beginning of the script
 check_root
 
-# Dependency check for ver function 
-check_ver_dependencies() {
+# Function to check dependencies for a given command list
+check_dependencies() {
+  local function_name=$1
+  shift
+  local commands_to_check=("$@")
   local missing_commands=()
 
-  local commands_to_check=(
-    "printf"
-    "exit"
-  )
-
-  printf "Checking dependencies...\n" 
+  printf "Checking dependencies for ${function_name}...\n"
   for cmd in "${commands_to_check[@]}"; do
     if ! command -v "$cmd" &>/dev/null; then
       missing_commands+=("$cmd")
-      printf "  - Missing: %s\n" "$cmd" 
+      printf "  - Missing: %s\n" "$cmd"
     else
-      printf "  - Found: %s\n" "$cmd" 
+      printf "  - Found: %s\n" "$cmd"
     fi
   done
 
   if [ ${#missing_commands[@]} -gt 0 ]; then
-    printf "${YELLOW}Error: The following required commands are missing:${NC}\n"
+    printf "${YELLOW}Error: The following required commands are missing for ${function_name}:${NC}\n"
     for missing_cmd in "${missing_commands[@]}"; do
-      echo -e " - " "${RED}${missing_cmd}${NC} \n"
+      echo -e " - ${RED}${missing_cmd}${NC}"
     done
     printf "${YELLOW}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
     exit 1
   fi
-  printf "All dependencies found.\n" # 
+  printf "All dependencies for ${function_name} found.\n"
 }
-
-# Dependency check for help function 
-check_help_dependencies() {
-  local missing_commands=()
-
-  local commands_to_check=(
-    "printf"
-    "exit"
-  )
-
-  printf "Checking dependencies...\n" 
-  for cmd in "${commands_to_check[@]}"; do
-    if ! command -v "$cmd" &>/dev/null; then
-      missing_commands+=("$cmd")
-      printf "  - Missing: %s\n" "$cmd" 
-    else
-      printf "  - Found: %s\n" "$cmd" 
-    fi
-  done
-
-  if [ ${#missing_commands[@]} -gt 0 ]; then
-    printf "${YELLOW}Error: The following required commands are missing:${NC}\n"
-    for missing_cmd in "${missing_commands[@]}"; do
-      echo -e " - " "${RED}${missing_cmd}${NC} \n"
-    done
-    printf "${YELLOW}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
-    exit 1
-  fi
-  printf "All dependencies found.\n" # 
-}
-
-# Dependency check for ntpcheck function 
-check_ntpcheck_dependencies() {
-  local missing_commands=()
-
-  local commands_to_check=(
-    "timedatectl"
-    "head"
-    "tail"
-    "awk"
-    "systemctl"
-    "printf"
-    "chronyc"
-    "ping"
-    "exit"
-  )
-
-  printf "Checking dependencies...\n" 
-  for cmd in "${commands_to_check[@]}"; do
-    if ! command -v "$cmd" &>/dev/null; then
-      missing_commands+=("$cmd")
-      printf "  - Missing: %s\n" "$cmd" 
-    else
-      printf "  - Found: %s\n" "$cmd" 
-    fi
-  done
-
-  if [ ${#missing_commands[@]} -gt 0 ]; then
-    printf "${YELLOW}Error: The following required commands are missing:${NC}\n"
-    for missing_cmd in "${missing_commands[@]}"; do
-      echo -e " - " "${RED}${missing_cmd}${NC} \n"
-    done
-    printf "${YELLOW}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
-    exit 1
-  fi
-  printf "All dependencies found.\n" # 
-}
-
-# Dependency check for smtpcheck function 
-check_smtpcheck_dependencies() {
-  local missing_commands=()
-
-  local commands_to_check=(
-     "printf"
-     "echo"
-     "postconf"
-     "systemctl"
-     "awk"
-     "sed"
-     "ping"
-     "timeout"
-     "nc"
-  )
-  
-  printf "Checking dependencies...\n" 
-  for cmd in "${commands_to_check[@]}"; do
-    if ! command -v "$cmd" &>/dev/null; then
-      missing_commands+=("$cmd")
-      printf "  - Missing: %s\n" "$cmd" 
-    else
-      printf "  - Found: %s\n" "$cmd" 
-    fi
-  done
-
-  if [ ${#missing_commands[@]} -gt 0 ]; then
-    printf "${YELLOW}Error: The following required commands are missing:${NC}\n"
-    for missing_cmd in "${missing_commands[@]}"; do
-      echo -e " - " "${RED}${missing_cmd}${NC} \n"
-    done
-    printf "${YELLOW}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
-    exit 1
-  fi
-  printf "All dependencies found.\n" # 
-}
-
-
-# Dependency check for test email function 
-check_testemail_dependencies() {
-  local missing_commands=()
-
-  local commands_to_check=(
-     "cat"
-     "grep"
-     "awk"
-     "sed"
-     "cp"
-     "echo"
-     "read"
-     "mail"
-     "sleep"
-     "tail"
-     "printf"
-  )
-  
-  printf "Checking dependencies...\n" 
-  for cmd in "${commands_to_check[@]}"; do
-    if ! command -v "$cmd" &>/dev/null; then
-      missing_commands+=("$cmd")
-      printf "  - Missing: %s\n" "$cmd" 
-    else
-      printf "  - Found: %s\n" "$cmd" 
-    fi
-  done
-
-  if [ ${#missing_commands[@]} -gt 0 ]; then
-    printf "${YELLOW}Error: The following required commands are missing:${NC}\n"
-    for missing_cmd in "${missing_commands[@]}"; do
-      echo -e " - " "${RED}${missing_cmd}${NC} \n"
-    done
-    printf "${YELLOW}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
-    exit 1
-  fi
-  printf "All dependencies found.\n" # 
-}
-
-# Dependency check for smpt config function 
-check_smtpconfig_dependencies() {
-  local missing_commands=()
-
-  local commands_to_check=(
-     "command"
-     "read"
-     "systemctl"
-     "postconf"
-     "printf"
-     "dnf"
-     "echo"
-     "postmap"
-  )
-  
-  printf "Checking dependencies...\n" 
-  for cmd in "${commands_to_check[@]}"; do
-    if ! command -v "$cmd" &>/dev/null; then
-      missing_commands+=("$cmd")
-      printf "  - Missing: %s\n" "$cmd" 
-    else
-      printf "  - Found: %s\n" "$cmd" 
-    fi
-  done
-
-  if [ ${#missing_commands[@]} -gt 0 ]; then
-    printf "${YELLOW}Error: The following required commands are missing:${NC}\n"
-    for missing_cmd in "${missing_commands[@]}"; do
-      echo -e " - " "${RED}${missing_cmd}${NC} \n"
-    done
-    printf "${YELLOW}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
-    exit 1
-  fi
-  printf "All dependencies found.\n" # 
-}
-
-# Dependency check for SASL SMTP config function 
-check_saslsmtpconfig_dependencies() {
-  local missing_commands=()
-
-  local commands_to_check=(
-     "command"
-     "read"
-     "dnf"
-     "systemctl"
-     "postconf"
-     "echo"
-     "postmap"
-     "chmod"
-     "exit"
-     "printf"
-  )
-  
-  printf "Checking dependencies...\n" 
-  for cmd in "${commands_to_check[@]}"; do
-    if ! command -v "$cmd" &>/dev/null; then
-      missing_commands+=("$cmd")
-      printf "  - Missing: %s\n" "$cmd" 
-    else
-      printf "  - Found: %s\n" "$cmd" 
-    fi
-  done
-
-  if [ ${#missing_commands[@]} -gt 0 ]; then
-    printf "${YELLOW}Error: The following required commands are missing:${NC}\n"
-    for missing_cmd in "${missing_commands[@]}"; do
-      echo -e " - " "${RED}${missing_cmd}${NC} \n"
-    done
-    printf "${YELLOW}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
-    exit 1
-  fi
-  printf "All dependencies found.\n" # 
-}
-
-# Dependency check for SASL remove config function 
-check_saslremove_dependencies() {
-  local missing_commands=()
-
-  local commands_to_check=(
-     "printf"
-     "postconf"
-     "postmap"
-     "rm"
-     "systemctl"
-  )
-  
-  printf "Checking dependencies...\n" 
-  for cmd in "${commands_to_check[@]}"; do
-    if ! command -v "$cmd" &>/dev/null; then
-      missing_commands+=("$cmd")
-      printf "  - Missing: %s\n" "$cmd" 
-    else
-      printf "  - Found: %s\n" "$cmd" 
-    fi
-  done
-
-  if [ ${#missing_commands[@]} -gt 0 ]; then
-    printf "${YELLOW}Error: The following required commands are missing:${NC}\n"
-    for missing_cmd in "${missing_commands[@]}"; do
-      echo -e " - " "${RED}${missing_cmd}${NC} \n"
-    done
-    printf "${YELLOW}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
-    exit 1
-  fi
-  printf "All dependencies found.\n" # 
-}
-
-
 
 print_version() {
-  check_ver_dependencies
+  check_dependencies "print_version" "printf" "exit"
   printf "\n${CYAN}          ################${NC}\n"
   printf "${CYAN}          ## Ver: 1.1.0 ##${NC}\n"
   printf "${CYAN}          ################${NC}\n"
   printf "${CYAN}=====================================${NC}\n"
   printf "${CYAN} __   __   ____     _____    ______  ${NC}\n"
-  printf "${CYAN}|  \_/  | |  _  \  |  __ \  |__   /  ${NC}\n"
-  printf "${CYAN}| |\_/| | | |_) |  | |__) |   /  /   ${NC}\n"
+  printf "${CYAN}|  \\_/  | |  _  \\  |  __ \\  |__   /  ${NC}\n"
+  printf "${CYAN}| |\\_/| | | |_) |  | |__) |   /  /   ${NC}\n"
   printf "${CYAN}| |   | | |  _ <   |  __ /   /  /_   ${NC}\n"
-  printf "${CYAN}|_|   |_| |_| \_\  |_|      /_____|    ${NC}"
+  printf "${CYAN}|_|   |_| |_| \\_\\  |_|      /_____|    ${NC}"
   printf "${CYAN}                               ${NC}\n"
   printf "${CYAN}            m r p z . s h          ${NC}\n"
   printf "${CYAN}=====================================${NC}\n"
@@ -330,24 +76,24 @@ print_version() {
   printf "${MAGENTA} 1.0.7 | 05/15/2025 | - SMTP SASL config function was built ${NC}\n"
   printf "${MAGENTA} 1.0.8 | 05/16/2025 | - SMTP SASL config remove function was built ${NC}\n"
   printf "${MAGENTA} 1.0.9 | 06/10/2025 | - Check for root access before allowing script to run was built ${NC}\n"
-  printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Check for commands before running script to make sure neccesary script dependencies are installed was built ${NC}\n"
+  printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Check for commands before running script to make sure necessary script dependencies are installed was built ${NC}\n"
   printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Adjusted dependency function to be function specific to make more compatible with various systems ${NC}\n"
   exit 0
 }
 
 print_help() {
-  check_help_dependencies
+  check_dependencies "print_help" "printf" "exit"
   printf "\n${MAGENTA}Basic syntax:${NC}\n"
   printf "${YELLOW}bash mrpz.sh <OPTION>${NC}\n"
   printf "\n${MAGENTA}mrpz.sh Based Options:${NC}\n"
-  printf "${YELLOW}--help${NC}# Gives script overview information\n\n"
-  printf "${YELLOW}--ver${NC}# Gives script versioning related information\n\n"
+  printf "${YELLOW}--help${NC}         # Gives script overview information\n\n"
+  printf "${YELLOW}--ver${NC}          # Gives script versioning related information\n\n"
   printf "\n${MAGENTA}NTP Based Options:${NC}\n"
-  printf "${YELLOW}--ntpcheck${NC}# Gives you system NTP related information\n\n"
+  printf "${YELLOW}--ntpcheck${NC}     # Gives you system NTP related information\n\n"
   printf "\n${MAGENTA}SMTP Based Options:${NC}\n"
-  printf "${YELLOW}--smtpcheck${NC}# Gives you system SMTP related information\n\n"
-  printf "${YELLOW}--smtptest${NC}# Allows you to send a test email and retrieve the status from the mail log\n\n"
-  printf "${YELLOW}--smtpconfig${NC}# Allows you to setup and configure a non-SASL relayhost in postfix\n\n"
+  printf "${YELLOW}--smtpcheck${NC}    # Gives you system SMTP related information\n\n"
+  printf "${YELLOW}--smtptest${NC}     # Allows you to send a test email and retrieve the status from the mail log\n\n"
+  printf "${YELLOW}--smtpconfig${NC}   # Allows you to setup and configure a non-SASL relayhost in postfix\n\n"
   printf "${YELLOW}--smtpsaslconfig${NC}# Allows you to setup and configure a SASL relayhost in postfix\n\n"
   printf "${YELLOW}--smtpsaslremove${NC}# Allows you to remove a SASL relayhost and configuration in postfix\n\n"
   printf "\n"
@@ -355,7 +101,7 @@ print_help() {
 }
 
 print_ntpcheck() {
-  check_ntpcheck_dependencies
+  check_dependencies "print_ntpcheck" "timedatectl" "head" "tail" "awk" "systemctl" "printf" "chronyc" "ping" "exit"
   ntpsync=$(timedatectl | head -5 | tail -1 | awk '{ print $NF }')
   ntppersistence=$(systemctl status chronyd | grep -i enabled | awk ' { print $4 } ')
   ntpstatus=$(systemctl status chronyd | grep running | awk '{print $3}')
@@ -410,7 +156,7 @@ print_ntpcheck() {
 
 
 print_smtpcheck() {
-   check_smtpcheck_dependencies
+   check_dependencies "print_smtpcheck" "printf" "echo" "postconf" "systemctl" "awk" "sed" "ping" "timeout" "nc"
    printf "\n${MAGENTA}SMTP Status${NC}\n"
    printf "${MAGENTA}===========${NC}\n"
 
@@ -497,7 +243,7 @@ print_smtpcheck() {
 }
 
 print_testemail() {
-    check_testemail_dependencies
+    check_dependencies "print_testemail" "cat" "grep" "awk" "sed" "cp" "echo" "read" "mail" "sleep" "tail" "printf"
     maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
     tmpfile="/tmp/testsmtpfile.txt"
 
@@ -536,7 +282,7 @@ print_testemail() {
 }
 
 print_smtpconfig() {
-   check_smtpconfig_dependencies
+   check_dependencies "print_smtpconfig" "command" "read" "systemctl" "postconf" "printf" "dnf" "echo" "postmap"
    if command -v postfix &>/dev/null; then
         read -p "Enter Relay Host's IP Or FQDN: " relayhost
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
@@ -568,7 +314,7 @@ print_smtpconfig() {
 
 
 print_saslconfig() {
-    check_saslsmtpconfig_dependencies
+    check_dependencies "print_saslconfig" "command" "read" "dnf" "systemctl" "postconf" "echo" "postmap" "chmod" "exit" "printf"
     if command -v postfix &>/dev/null; then
         read -p "Enter Relay Host's IP Or FQDN: " relayhost
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
@@ -632,7 +378,7 @@ print_saslconfig() {
 }
 
 print_saslremove() {
-    check_saslremove_dependencies
+    check_dependencies "print_saslremove" "printf" "postconf" "postmap" "rm" "systemctl"
     printf "${MAGENTA}SASL Configuration Is Being Removed.....${NC}\n"
     postconf -e "smtp_use_tls = no"
     postconf -e "smtp_sasl_auth_enable = no"
