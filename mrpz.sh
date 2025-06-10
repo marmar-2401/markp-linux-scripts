@@ -29,7 +29,7 @@ check_dependencies() {
   local commands_to_check=("$@")
   local missing_commands=()
 
-  printf "Checking dependencies for ${function_name}...\n"
+  printf "Checking dependencies...\n"
   for cmd in "${commands_to_check[@]}"; do
     if ! command -v "$cmd" &>/dev/null; then
       missing_commands+=("$cmd")
