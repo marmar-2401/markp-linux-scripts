@@ -53,7 +53,7 @@ check_dependencies() {
 print_version() {
   check_dependencies "print_version" "printf" "exit"
   printf "\n${CYAN}          ################${NC}\n"
-  printf "${CYAN}          ## Ver: 1.1.0 ##${NC}\n"
+  printf "${CYAN}          ## Ver: 1.1.1 ##${NC}\n"
   printf "${CYAN}          ################${NC}\n"
   printf "${CYAN}=====================================${NC}\n"
   printf "${CYAN} __   __   ____     _____    ______  ${NC}\n"
@@ -64,6 +64,7 @@ print_version() {
   printf "${CYAN}                               ${NC}\n"
   printf "${CYAN}            m r p z . s h          ${NC}\n"
   printf "${CYAN}=====================================${NC}\n"
+  printf "${CYAN}\nAuthor: Mark Pierce-Zellfrow ${NC}\n"
   printf "${YELLOW}\n  Ver  |    Date   |                 Changes                                   ${NC}\n"
   printf "${YELLOW}===============================================================================${NC}\n"
   printf "${MAGENTA} 1.0.0 | 05/05/2025 | - Initial release colors were defined ${NC}\n"
@@ -78,6 +79,8 @@ print_version() {
   printf "${MAGENTA} 1.0.9 | 06/10/2025 | - Check for root access before allowing script to run was built ${NC}\n"
   printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Check for commands before running script to make sure necessary script dependencies are installed was built ${NC}\n"
   printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Adjusted dependency function to be function specific to make more compatible with various systems ${NC}\n"
+  printf "${MAGENTA} 1.1.1 | 06/12/2025 | - Adjusted root access check to be specific to the option selected and only used if needed ${NC}\n"
+  printf "${MAGENTA} 1.1.2 | 06/12/2025 | - Started to create OS check for Linux updates ${NC}\n"
   exit 0
 }
 
@@ -156,6 +159,7 @@ print_ntpcheck() {
 
 
 print_smtpcheck() {
+   check_root
    check_dependencies "print_smtpcheck" "printf" "echo" "postconf" "systemctl" "awk" "sed" "ping" "timeout" "nc"
    printf "\n${MAGENTA}SMTP Status${NC}\n"
    printf "${MAGENTA}===========${NC}\n"
@@ -243,6 +247,7 @@ print_smtpcheck() {
 }
 
 print_testemail() {
+    check_root
     check_dependencies "print_testemail" "cat" "grep" "awk" "sed" "cp" "echo" "read" "mail" "sleep" "tail" "printf"
     maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
     tmpfile="/tmp/testsmtpfile.txt"
@@ -282,6 +287,7 @@ print_testemail() {
 }
 
 print_smtpconfig() {
+   check_root
    check_dependencies "print_smtpconfig" "command" "read" "systemctl" "postconf" "printf" "dnf" "echo" "postmap"
    if command -v postfix &>/dev/null; then
         read -p "Enter Relay Host's IP Or FQDN: " relayhost
@@ -314,6 +320,7 @@ print_smtpconfig() {
 
 
 print_saslconfig() {
+    check_root
     check_dependencies "print_saslconfig" "command" "read" "dnf" "systemctl" "postconf" "echo" "postmap" "chmod" "exit" "printf"
     if command -v postfix &>/dev/null; then
         read -p "Enter Relay Host's IP Or FQDN: " relayhost
@@ -378,6 +385,7 @@ print_saslconfig() {
 }
 
 print_saslremove() {
+    check_root
     check_dependencies "print_saslremove" "printf" "postconf" "postmap" "rm" "systemctl"
     printf "${MAGENTA}SASL Configuration Is Being Removed.....${NC}\n"
     postconf -e "smtp_use_tls = no"
@@ -402,6 +410,7 @@ case "$1" in
   --smtpconfig) print_smtpconfig ;;
   --smtpsaslconfig) print_saslconfig ;;
   --smtpsaslremove) print_saslremove ;;
+  --updatecheck) print_updatecheck  ;;
   *)
     printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
     printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
