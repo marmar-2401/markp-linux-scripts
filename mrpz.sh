@@ -19,9 +19,6 @@ check_root() {
   fi
 }
 
-# Run check_root at the beginning of the script
-check_root
-
 # Function to check dependencies for a given command list
 check_dependencies() {
   local function_name=$1
@@ -53,7 +50,7 @@ check_dependencies() {
 print_version() {
   check_dependencies "print_version" "printf" "exit"
   printf "\n${CYAN}          ################${NC}\n"
-  printf "${CYAN}          ## Ver: 1.1.1 ##${NC}\n"
+  printf "${CYAN}          ## Ver: 1.1.2 ##${NC}\n"
   printf "${CYAN}          ################${NC}\n"
   printf "${CYAN}=====================================${NC}\n"
   printf "${CYAN} __   __   ____     _____    ______  ${NC}\n"
@@ -80,7 +77,6 @@ print_version() {
   printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Check for commands before running script to make sure necessary script dependencies are installed was built ${NC}\n"
   printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Adjusted dependency function to be function specific to make more compatible with various systems ${NC}\n"
   printf "${MAGENTA} 1.1.1 | 06/12/2025 | - Adjusted root access check to be specific to the option selected and only used if needed ${NC}\n"
-  printf "${MAGENTA} 1.1.2 | 06/12/2025 | - Started to create pre-os update check for Linux updates ${NC}\n"
   printf "${MAGENTA} 1.1.2 | 06/16/2025 | - Created system info function ${NC}\n"
   exit 0
 }
@@ -403,6 +399,13 @@ print_saslremove() {
     printf "${GREEN}!!!SASL Configuration Has Been Removed!!!${NC}\n"
 }
 
+print_systeminfo() {
+    check_root
+    check_dependencies "print_saslremove" "printf" "postconf" "postmap" "rm" "systemctl"
+  
+    printf "${GREEN}!!!SASL Configuration Has Been Removed!!!${NC}\n"
+}
+
 #Switch Statement
 case "$1" in
   --ver) print_version ;;
@@ -412,8 +415,7 @@ case "$1" in
   --smtptest) print_testemail ;;
   --smtpconfig) print_smtpconfig ;;
   --smtpsaslconfig) print_saslconfig ;;
-  --smtpsaslremove) print_saslremove ;;
-  --preosupdatecheck) print_preupdatecheck ;; # This should be build after various functions are created 
+  --smtpsaslremove) print_saslremove ;; 
   --systeminfo) print_systeminfo ;;
   *)
     printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
