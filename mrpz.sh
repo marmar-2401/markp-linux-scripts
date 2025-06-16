@@ -80,7 +80,8 @@ print_version() {
   printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Check for commands before running script to make sure necessary script dependencies are installed was built ${NC}\n"
   printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Adjusted dependency function to be function specific to make more compatible with various systems ${NC}\n"
   printf "${MAGENTA} 1.1.1 | 06/12/2025 | - Adjusted root access check to be specific to the option selected and only used if needed ${NC}\n"
-  printf "${MAGENTA} 1.1.2 | 06/12/2025 | - Started to create OS check for Linux updates ${NC}\n"
+  printf "${MAGENTA} 1.1.2 | 06/12/2025 | - Started to create pre-os update check for Linux updates ${NC}\n"
+  printf "${MAGENTA} 1.1.2 | 06/16/2025 | - Created system info function ${NC}\n"
   exit 0
 }
 
@@ -99,6 +100,8 @@ print_help() {
   printf "${YELLOW}--smtpconfig${NC}		# Allows you to setup and configure a non-SASL relayhost in postfix\n\n"
   printf "${YELLOW}--smtpsaslconfig${NC}		# Allows you to setup and configure a SASL relayhost in postfix\n\n"
   printf "${YELLOW}--smtpsaslremove${NC}		# Allows you to remove a SASL relayhost and configuration in postfix\n\n"
+  printf "\n${MAGENTA}Linux Update Based Options:${NC}\n"
+  printf "${YELLOW}--preosupdatecheck${NC}		# Gives you important system information before a Linux update is performed\n\n"
   printf "\n"
   exit 0
 }
@@ -410,7 +413,8 @@ case "$1" in
   --smtpconfig) print_smtpconfig ;;
   --smtpsaslconfig) print_saslconfig ;;
   --smtpsaslremove) print_saslremove ;;
-  --updatecheck) print_updatecheck  ;;
+  --preosupdatecheck) print_preupdatecheck ;; # This should be build after various functions are created 
+  --systeminfo) print_systeminfo ;;
   *)
     printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
     printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
