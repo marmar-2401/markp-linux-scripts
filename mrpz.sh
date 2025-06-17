@@ -77,6 +77,7 @@ print_version() {
   printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Adjusted dependency function to be function specific to make more compatible with various systems ${NC}\n"
   printf "${MAGENTA} 1.1.1 | 06/12/2025 | - Adjusted root access check to be specific to the option selected and only used if needed ${NC}\n"
   printf "${MAGENTA} 1.1.2 | 06/16/2025 | - Created system info function ${NC}\n"
+  printf "${MAGENTA} 1.1.3 | 06/17/2025 | - Created javainfo function building out system checks ${NC}\n"
   exit 0
 }
 
@@ -99,6 +100,8 @@ print_help() {
   
   printf "\n${MAGENTA}General System Information Options:${NC}\n"
   printf "${YELLOW}--systeminfo${NC}		# Gives you a general system information overview\n\n"
+  printf "${YELLOW}--javainfo${NC}		# Gives you information in regards to java on the system\n\n"
+  
   printf "\n"
   exit 0
 }
@@ -400,6 +403,8 @@ print_saslremove() {
     printf "${GREEN}!!!SASL Configuration Has Been Removed!!!${NC}\n"
 }
 
+#### Below this line is are functions for oscheck
+
 print_systeminfo() {
     check_root
     check_dependencies "printf" "hostnamectl" "awk" "grep" "uname" "who"
@@ -411,19 +416,53 @@ print_systeminfo() {
     local lastbootdate=$(who -b | awk -F " " '{print $3}')
     local daysup=$(uptime | awk '{sub(/,$/, "", $4); print $3, $4}')
     
-    printf "${MAGENTA}|---------------|${NC}\n"
-    printf "${MAGENTA}|System Overview|${NC}\n"
-    printf "${MAGENTA}|---------------|${NC}\n"
+    printf "${CYAN}|---------------|${NC}\n"
+    printf "${CYAN}|System Overview|${NC}\n"
+    printf "${CYAN}|---------------|${NC}\n"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hostname" "${hostname}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "OS" "${os}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Virtualization" "${virt}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel" "${kern}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel Build Date" "${kerndate}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Last Reboot Date" "${lastbootdate}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "System Uptime" "${daysup}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "System Uptime" "${daysup}"  
 }
 
-#Switch Statement
+print_javainfo() {
+    check_root
+    check_dependencies "printf" "java" "awk" "grep" "uname" "rpm" "sort" "echo" "head: || return 1
+
+    local jreversion=$(java -version 2>&1 | head -n 1 | cut -d'"' -f 2)
+    local jdkversion=$(javac -version 2>&1 | awk '{print $2}')
+    local javajrever=$(java -version 2>&1 | grep "OpenJDK Runtime" | awk '{gsub(/\)$/, "", $5); print $5}')
+    
+    [[ -z "$jreversion" ]] && jreversion="Unavailable"
+    [[ -z "$jdkversion" ]] && jdkversion="Unavailable"
+    [[ -z "$javajrever" ]] && javajrever="Unavailable"
+
+    local jrerpms=$(rpm -qa | grep -E 'java-[0-9]+\.[0-9]+\.[0-9]+-openjdk' | grep -v 'devel' | sort || echo "None found")
+    local jdkrpms=$(rpm -qa | grep -E 'java-[0-9]+\.[0-9]+\.[0-9]+-openjdk-devel|jdk[0-9]+(\.x86_64)?' | sort || echo "None found")
+    local javarpmsum=$(rpm -qa | grep -i "java" | sort || echo "None found")
+
+    
+    printf "${CYAN}|---------------|${NC}\n"
+    printf "${CYAN}|   Java Info   |${NC}\n"
+    printf "${CYAN}|---------------|${NC}\n"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Java JDK Version" "${jdkversion}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Java JRE Version" "${jreversion}"
+
+    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of JDK Related RPMs:"
+    printf "${CYAN}%s${NC}\n" "${jdkrpms}"
+
+    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of JRE Related RPMs:"
+    printf "${CYAN}%s${NC}\n" "${jrerpms}"
+
+    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of All Java Related RPMs:"
+    printf "${CYAN}%s${NC}\n" "${javarpmsum}"
+}
+
+
+#Switch Statements For Script Options 
 case "$1" in
   --ver) print_version ;;
   --help) print_help ;;
@@ -434,6 +473,7 @@ case "$1" in
   --smtpsaslconfig) print_saslconfig ;;
   --smtpsaslremove) print_saslremove ;; 
   --systeminfo) print_systeminfo ;;
+  --javainfo) print_javainfo ;;
   *)
     printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
     printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
