@@ -489,46 +489,47 @@ print_meminfo() {
     local usedswap_kb=$(free -k | head -3 | tail -1 | awk '{print $3}')
     local memprocesses=$(ps -eo pid,user,%cpu,%mem,cmd --sort=-%cpu | head -n 6)
 
-    local memusepercent="N/A" 
+    local memusepercent="N/A"
     if (( totalmem_kb > 0 )); then
         local memusepercent=$(awk "BEGIN {printf \"%.0f\", ($usedmem_kb / $totalmem_kb) * 100}" < /dev/null)
     fi
-    
-    local swapusepercent="N/A" 
+
+    local swapusepercent="N/A"
     if (( totalswap_kb > 0 )); then
         local swapusepercent=$(awk "BEGIN {printf \"%.0f\", ($usedswap_kb / $totalswap_kb) * 100}" < /dev/null)
     fi
 
-    local read si so < <(vmstat 1 2 | tail -1 | awk '{print $7, $8}')
-        
+    local si so
+    read si so < <(vmstat 1 2 | tail -n 1 | awk '{print $7, $8}')
+
     printf "${CYAN}|---------------|${NC}\n"
-    printf "${CYAN}|  Memory Info  |${NC}\n" 
+    printf "${CYAN}|  Memory Info  |${NC}\n"
     printf "${CYAN}|---------------|${NC}\n"
     printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Total Memory" "${totalmem_h}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Total Swap Space" "${totalswap_h}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Memory Usage" "${memusage_h}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Swap Usage" "${swapusage_h}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Memory Use Percentage" "${memusepercent}% Usage"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Swap Use Percentage" "${swapusepercent}% Usage"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Swap In" "${si}KB/s"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Swap Out" "${so}KB/s"
-    if (( $memusepercent > 80 )); then
-    	printf "\n${MAGENTA}%-20s:${NC}${RED}%s${NC}\n" "Memory Status" "Memory Usage Is High"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s%% Usage${NC}\n" "Memory Use Percentage" "${memusepercent}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s%% Usage${NC}\n" "Swap Use Percentage" "${swapusepercent}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%sKB/s${NC}\n" "Swap In" "${si}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%sKB/s${NC}\n" "Swap Out" "${so}"
+    if (( memusepercent > 80 )); then
+        printf "\n${MAGENTA}%-20s:${NC}${RED}%s${NC}\n" "Memory Status" "Memory Usage Is High"
     else
-	printf "\n${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Memory Status" "Memory Usage Is Normal"
+        printf "\n${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Memory Status" "Memory Usage Is Normal"
     fi
-    if (( $swapusepercent > 15 )); then
-    	printf "\n${MAGENTA}%-20s:${NC}${RED}%s${NC}\n" "Swap Status" "Memory Usage Is High"
+    if (( swapusepercent > 15 )); then
+        printf "${MAGENTA}%-20s:${NC}${RED}%s${NC}\n" "Swap Status" "Swap Usage Is High"
     else
-	printf "\n${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Swap Status" "Memory Usage Is Normal"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Swap Status" "Swap Usage Is Normal"
     fi
-    if (( $si > 1 || $so >1 )); then
-    	printf "\n${MAGENTA}%-20s:${NC}${RED}%s${NC}\n" "Is The System Actively Swapping?" "Yes"
+    if (( si > 1 || so > 1 )); then
+        printf "${MAGENTA}%-20s:${NC}${RED}%s${NC}\n" "Is The System Actively Swapping?" "Yes"
     else
-	printf "\n${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Is The System Actively Swapping?" "No"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Is The System Actively Swapping?" "No"
     fi
     printf "${MAGENTA}%-20s:${NC}\n" "Top 5 Memory Consuming Processes"
-    printf "${CYAN}${memprocesses}${NC}\n"  
+    printf "${CYAN}%s${NC}\n" "${memprocesses}"
 }
 
 #Switch Statements For Script Options 
