@@ -100,6 +100,7 @@ print_help() {
   printf "${YELLOW}--systeminfo${NC}		# Gives you a general system information overview\n\n"
   printf "${YELLOW}--javainfo${NC}		# Gives you information in regards to java on the system\n\n"
   printf "${YELLOW}--meminfo${NC}		# Gives you information in regards to memory on the system\n\n"
+  printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
   printf "${YELLOW}--devconsolefix${NC}		# Checks and corrects the /dev/console rules on system\n\n"
   printf "\n"
   exit 0
