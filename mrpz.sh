@@ -448,16 +448,16 @@ print_javainfo() {
     printf "${CYAN}|---------------|${NC}\n"
     printf "${CYAN}|   Java Info   |${NC}\n"
     printf "${CYAN}|---------------|${NC}\n"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Java JDK Version" "${jdkversion}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Java JRE Version" "${jreversion}"
+    printf "${MAGENTA}%-10s:${NC}${CYAN}%s${NC}\n" "Java JDK Version" "${jdkversion}"
+    printf "${MAGENTA}%-10s:${NC}${CYAN}%s${NC}\n" "Java JRE Version" "${jreversion}"
 
-    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of JDK Related RPMs:"
+    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of JDK Related RPMs"
     printf "${CYAN}%s${NC}\n" "${jdkrpms}"
 
-    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of JRE Related RPMs:"
+    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of JRE Related RPMs"
     printf "${CYAN}%s${NC}\n" "${jrerpms}"
 
-    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of All Java Related RPMs:"
+    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of All Java Related RPMs"
     printf "${CYAN}%s${NC}\n" "${javarpmsum}"
 }
 
