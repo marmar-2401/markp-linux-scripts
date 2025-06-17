@@ -26,13 +26,12 @@ check_dependencies() {
   local commands_to_check=("$@")
   local missing_commands=()
 
-  printf "Checking dependencies...\n"
+  # Suppress initial "Checking dependencies..." and "Found" messages
   for cmd in "${commands_to_check[@]}"; do
     if ! command -v "$cmd" &>/dev/null; then
       missing_commands+=("$cmd")
+      # Only print if missing
       printf "  - Missing: %s\n" "$cmd"
-    else
-      printf "  - Found: %s\n" "$cmd"
     fi
   done
 
@@ -44,7 +43,7 @@ check_dependencies() {
     printf "${YELLOW}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
     exit 1
   fi
-  printf "All dependencies found.\n"
+  # Suppress "All dependencies found." message when no dependencies are missing
 }
 
 print_version() {
@@ -403,7 +402,7 @@ print_saslremove() {
 
 print_systeminfo() {
     check_root
-    check_dependencies "printf" "hostnamectl" "awk" "grep" "uname" "who" "java"
+    check_dependencies "printf" "hostnamectl" "awk" "grep" "uname" "who"
     local hostname=$(hostnamectl | grep -i hostname | awk '{print $3}')
     local os=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7, $8}')
     local virt=$(hostnamectl | grep -i virtualization | awk '{print $2}')
@@ -419,9 +418,7 @@ print_systeminfo() {
     printf "${MAGENTA}Kernel:${NC}${CYAN}${kern}${NC}\n"
     printf "${MAGENTA}Kernel Build Date:${NC}${CYAN}${kerndate}${NC}\n"
     printf "${MAGENTA}Last Reboot Date:${NC}${CYAN}${lastbootdate}${NC}\n"
-    printf "${MAGENTA}System Uptime:${NC}${CYAN}${daysup}${NC}\n"
-    printf "${MAGENTA}Java JDK Version:${NC}${CYAN}${javajdkver}${NC}\n"
-    printf "${MAGENTA}Java JRE Version:${NC}${CYAN}${javajrever}${NC}\n"    
+    printf "${MAGENTA}System Uptime:${NC}${CYAN}${daysup}${NC}\n"  
 }
 
 #Switch Statement
