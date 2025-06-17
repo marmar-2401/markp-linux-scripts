@@ -97,7 +97,9 @@ print_help() {
   printf "${YELLOW}--smtpsaslconfig${NC}		# Allows you to setup and configure a SASL relayhost in postfix\n\n"
   printf "${YELLOW}--smtpsaslremove${NC}		# Allows you to remove a SASL relayhost and configuration in postfix\n\n"
   printf "\n${MAGENTA}Linux Update Based Options:${NC}\n"
-  printf "${YELLOW}--preosupdatecheck${NC}		# Gives you important system information before a Linux update is performed\n\n"
+  
+  printf "\n${MAGENTA}General System Information Options:${NC}\n"
+  printf "${YELLOW}--systeminfo${NC}		# Gives you a general system information overview\n\n"
   printf "\n"
   exit 0
 }
@@ -401,9 +403,25 @@ print_saslremove() {
 
 print_systeminfo() {
     check_root
-    check_dependencies "print_saslremove" "printf" "postconf" "postmap" "rm" "systemctl"
-  
-    printf "${GREEN}!!!SASL Configuration Has Been Removed!!!${NC}\n"
+    check_dependencies "printf" "hostnamectl" "awk" "grep" "uname" "who" "java"
+    local hostname=$(hostnamectl | grep -i hostname | awk '{print $3}')
+    local os=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7, $8}')
+    local virt=$(hostnamectl | grep -i virtualization | awk '{print $2}')
+    local kern=$(hostnamectl | grep -i kernel | awk '{print $3}')
+    local kerndate=$(uname -a | awk -F " " '{print $7, $8, $11}')
+    local lastbootdate=$(who -b | awk -F " " '{print $3}')
+    local daysup=$(uptime | awk '{sub(/,$/, "", $4); print $3, $4}')
+    
+    printf "${MAGENTA}System Overview:${NC}\n"
+    printf "${MAGENTA}Hostname:${NC}${CYAN}${hostname}${NC}\n"
+    printf "${MAGENTA}OS:${NC}${CYAN}${os}${NC}\n"
+    printf "${MAGENTA}Virtualization:${NC}${CYAN}${virt}${NC}\n"
+    printf "${MAGENTA}Kernel:${NC}${CYAN}${kern}${NC}\n"
+    printf "${MAGENTA}Kernel Build Date:${NC}${CYAN}${kerndate}${NC}\n"
+    printf "${MAGENTA}Last Reboot Date:${NC}${CYAN}${lastbootdate}${NC}\n"
+    printf "${MAGENTA}System Uptime:${NC}${CYAN}${daysup}${NC}\n"
+    printf "${MAGENTA}Java JDK Version:${NC}${CYAN}${javajdkver}${NC}\n"
+    printf "${MAGENTA}Java JRE Version:${NC}${CYAN}${javajrever}${NC}\n"    
 }
 
 #Switch Statement
