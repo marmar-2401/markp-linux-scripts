@@ -430,34 +430,50 @@ print_systeminfo() {
 
 print_javainfo() {
     check_root
-    check_dependencies "printf" "java" "awk" "grep" "uname" "rpm" "sort" "echo" "head"
+    # Ensure all necessary commands are present. 'javac' is not strictly required if only JRE is present.
+    # We will handle 'javac' availability more gracefully below.
+    check_dependencies "print_javainfo" "printf" "java" "awk" "grep" "uname" "rpm" "sort" "echo" "head"
 
     local jreversion=$(java -version 2>&1 | head -n 1 | cut -d'"' -f 2)
-    local jdkversion=$(javac -version 2>&1 | awk '{print $2}')
     local javajrever=$(java -version 2>&1 | grep "OpenJDK Runtime" | awk '{gsub(/\)$/, "", $5); print $5}')
     
+    # Initialize jdkversion to "Unavailable" by default
+    local jdkversion="Unavailable"
+    if command -v javac &>/dev/null; then
+        # Only attempt to get javac version if javac command is found
+        local temp_jdkversion=$(javac -version 2>&1 | awk '{print $2}')
+        if [[ -n "$temp_jdkversion" ]]; then # Check if the output from awk is not empty
+            jdkversion="$temp_jdkversion"
+        fi
+    fi
+    
     [[ -z "$jreversion" ]] && jreversion="Unavailable"
-    [[ -z "$jdkversion" ]] && jdkversion="Unavailable"
     [[ -z "$javajrever" ]] && javajrever="Unavailable"
 
-    local jrerpms=$(rpm -qa | grep -E 'java-[0-9]+\.[0-9]+\.[0-9]+-openjdk' | grep -v 'devel' | sort || echo "None found")
-    local jdkrpms=$(rpm -qa | grep -E 'java-[0-9]+\.[0-9]+\.[0-9]+-openjdk-devel|jdk[0-9]+(\.x86_64)?' | sort || echo "None found")
-    local javarpmsum=$(rpm -qa | grep -i "java" | sort || echo "None found")
+    # For RPMs, ensure 'None found' is clearly output if no matches
+    local jrerpms=$(rpm -qa | grep -E 'java-[0-9]+\.[0-9]+\.[0-9]+-openjdk' | grep -v 'devel' | sort)
+    [[ -z "$jrerpms" ]] && jrerpms="None found"
 
+    local jdkrpms=$(rpm -qa | grep -E 'java-[0-9]+\.[0-9]+\.[0-9]+-openjdk-devel|jdk[0-9]+(\.x86_64)?' | sort)
+    [[ -z "$jdkrpms" ]] && jdkrpms="None found"
     
+    local javarpmsum=$(rpm -qa | grep -i "java" | sort)
+    [[ -z "$javarpmsum" ]] && javarpmsum="None found"
+
     printf "${CYAN}|---------------|${NC}\n"
     printf "${CYAN}|   Java Info   |${NC}\n"
     printf "${CYAN}|---------------|${NC}\n"
-    printf "${MAGENTA}%-10s:${NC}${CYAN}%s${NC}\n" "Java JDK Version" "${jdkversion}"
-    printf "${MAGENTA}%-10s:${NC}${CYAN}%s${NC}\n" "Java JRE Version" "${jreversion}"
+    # Adjusted format for better alignment, assuming "Unavailable" is shorter
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Java JDK Version" "${jdkversion}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Java JRE Version" "${jreversion}"
 
-    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of JDK Related RPMs"
+    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of JDK Related RPMs:"
     printf "${CYAN}%s${NC}\n" "${jdkrpms}"
 
-    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of JRE Related RPMs"
+    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of JRE Related RPMs:"
     printf "${CYAN}%s${NC}\n" "${jrerpms}"
 
-    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of All Java Related RPMs"
+    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of All Java Related RPMs:"
     printf "${CYAN}%s${NC}\n" "${javarpmsum}"
 }
 
