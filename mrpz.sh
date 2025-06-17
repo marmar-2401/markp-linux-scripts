@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-# Color Variables
 BLACK='\033[0;30m'
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11,7 +10,7 @@ CYAN='\033[0;36m'
 WHITE='\033[0;37m'
 NC='\033[0m' #No Color
 
-# Function to check if the script is run as root
+
 check_root() {
   if [ "$EUID" -ne 0 ]; then
     printf "${RED}Error: This script must be run as root.${NC}\n"
@@ -19,18 +18,15 @@ check_root() {
   fi
 }
 
-# Function to check dependencies for a given command list
 check_dependencies() {
   local function_name=$1
   shift
   local commands_to_check=("$@")
   local missing_commands=()
 
-  # Suppress initial "Checking dependencies..." and "Found" messages
   for cmd in "${commands_to_check[@]}"; do
     if ! command -v "$cmd" &>/dev/null; then
       missing_commands+=("$cmd")
-      # Only print if missing
       printf "  - Missing: %s\n" "$cmd"
     fi
   done
@@ -43,13 +39,13 @@ check_dependencies() {
     printf "${YELLOW}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
     exit 1
   fi
-  # Suppress "All dependencies found." message when no dependencies are missing
+  
 }
 
 print_version() {
   check_dependencies "print_version" "printf" "exit"
   printf "\n${CYAN}          ################${NC}\n"
-  printf "${CYAN}          ## Ver: 1.1.4 ##${NC}\n"
+  printf "${CYAN}          ## Ver: 1.1.5 ##${NC}\n"
   printf "${CYAN}          ################${NC}\n"
   printf "${CYAN}=====================================${NC}\n"
   printf "${CYAN} __   __   ____     _____    ______  ${NC}\n"
@@ -79,6 +75,7 @@ print_version() {
   printf "${MAGENTA} 1.1.2 | 06/16/2025 | - Created system info function ${NC}\n"
   printf "${MAGENTA} 1.1.3 | 06/17/2025 | - Created javainfo function building out system checks ${NC}\n"
   printf "${MAGENTA} 1.1.4 | 06/17/2025 | - Created meminfo function building out system checks ${NC}\n"
+  printf "${MAGENTA} 1.1.5 | 06/17/2025 | - Created devconsolefix function building out system checks ${NC}\n"
   exit 0
 }
 
@@ -102,8 +99,8 @@ print_help() {
   printf "\n${MAGENTA}General System Information Options:${NC}\n"
   printf "${YELLOW}--systeminfo${NC}		# Gives you a general system information overview\n\n"
   printf "${YELLOW}--javainfo${NC}		# Gives you information in regards to java on the system\n\n"
-  printf "${YELLOW}--meminfo${NC}		# Gives you information in regards to java on the system\n\n"
-  
+  printf "${YELLOW}--meminfo${NC}		# Gives you information in regards to memory on the system\n\n"
+  printf "${YELLOW}--devconsolefix${NC}		# Gives you information in regards to /dev/console rules on the and corrects them on system\n\n"
   printf "\n"
   exit 0
 }
@@ -417,6 +414,7 @@ print_systeminfo() {
     local kerndate=$(uname -a | awk -F " " '{print $7, $8, $11}')
     local lastbootdate=$(who -b | awk -F " " '{print $3}')
     local daysup=$(uptime | awk '{sub(/,$/, "", $4); print $3, $4}')
+    local updatetime=$(dnf history | grep -i update | head -1 | awk -F '|' '{print $3}')
     
     printf "${CYAN}|---------------|${NC}\n"
     printf "${CYAN}|System Overview|${NC}\n"
@@ -427,7 +425,8 @@ print_systeminfo() {
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel" "${kern}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel Build Date" "${kerndate}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Last Reboot Date" "${lastbootdate}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "System Uptime" "${daysup}"  
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "System Uptime" "${daysup}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Last Update Date & Time" "${updatetime}"  
 }
 
 print_javainfo() {
@@ -532,6 +531,33 @@ print_meminfo() {
     printf "${CYAN}%s${NC}\n" "${memprocesses}"
 }
 
+print_devconsolefix() {
+    check_root
+    check_dependencies "printf" "hostnamectl" "awk" "grep" "uname" "who"
+    local $RULE_FILE="/etc/udev/rules.d/50-console.rules"
+    local $RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"'
+    local $DEVICE="/dev/console"
+    local $PERM="622"
+    
+    printf "${CYAN}|----------------|${NC}\n"
+    printf "${CYAN}|/dev/console Fix|${NC}\n"
+    printf "${CYAN}|----------------|${NC}\n"
+    if [ ! -f "$RULE_FILE" ] || ! grep -Fxq "$RULE_CONTENT" "$RULE_FILE"; then
+    	printf "${GREEN}Creating/Updating $RULE_FILE with correct rule...${NC}"
+    	echo "$RULE_CONTENT" > "$RULE_FILE"
+    else
+	printf "${GREEN}$RULE_FILE already contains the correct rule.${NC}"
+    fi
+    current_perm=$(stat -c "%a" "$DEVICE")
+
+    if [ "$current_perm" != "$PERM" ]; then
+    	printf "${GREEN}Setting permissions of $DEVICE to $PERM"
+    	chmod "$PERM" "$DEVICE"
+    else
+    	printf "${GREEN}Permissions of $DEVICE are already correct: $current_perm ${NC}"
+    fi
+}
+
 #Switch Statements For Script Options 
 case "$1" in
   --ver) print_version ;;
@@ -545,6 +571,7 @@ case "$1" in
   --systeminfo) print_systeminfo ;;
   --javainfo) print_javainfo ;;
   --meminfo) print_meminfo ;;
+  --devconsolefix) print_devconsolefix ;;
   *)
     printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
     printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
