@@ -430,7 +430,7 @@ print_systeminfo() {
 
 print_javainfo() {
     check_root
-    check_dependencies "printf" "java" "awk" "grep" "uname" "rpm" "sort" "echo" "head: || return 1
+    check_dependencies "printf" "java" "awk" "grep" "uname" "rpm" "sort" "echo" "head"
 
     local jreversion=$(java -version 2>&1 | head -n 1 | cut -d'"' -f 2)
     local jdkversion=$(javac -version 2>&1 | awk '{print $2}')
