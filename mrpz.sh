@@ -461,7 +461,7 @@ print_javainfo() {
     printf "${CYAN}|---------------|${NC}\n\n"
 
     printf "${MAGENTA}%-10s:${NC}${CYAN}%s${NC}\n" "Java JDK Version" "${jdkversion}"
-    printf "${MAGENTA}%-10s:${NC}${CYAN}%s${NC}\n" "Java JRE Version" "${jreversion}"
+    printf "${MAGENTA}%-10s:${NC}${CYAN}%s${NC}\n" "Java JRE Version" "${jreversion}\n"
 
     printf "${MAGENTA}%-20s:${NC}\n" "Summary Of JDK Related RPMs"
     printf "${CYAN}${jdkrpms}${NC}\n"
