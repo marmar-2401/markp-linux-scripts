@@ -505,30 +505,30 @@ print_meminfo() {
     printf "${CYAN}|---------------|${NC}\n"
     printf "${CYAN}|  Memory Info  |${NC}\n"
     printf "${CYAN}|---------------|${NC}\n"
-    printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Total Memory" "${totalmem_h}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Total Swap Space" "${totalswap_h}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Memory Usage" "${memusage_h}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Swap Usage" "${swapusage_h}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s%% Usage${NC}\n" "Memory Use Percentage" "${memusepercent}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s%% Usage${NC}\n" "Swap Use Percentage" "${swapusepercent}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%sKB/s${NC}\n" "Swap In" "${si}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%sKB/s${NC}\n" "Swap Out" "${so}"
+    printf "\n${MAGENTA}%-25s:${NC}${CYAN}%s${NC}\n" "Total Memory" "${totalmem_h}"
+    printf "${MAGENTA}%-25s:${NC}${CYAN}%s${NC}\n" "Total Swap Space" "${totalswap_h}"
+    printf "${MAGENTA}%-25s:${NC}${CYAN}%s${NC}\n" "Memory Usage" "${memusage_h}"
+    printf "${MAGENTA}%-25s:${NC}${CYAN}%s${NC}\n" "Swap Usage" "${swapusage_h}"
+    printf "${MAGENTA}%-25s:${NC}${CYAN}%s%% Usage${NC}\n" "Memory Use Percentage" "${memusepercent}"
+    printf "${MAGENTA}%-25s:${NC}${CYAN}%s%% Usage${NC}\n" "Swap Use Percentage" "${swapusepercent}"
+    printf "${MAGENTA}%-25s:${NC}${CYAN}%sKB/s${NC}\n" "Swap In" "${si}"
+    printf "${MAGENTA}%-25s:${NC}${CYAN}%sKB/s${NC}\n" "Swap Out" "${so}"
     if (( memusepercent > 80 )); then
-        printf "\n${MAGENTA}%-20s:${NC}${RED}%s${NC}\n" "Memory Status" "Memory Usage Is High"
+        printf "\n${MAGENTA}%-25s:${NC}${RED}%s${NC}\n" "Memory Status" "Memory Usage Is High"
     else
-        printf "\n${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Memory Status" "Memory Usage Is Normal"
+        printf "\n${MAGENTA}%-25s:${NC}${GREEN}%s${NC}\n" "Memory Status" "Memory Usage Is Normal"
     fi
     if (( swapusepercent > 15 )); then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s${NC}\n" "Swap Status" "Swap Usage Is High"
+        printf "${MAGENTA}%-25s:${NC}${RED}%s${NC}\n" "Swap Status" "Swap Usage Is High"
     else
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Swap Status" "Swap Usage Is Normal"
+        printf "${MAGENTA}%-25s:${NC}${GREEN}%s${NC}\n" "Swap Status" "Swap Usage Is Normal"
     fi
     if (( si > 1 || so > 1 )); then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s${NC}\n" "Is The System Actively Swapping?" "Yes"
+        printf "${MAGENTA}%-25s:${NC}${RED}%s${NC}\n" "Is The System Actively Swapping?" "Yes"
     else
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Is The System Actively Swapping?" "No"
+        printf "${MAGENTA}%-25s:${NC}${GREEN}%s${NC}\n" "Is The System Actively Swapping?" "No"
     fi
-    printf "${MAGENTA}%-20s:${NC}\n" "Top 5 Memory Consuming Processes"
+    printf "${MAGENTA}%-25s:${NC}\n" "Top 5 Memory Consuming Processes"
     printf "${CYAN}%s${NC}\n" "${memprocesses}"
 }
 
