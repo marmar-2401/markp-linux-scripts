@@ -78,6 +78,7 @@ print_version() {
   printf "${MAGENTA} 1.1.1 | 06/12/2025 | - Adjusted root access check to be specific to the option selected and only used if needed ${NC}\n"
   printf "${MAGENTA} 1.1.2 | 06/16/2025 | - Created system info function ${NC}\n"
   printf "${MAGENTA} 1.1.3 | 06/17/2025 | - Created javainfo function building out system checks ${NC}\n"
+  printf "${MAGENTA} 1.1.4 | 06/17/2025 | - Created meminfo function building out system checks ${NC}\n"
   exit 0
 }
 
@@ -101,6 +102,7 @@ print_help() {
   printf "\n${MAGENTA}General System Information Options:${NC}\n"
   printf "${YELLOW}--systeminfo${NC}		# Gives you a general system information overview\n\n"
   printf "${YELLOW}--javainfo${NC}		# Gives you information in regards to java on the system\n\n"
+  printf "${YELLOW}--meminfo${NC}		# Gives you information in regards to java on the system\n\n"
   
   printf "\n"
   exit 0
@@ -473,6 +475,61 @@ print_javainfo() {
     printf "${CYAN}${javarpmsum}${NC}\n" 
 }
 
+print_meminfo() {
+    check_root
+    check_dependencies "printf" "free" "head" "awk" "tail" "ps" "vmstat"
+
+    local totalmem_h=$(free -h | head -2 | tail -1 | awk '{print $2}')
+    local totalswap_h=$(free -h | head -3 | tail -1 | awk '{print $2}')
+    local memusage_h=$(free -h | head -2 | tail -1 | awk '{print $3}')
+    local swapusage_h=$(free -h | head -3 | tail -1 | awk '{print $3}')
+    local totalmem_kb=$(free -k | head -2 | tail -1 | awk '{print $2}')
+    local usedmem_kb=$(free -k | head -2 | tail -1 | awk '{print $3}')
+    local totalswap_kb=$(free -k | head -3 | tail -1 | awk '{print $2}')
+    local usedswap_kb=$(free -k | head -3 | tail -1 | awk '{print $3}')
+    local memprocesses=$(ps -eo pid,user,%cpu,%mem,cmd --sort=-%cpu | head -n 6)
+
+    local memusepercent="N/A" 
+    if (( totalmem_kb > 0 )); then
+        local memusepercent=$(awk "BEGIN {printf \"%.0f\", ($usedmem_kb / $totalmem_kb) * 100}" < /dev/null)
+    fi
+    
+    local swapusepercent="N/A" 
+    if (( totalswap_kb > 0 )); then
+        local swapusepercent=$(awk "BEGIN {printf \"%.0f\", ($usedswap_kb / $totalswap_kb) * 100}" < /dev/null)
+    fi
+
+    local read si so < <(vmstat 1 2 | tail -1 | awk '{print $7, $8}')
+        
+    printf "${CYAN}|---------------|${NC}\n"
+    printf "${CYAN}|  Memory Info  |${NC}\n" 
+    printf "${CYAN}|---------------|${NC}\n"
+    printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Total Memory" "${totalmem_h}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Total Swap Space" "${totalswap_h}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Memory Usage" "${memusage_h}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Swap Usage" "${swapusage_h}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Memory Use Percentage" "${memusepercent}% Usage"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Swap Use Percentage" "${swapusepercent}% Usage"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Swap In" "${si}KB/s"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Swap Out" "${so}KB/s"
+    if (( $memusepercent > 80 )); then
+    	printf "\n${MAGENTA}%-20s:${NC}${RED}%s${NC}\n" "Memory Status" "Memory Usage Is High"
+    else
+	printf "\n${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Memory Status" "Memory Usage Is Normal"
+    fi
+    if (( $swapusepercent > 15 )); then
+    	printf "\n${MAGENTA}%-20s:${NC}${RED}%s${NC}\n" "Swap Status" "Memory Usage Is High"
+    else
+	printf "\n${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Swap Status" "Memory Usage Is Normal"
+    fi
+    if (( $si > 1 || $so >1 )); then
+    	printf "\n${MAGENTA}%-20s:${NC}${RED}%s${NC}\n" "Is The System Actively Swapping?" "Yes"
+    else
+	printf "\n${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Is The System Actively Swapping?" "No"
+    fi
+    printf "${MAGENTA}%-20s:${NC}\n" "Top 5 Memory Consuming Processes"
+    printf "${CYAN}${memprocesses}${NC}\n"  
+}
 
 #Switch Statements For Script Options 
 case "$1" in
@@ -486,6 +543,7 @@ case "$1" in
   --smtpsaslremove) print_saslremove ;; 
   --systeminfo) print_systeminfo ;;
   --javainfo) print_javainfo ;;
+  --meminfo) print_meminfo ;;
   *)
     printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
     printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
