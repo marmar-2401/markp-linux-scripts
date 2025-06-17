@@ -411,14 +411,16 @@ print_systeminfo() {
     local lastbootdate=$(who -b | awk -F " " '{print $3}')
     local daysup=$(uptime | awk '{sub(/,$/, "", $4); print $3, $4}')
     
-    printf "${MAGENTA}System Overview:${NC}\n"
-    printf "${MAGENTA}Hostname:${NC}${CYAN}${hostname}${NC}\n"
-    printf "${MAGENTA}OS:${NC}${CYAN}${os}${NC}\n"
-    printf "${MAGENTA}Virtualization:${NC}${CYAN}${virt}${NC}\n"
-    printf "${MAGENTA}Kernel:${NC}${CYAN}${kern}${NC}\n"
-    printf "${MAGENTA}Kernel Build Date:${NC}${CYAN}${kerndate}${NC}\n"
-    printf "${MAGENTA}Last Reboot Date:${NC}${CYAN}${lastbootdate}${NC}\n"
-    printf "${MAGENTA}System Uptime:${NC}${CYAN}${daysup}${NC}\n"  
+    printf "${MAGENTA}|---------------|${NC}\n"
+    printf "${MAGENTA}|System Overview|${NC}\n"
+    printf "${MAGENTA}|---------------|${NC}\n"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hostname" "${hostname}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "OS" "${os}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Virtualization" "${virt}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel" "${kern}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel Build Date" "${kerndate}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Last Reboot Date" "${lastbootdate}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "System Uptime" "${daysup}"
 }
 
 #Switch Statement
