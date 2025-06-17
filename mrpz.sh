@@ -100,7 +100,7 @@ print_help() {
   printf "${YELLOW}--systeminfo${NC}		# Gives you a general system information overview\n\n"
   printf "${YELLOW}--javainfo${NC}		# Gives you information in regards to java on the system\n\n"
   printf "${YELLOW}--meminfo${NC}		# Gives you information in regards to memory on the system\n\n"
-  printf "${YELLOW}--devconsolefix${NC}		# Gives you information in regards to /dev/console rules on the and corrects them on system\n\n"
+  printf "${YELLOW}--devconsolefix${NC}		# Checks and corrects the /dev/console rules on system\n\n"
   printf "\n"
   exit 0
 }
@@ -533,7 +533,7 @@ print_meminfo() {
 
 print_devconsolefix() {
     check_root
-    check_dependencies "printf" "hostnamectl" "awk" "grep" "uname" "who"
+    check_dependencies "printf" "echo" "grep" "stat" "chmod"
     local $RULE_FILE="/etc/udev/rules.d/50-console.rules"
     local $RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"'
     local $DEVICE="/dev/console"
