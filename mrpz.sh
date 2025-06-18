@@ -192,7 +192,7 @@ print_smtpcheck() {
      printf "Postfix Running Status: ${GREEN}Running${NC}\n"
     else
      printf "Postfix Running Status: ${RED}Not Running${NC}\n"
-   fi
+    fi
 
 
     if [ -n "${relayhost}" ]; then
@@ -309,9 +309,9 @@ print_smtpconfig() {
     systemctl restart postfix
     virtual_db="/etc/postfix/virtual.db"
 
-        if [ -r "${virtual_db}" ]; then
-          exit 0
-        else
+            if [ -r "${virtual_db}" ]; then
+            exit 0
+          else
           echo "@softcomputer.com          seauto@mail.softcomputer.com" >>/etc/postfix/virtual
           echo "@isd.dp.ua        seauto@mail.softcomputer.com" >>/etc/postfix/virtual
           echo "@softsystem.pl seauto@mail.softcomputer.com" >>/etc/postfix/virtual
@@ -357,11 +357,11 @@ print_saslconfig() {
     else
         read -p "Enter Relay Host's IP Or FQDN: " relayhost
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
-    read -p "Enter the authorized SASL sender: " saslsender
-    read -p "Enter the SASL password for the authorized SASL sender: " saslpassword
+        read -p "Enter the authorized SASL sender: " saslsender
+        read -p "Enter the SASL password for the authorized SASL sender: " saslpassword
         dnf install postfix -y &>/dev/null
-    dnf install cyrus-sasl-plain -y &>/dev/null
-    systemctl enable --now postfix &>/dev/null
+        dnf install cyrus-sasl-plain -y &>/dev/null
+        systemctl enable --now postfix &>/dev/null
         postconf -e "relayhost = [${relayhost}]:${port}"
         postconf -e "smtp_use_tls = yes"
         postconf -e "smtp_sasl_auth_enable = yes"
@@ -417,6 +417,8 @@ print_systeminfo() {
     local lastbootdate=$(who -b | awk -F " " '{print $3}')
     local daysup=$(uptime | awk '{sub(/,$/, "", $4); print $3, $4}')
     local updatetime=$(dnf history | grep -i update | head -1 | awk -F '|' '{print $3}')
+    termtype=$(echo $TERM)
+    shelltype=$(echo $SHELL)
 
     printf "${CYAN}|---------------|${NC}\n"
     printf "${CYAN}|System Overview|${NC}\n"
@@ -429,6 +431,8 @@ print_systeminfo() {
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Last Reboot Date" "${lastbootdate}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "System Uptime" "${daysup}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Last Update Date & Time" "${updatetime}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Terminal Type" "${termtype} (Run: '/usr/share/terminfo -type f | xargs -n1 basename | sort' for available options)"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Shell Type" "${shelltype} (Run: 'cat /etc/shells' for available options)"
 }
 
 print_javainfo() {
@@ -576,17 +580,23 @@ print_osupdatecheck() {
     read -r mempercent swappercent <<< "$(get_raw_mem_percentages)"
 
     if ((mempercent > 80)); then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s${NC} (Run 'bash mrpz.sh --meminfo' for more detailed information)${NC}\n" "Memory Usage" "!!BAD!!"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s${NC}${YELLOW}%s${NC}\n "Memory Usage" "!!BAD!!" "(Run 'bash mrpz.sh --meminfo' for more detailed information)"
     else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Memory Usage" "!!GOOD!!"
     fi
 
     if ((swappercent > 15)); then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s${NC} (Run 'bash mrpz.sh --meminfo' for more detailed information)${NC}\n" "Swap Usage" "!!BAD!!"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s${NC}${YELLOW}%s${NC}\n" "Swap Usage" "!!BAD!!" "(Run 'bash mrpz.sh --meminfo' for more detailed information)"
     else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Swap Usage" "!!GOOD!!"
     fi
-
+  
+    termtype=(echo $TERM)
+    if [[$TERM != vt220scc]]; then
+       printf "${MAGENTA}%-20s:${NC}${RED}%s${NC}${YELLOW}%s${NC}\n" "Term Of vt220scc"  "!!BAD!!" "(Run 'TERM=vt220scc' to correct term type)"
+    else
+       printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Term Of vt220scc" "!!GOOD!!"
+    fi
 }
 
 
