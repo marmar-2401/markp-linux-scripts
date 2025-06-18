@@ -592,7 +592,7 @@ print_osupdatecheck() {
     fi
   
     termtype=(echo $TERM)
-    if [[$TERM != vt220scc]]; then
+    if [[$termtype != vt220scc]]; then
        printf "${MAGENTA}%-20s:${NC}${RED}%s${NC}${YELLOW}%s${NC}\n" "Term Of vt220scc"  "!!BAD!!" "(Run 'TERM=vt220scc' to correct term type)"
     else
        printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Term Of vt220scc" "!!GOOD!!"
