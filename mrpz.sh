@@ -49,7 +49,7 @@ print_version() {
   printf "${CYAN}           ################${NC}\n"
   printf "${CYAN}=====================================${NC}\n"
   printf "${CYAN} __   __   ____     _____    _____ ${NC}\n"
-  printf "${CYAN}| \_/ | | |  _ \   |  __ \  |__  /     ${NC}\n"
+  printf "${CYAN}|  \_/  | |  _ \   |  __ \  |__  /     ${NC}\n"
   printf "${CYAN}| |\_/| | | |_) |  | |__) |   / /   ${NC}\n"
   printf "${CYAN}| |   | | |  _ <   |  __ /   / /__   ${NC}\n"
   printf "${CYAN}|_|   |_| |_| \_\  |_|      /_____|    ${NC}"
