@@ -412,8 +412,8 @@ print_systeminfo() {
     local hostname=$(hostnamectl | grep -i hostname | awk '{print $3}')
     local os=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7, $8}')
     local virt=$(hostnamectl | grep -i virtualization | awk '{print $2}')
-    local kern=$(hostnamectl | grep -i kernel | awk '{print $3}')
-    local kerndate=$(uname -a | awk -F " " '{print $7, $8, $11}')
+    local kern=$(uname -r)
+    local kerndate=$(uname -v)
     local lastbootdate=$(who -b | awk -F " " '{print $3}')
     local daysup=$(uptime | awk '{sub(/,$/, "", $4); print $3, $4}')
     local updatetime=$(dnf history | grep -i update | head -1 | awk -F '|' '{print $3}')
@@ -424,8 +424,8 @@ print_systeminfo() {
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hostname" "${hostname}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "OS" "${os}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Virtualization" "${virt}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel" "${kern}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel Build Date" "${kerndate}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Current Kernel" "${kern}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel Compile Date" "${kerndate}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Last Reboot Date" "${lastbootdate}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "System Uptime" "${daysup}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Last Update Date & Time" "${updatetime}"
@@ -450,12 +450,6 @@ print_javainfo() {
     [[ -z "$jreversion" ]] && jreversion="Unavailable"
     [[ -z "$javajrever" ]] && javajrever="Unavailable"
 
-    local jrerpms=$(rpm -qa | grep -E 'java-[0-9]+\.[0-9]+\.[0-9]+-openjdk' | grep -v 'devel' | sort)
-    [[ -z "$jrerpms" ]] && jrerpms="None Found"
-
-    local jdkrpms=$(rpm -qa | grep -E 'java-[0-9]+\.[0-9]+\.[0-9]+-openjdk-devel|jdk[0-9]+(\.x86_64)?' | sort)
-    [[ -z "$jdkrpms" ]] && jdkrpms="None Found"
-
     local javarpmsum=$(rpm -qa | grep -i "java" | sort)
     [[ -z "$javarpmsum" ]] && javarpmsum="None found"
 
@@ -465,13 +459,6 @@ print_javainfo() {
 
     printf "${MAGENTA}%-10s:${NC}${CYAN}%s${NC}\n" "Java JDK Version" "${jdkversion}"
     printf "${MAGENTA}%-10s:${NC}${CYAN}%s${NC}\n\n" "Java JRE Version" "${jreversion}"
-
-    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of JDK Related RPMs"
-    printf "${CYAN}%s${NC}\n" "${jdkrpms}"
-
-    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of JRE Related RPMs"
-    printf "${CYAN}%s${NC}\n" "${jrerpms}"
-
     printf "${MAGENTA}%-20s:${NC}\n" "Summary Of All Java Related RPMs"
     printf "${CYAN}%s${NC}\n" "${javarpmsum}"
 }
@@ -540,7 +527,7 @@ print_meminfo() {
     if (( si > 1 || so > 1 )); then
         printf "${MAGENTA}%-25s:${NC}${RED}%s${NC}\n" "Is The System Actively Swapping?" "Yes"
     else
-        printf "${MAGENTA}%-25s:${NC}${GREEN}%s${NC}\n" "Is The System Actively Swapping?" "No"
+        printf "${MAGENTA}%-25s:${NC}${GREEN}%s${NC}\n\n" "Is The System Actively Swapping?" "No"
     fi
     printf "${MAGENTA}%-25s:${NC}\n" "Top 5 Memory Consuming Processes"
     printf "${CYAN}%s${NC}\n" "${memprocesses}"
