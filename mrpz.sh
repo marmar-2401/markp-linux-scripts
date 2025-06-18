@@ -582,13 +582,13 @@ print_osupdatecheck() {
     if ((mempercent > 80)); then
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Memory Usage" "!!BAD!!" "(Run 'bash mrpz.sh --meminfo' for more detailed information)"
     else
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s-${NC}${YELLOW}%-10s${NC}\n" "Memory Usage" "!!GOOD!!" "$mempercent"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Memory Usage" "!!GOOD!!" "$mempercent"
     fi
 
     if ((swappercent > 15)); then
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Swap Usage" "!!BAD!!" "(Run 'bash mrpz.sh --meminfo' for more detailed information)"
     else
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s-${NC}${YELLOW}%-10s${NC}\n" "Swap Usage" "!!GOOD!!" "$swappercent"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Swap Usage" "!!GOOD!!" "$swappercent"
     fi
   
     termtype="$TERM"
@@ -596,7 +596,7 @@ print_osupdatecheck() {
     if [[ "$termtype" != "vt220scc" ]]; then
       printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Term Of vt220scc" "!!BAD!!" "(Run 'TERM=vt220scc' to correct term type)"
     else
-      printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}${YELLOW}%-10s${NC}\n" "Term Of vt220scc" "!!GOOD!!" "$termtype"
+      printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Term Of vt220scc" "!!GOOD!!" "$termtype"
     fi
 
 }
