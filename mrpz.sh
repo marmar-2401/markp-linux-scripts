@@ -594,7 +594,7 @@ print_osupdatecheck() {
     termtype="$TERM"
 
     if [[ "$termtype" != "vt220scc" ]]; then
-      printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Term Of vt220scc" "!!BAD!!" "$termtype(Run 'TERM=vt220scc' to correct term type)"
+      printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Term Of vt220scc" "!!BAD!!" "$termtype (Run 'TERM=vt220scc' to correct term type)"
     else
       printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Term Of vt220scc" "!!GOOD!!" "$termtype"
     fi
