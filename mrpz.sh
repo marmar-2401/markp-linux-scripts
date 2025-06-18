@@ -76,6 +76,7 @@ print_version() {
   printf "${MAGENTA} 1.1.3 | 06/17/2025 | - Created javainfo function building out system checks ${NC}\n"
   printf "${MAGENTA} 1.1.4 | 06/17/2025 | - Created meminfo function building out system checks ${NC}\n"
   printf "${MAGENTA} 1.1.5 | 06/17/2025 | - Created devconsolefix function building out system checks ${NC}\n"
+  printf "${MAGENTA} 1.1.6 | 06/17/2025 | - Begin OS update check for system ${NC}\n"
   exit 0
 }
 
@@ -95,7 +96,7 @@ print_help() {
   printf "${YELLOW}--smtpsaslconfig${NC}		# Allows you to setup and configure a SASL relayhost in postfix\n\n"
   printf "${YELLOW}--smtpsaslremove${NC}		# Allows you to remove a SASL relayhost and configuration in postfix\n\n"
   printf "\n${MAGENTA}Linux Update Based Options:${NC}\n"
-  
+  printf "${YELLOW}--osupdatecheck${NC}		# Gives you a general system information overview\n\n"
   printf "\n${MAGENTA}General System Information Options:${NC}\n"
   printf "${YELLOW}--systeminfo${NC}		# Gives you a general system information overview\n\n"
   printf "${YELLOW}--javainfo${NC}		# Gives you information in regards to java on the system\n\n"
@@ -559,6 +560,28 @@ print_devconsolefix() {
     fi
 }
 
+print_osupdatecheck() {
+    check_root
+    check_dependencies "printf" "grep" "awk" "hostnamectl"
+    local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4. $5. $6. $7}')
+
+    printf "${CYAN}|-----------------|${NC}\n"
+    printf "${CYAN}|      LINUX      |${NC}\n"
+    printf "${CYAN}|OS UPDATE Checker|${NC}\n"
+    printf "${CYAN}|-----------------|${NC}\n"
+    printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n\n" "Operating System" "${ostype}"
+    
+    mempercent=$(print_meminfo | grep "Memory Use" | awk '{print $4}' | sed 's/[:%]//g')
+    swappercent=$(bash mrpz.sh --meminfo | grep "Swap Use" | awk '{print $4}' | sed 's/[:%]//g')
+    if ((mempercent > 80)); then
+    	printf "\n${MAGENTA}%-20s:${NC}${RED}%s${NC}${YELLOW}%s${NC}\n\n" "Memory Usage" "!!BAD!!" "Run bash mrpz --meminfo for more detailed information"      
+    else 
+    	printf "\n${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n\n" "Memory Usage" "!!GOOD!!" 
+}
+
+
+
+
 #Switch Statements For Script Options 
 case "$1" in
   --ver) print_version ;;
@@ -573,6 +596,7 @@ case "$1" in
   --javainfo) print_javainfo ;;
   --meminfo) print_meminfo ;;
   --devconsolefix) print_devconsolefix ;;
+  --osupdatecheck) print_osupdatecheck ;;
   *)
     printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
     printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
