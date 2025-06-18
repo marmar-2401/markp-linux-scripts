@@ -591,12 +591,15 @@ print_osupdatecheck() {
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Swap Usage" "!!GOOD!!"
     fi
   
-    termtype=$(echo $TERM)
-    if [[$termtype != vt220scc]]; then
-       printf "${MAGENTA}%-20s:${NC}${RED}%s${NC}${YELLOW}%s${NC}\n" "Term Of vt220scc"  "!!BAD!!" "(Run 'TERM=vt220scc' to correct term type)"
+    termtype="$TERM"
+
+    if [[ "$termtype" != "vt220scc" ]]; then
+      printf "${MAGENTA}%-20s:${NC}${RED}%s${NC}${YELLOW}%s${NC}\n" \
+           "Term Of vt220scc" "!!BAD!!" "(Run 'TERM=vt220scc' to correct term type)"
     else
-       printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Term Of vt220scc" "!!GOOD!!"
+      printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Term Of vt220scc" "!!GOOD!!"
     fi
+
 }
 
 
