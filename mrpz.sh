@@ -45,7 +45,7 @@ check_dependencies() {
 print_version() {
   check_dependencies "print_version" "printf" "exit"
   printf "\n${CYAN}          ################${NC}\n"
-  printf "${CYAN}          ## Ver: 1.1.5 ##${NC}\n"
+  printf "${CYAN}          ## Ver: 1.1.6 ##${NC}\n"
   printf "${CYAN}          ################${NC}\n"
   printf "${CYAN}=====================================${NC}\n"
   printf "${CYAN} __   __   ____     _____    ______  ${NC}\n"
