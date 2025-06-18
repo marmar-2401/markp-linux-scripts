@@ -510,7 +510,6 @@ print_meminfo() {
     local usedswap_kb=$(free -k | head -3 | tail -1 | awk '{print $3}')
     local memprocesses=$(ps -eo pid,user,%cpu,%mem,cmd --sort=-%cpu | head -n 6)
 
-    # Use the helper function to get raw percentages
     local memusepercent swapusepercent
     read -r memusepercent swapusepercent <<< "$(get_raw_mem_percentages)"
 
@@ -576,19 +575,16 @@ print_devconsolefix() {
 
 print_osupdatecheck() {
     check_root
-    # Added free and vmstat as they are used by get_raw_mem_percentages
     check_dependencies "print_osupdatecheck" "printf" "grep" "awk" "hostnamectl" "free" "vmstat"
 
-    # Corrected awk for ostype - using commas instead of periods
     local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7}')
 
     printf "${CYAN}|-----------------|${NC}\n"
     printf "${CYAN}|     LINUX       |${NC}\n"
     printf "${CYAN}|OS UPDATE Checker|${NC}\n"
     printf "${CYAN}|-----------------|${NC}\n"
-    printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n\n" "Operating System" "${ostype}"
-
-    # Get raw percentages from the helper function
+    printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Operating System" "${ostype}"
+    
     local mempercent swappercent
     read -r mempercent swappercent <<< "$(get_raw_mem_percentages)"
 
@@ -598,20 +594,12 @@ print_osupdatecheck() {
         printf "\n${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Memory Usage" "!!GOOD!!"
     fi
 
-    # Check swap usage
-    if ((swappercent > 15)); then # Assuming 15% is the threshold for swap
+    if ((swappercent > 15)); then
         printf "${MAGENTA}%-20s:${NC}${RED}%s${NC} (Run 'bash mrpz.sh --meminfo' for more detailed information)${NC}\n" "Swap Usage" "!!BAD!!"
     else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Swap Usage" "!!GOOD!!"
     fi
 
-    # Add other OS update related checks here, e.g.:
-    # local updates_available=$(dnf check-update -q | wc -l)
-    # if ((updates_available > 0)); then
-    #    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s${NC}\n" "Pending Updates" "Yes (${updates_available} packages)"
-    # else
-    #    printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Pending Updates" "No"
-    # fi
 }
 
 
