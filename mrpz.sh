@@ -39,25 +39,25 @@ check_dependencies() {
     printf "${YELLOW}Please install them using dnf and try again. For example: sudo dnf install <package_name>${NC}\n"
     exit 1
   fi
-  
+
 }
 
 print_version() {
   check_dependencies "print_version" "printf" "exit"
-  printf "\n${CYAN}          ################${NC}\n"
-  printf "${CYAN}          ## Ver: 1.1.6 ##${NC}\n"
-  printf "${CYAN}          ################${NC}\n"
+  printf "\n${CYAN}           ################${NC}\n"
+  printf "${CYAN}           ## Ver: 1.1.6 ##${NC}\n"
+  printf "${CYAN}           ################${NC}\n"
   printf "${CYAN}=====================================${NC}\n"
-  printf "${CYAN} __   __   ____     _____    ______  ${NC}\n"
-  printf "${CYAN}|  \\_/  | |  _  \\  |  __ \\  |__   /  ${NC}\n"
-  printf "${CYAN}| |\\_/| | | |_) |  | |__) |   /  /   ${NC}\n"
-  printf "${CYAN}| |   | | |  _ <   |  __ /   /  /_   ${NC}\n"
-  printf "${CYAN}|_|   |_| |_| \\_\\  |_|      /_____|    ${NC}"
-  printf "${CYAN}                               ${NC}\n"
-  printf "${CYAN}            m r p z . s h          ${NC}\n"
+  printf "${CYAN} __   __  ____      _____   ______ ${NC}\n"
+  printf "${CYAN}| \_/ | | _ \  | __ \  |__   / ${NC}\n"
+  printf "${CYAN}| |\_/| | |_) |  | |__) |   / /   ${NC}\n"
+  printf "${CYAN}| |   | | | _ <   | __ /   / /_   ${NC}\n"
+  printf "${CYAN}|_|   |_| |_| \_\  |_|     /_____|    ${NC}"
+  printf "${CYAN}                                 ${NC}\n"
+  printf "${CYAN}          m r p z . s h          ${NC}\n"
   printf "${CYAN}=====================================${NC}\n"
   printf "${CYAN}\nAuthor: Mark Pierce-Zellfrow ${NC}\n"
-  printf "${YELLOW}\n  Ver  |    Date   |                 Changes                                   ${NC}\n"
+  printf "${YELLOW}\n  Ver  |    Date   |                         Changes                                ${NC}\n"
   printf "${YELLOW}===============================================================================${NC}\n"
   printf "${MAGENTA} 1.0.0 | 05/05/2025 | - Initial release colors were defined ${NC}\n"
   printf "${MAGENTA} 1.0.1 | 05/05/2025 | - Version function was built ${NC}\n"
@@ -85,24 +85,24 @@ print_help() {
   printf "\n${MAGENTA}Basic syntax:${NC}\n"
   printf "${YELLOW}bash mrpz.sh <OPTION>${NC}\n"
   printf "\n${MAGENTA}mrpz.sh Based Options:${NC}\n"
-  printf "${YELLOW}--help${NC}		# Gives script overview information\n\n"
-  printf "${YELLOW}--ver${NC}		# Gives script versioning related information\n\n"
+  printf "${YELLOW}--help${NC}        # Gives script overview information\n\n"
+  printf "${YELLOW}--ver${NC}         # Gives script versioning related information\n\n"
   printf "\n${MAGENTA}NTP Based Options:${NC}\n"
-  printf "${YELLOW}--ntpcheck${NC}		# Gives you system NTP related information\n\n"
+  printf "${YELLOW}--ntpcheck${NC}        # Gives you system NTP related information\n\n"
   printf "\n${MAGENTA}SMTP Based Options:${NC}\n"
-  printf "${YELLOW}--smtpcheck${NC}		# Gives you system SMTP related information\n\n"
-  printf "${YELLOW}--smtptest${NC}		# Allows you to send a test email and retrieve the status from the mail log\n\n"
-  printf "${YELLOW}--smtpconfig${NC}		# Allows you to setup and configure a non-SASL relayhost in postfix\n\n"
-  printf "${YELLOW}--smtpsaslconfig${NC}		# Allows you to setup and configure a SASL relayhost in postfix\n\n"
-  printf "${YELLOW}--smtpsaslremove${NC}		# Allows you to remove a SASL relayhost and configuration in postfix\n\n"
+  printf "${YELLOW}--smtpcheck${NC}       # Gives you system SMTP related information\n\n"
+  printf "${YELLOW}--smtptest${NC}        # Allows you to send a test email and retrieve the status from the mail log\n\n"
+  printf "${YELLOW}--smtpconfig${NC}        # Allows you to setup and configure a non-SASL relayhost in postfix\n\n"
+  printf "${YELLOW}--smtpsaslconfig${NC}        # Allows you to setup and configure a SASL relayhost in postfix\n\n"
+  printf "${YELLOW}--smtpsaslremove${NC}        # Allows you to remove a SASL relayhost and configuration in postfix\n\n"
   printf "\n${MAGENTA}Linux Update Based Options:${NC}\n"
-  printf "${YELLOW}--osupdatecheck${NC}		# Gives you a general system information overview\n\n"
+  printf "${YELLOW}--osupdatecheck${NC}       # Gives you a general system information overview\n\n"
   printf "\n${MAGENTA}General System Information Options:${NC}\n"
-  printf "${YELLOW}--systeminfo${NC}		# Gives you a general system information overview\n\n"
-  printf "${YELLOW}--javainfo${NC}		# Gives you information in regards to java on the system\n\n"
-  printf "${YELLOW}--meminfo${NC}		# Gives you information in regards to memory on the system\n\n"
+  printf "${YELLOW}--systeminfo${NC}        # Gives you a general system information overview\n\n"
+  printf "${YELLOW}--javainfo${NC}        # Gives you information in regards to java on the system\n\n"
+  printf "${YELLOW}--meminfo${NC}         # Gives you information in regards to memory on the system\n\n"
   printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
-  printf "${YELLOW}--devconsolefix${NC}		# Checks and corrects the /dev/console rules on system\n\n"
+  printf "${YELLOW}--devconsolefix${NC}       # Checks and corrects the /dev/console rules on system\n\n"
   printf "\n"
   exit 0
 }
@@ -153,9 +153,9 @@ print_ntpcheck() {
     printf "NTP source: ${YELLOW}${server} ${NC} \n"
     count=3
     if ping -c ${count} ${server} > /dev/null 2>&1; then
-       printf "${GREEN}!!!Server is Reachable!!! ${NC}\n"
+        printf "${GREEN}!!!Server is Reachable!!! ${NC}\n"
     else
-       printf "${RED}!!!Server is NOT Reachable!!! ${NC}\n"
+        printf "${RED}!!!Server is NOT Reachable!!! ${NC}\n"
     fi
     printf "${MAGENTA}============================================= ${NC} \n"
   done
@@ -163,89 +163,89 @@ print_ntpcheck() {
 
 
 print_smtpcheck() {
-   check_root
-   check_dependencies "print_smtpcheck" "printf" "echo" "postconf" "systemctl" "awk" "sed" "ping" "timeout" "nc"
-   printf "\n${MAGENTA}SMTP Status${NC}\n"
-   printf "${MAGENTA}===========${NC}\n"
+    check_root
+    check_dependencies "print_smtpcheck" "printf" "echo" "postconf" "systemctl" "awk" "sed" "ping" "timeout" "nc"
+    printf "\n${MAGENTA}SMTP Status${NC}\n"
+    printf "${MAGENTA}===========${NC}\n"
 
-   which postconf >> /dev/null
-   exitpostconf=$(echo $?)
-   smtppersistence=$(systemctl status postfix | grep -i enabled | awk '{ print $4 }')
-   relayhost=$(postconf relayhost | awk '{print $3}' | sed 's/\[\(.*\)\]:.*/\1/')
-   maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
-   sasl_passwd_db="/etc/postfix/sasl_passwd.db"
-   virtual_db="/etc/postfix/virtual.db"
+    which postconf >> /dev/null
+    exitpostconf=$(echo $?)
+    smtppersistence=$(systemctl status postfix | grep -i enabled | awk '{ print $4 }')
+    relayhost=$(postconf relayhost | awk '{print $3}' | sed 's/\[\(.*\)\]:.*/\1/')
+    maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
+    sasl_passwd_db="/etc/postfix/sasl_passwd.db"
+    virtual_db="/etc/postfix/virtual.db"
 
-   if [[ ${exitpostconf} == "0" ]]; then
+    if [[ ${exitpostconf} == "0" ]]; then
         printf "Postfix Installation Status: ${GREEN}Installed${NC}\n"
     else
         printf "Postfix Installation Status: ${RED}!!!Not Installed!!!${NC}\n"
    fi
 
-   if [[ ${smtppersistence} == "enabled;" ]]; then
+    if [[ ${smtppersistence} == "enabled;" ]]; then
         printf "Survives Reboot: ${GREEN}Yes${NC}\n"
     else
         printf "Survives Reboot: ${RED}No${NC}\n"
    fi
 
-   if systemctl is-active --quiet postfix; then
-   	 printf "Postfix Running Status: ${GREEN}Running${NC}\n"
-   	else
-   	 printf "Postfix Running Status: ${RED}Not Running${NC}\n"
+    if systemctl is-active --quiet postfix; then
+     printf "Postfix Running Status: ${GREEN}Running${NC}\n"
+    else
+     printf "Postfix Running Status: ${RED}Not Running${NC}\n"
    fi
 
 
-   if [ -n "${relayhost}" ]; then
-  	 printf "Configured Relayhost: ${GREEN}$relayhost${NC}\n"
-   	else
-   	 printf "Configured Relayhost: ${RED}There Is None${NC}\n"
+    if [ -n "${relayhost}" ]; then
+      printf "Configured Relayhost: ${GREEN}$relayhost${NC}\n"
+    else
+      printf "Configured Relayhost: ${RED}There Is None${NC}\n"
    fi
 
-   printf "Path To Configured Maillog: ${GREEN}$maildir${NC}\n"
+    printf "Path To Configured Maillog: ${GREEN}$maildir${NC}\n"
 
-   if [ -r "${sasl_passwd_db}" ]; then
-  	 printf "Configuration Type: ${GREEN}SASL Based Configuration${NC}\n"
-   	else
-  	 printf "Configured Type: ${GREEN}Non-SASL Based Configuration${NC}\n"
+    if [ -r "${sasl_passwd_db}" ]; then
+      printf "Configuration Type: ${GREEN}SASL Based Configuration${NC}\n"
+    else
+      printf "Configured Type: ${GREEN}Non-SASL Based Configuration${NC}\n"
    fi
 
-   if rpm -q cyrus-sasl-plain &>/dev/null; then
+    if rpm -q cyrus-sasl-plain &>/dev/null; then
         printf "cyrus-sasl-plain Package: ${GREEN}Installed${NC}\n"
-       else
+        else
         printf "cyrus-sasl-plain Package: ${RED}Not Installed${NC}\n"
    fi
 
-   if [ -r "${virtual_db}" ]; then
-         printf "Virtual Table: ${GREEN}Configured${NC}\n"
+    if [ -r "${virtual_db}" ]; then
+          printf "Virtual Table: ${GREEN}Configured${NC}\n"
         else
-         printf "Virtual Table: ${RED}Not Configured${NC}\n"
+          printf "Virtual Table: ${RED}Not Configured${NC}\n"
    fi
 
-   ping -c 3 ${relayhost} > /dev/null 2>&1
-   relayreach=$(echo $?)
+    ping -c 3 ${relayhost} > /dev/null 2>&1
+    relayreach=$(echo $?)
 
-   if [[ ${relayreach} == "0" ]]; then
-   	     printf "Is The Relayhost Online?: ${GREEN}Yes${NC}\n"
-   	 else
-   	     printf "Is The Relayhost Online?: ${RED}No${NC}\n"
+    if [[ ${relayreach} == "0" ]]; then
+          printf "Is The Relayhost Online?: ${GREEN}Yes${NC}\n"
+     else
+          printf "Is The Relayhost Online?: ${RED}No${NC}\n"
    fi
 
-   timeout 5 nc -zv -w 3 ${relayhost} 25 &>/dev/null
-   smtp25=$(echo $?)
+    timeout 5 nc -zv -w 3 ${relayhost} 25 &>/dev/null
+    smtp25=$(echo $?)
 
-   if [[ ${smtp25} == "0" ]]; then
-   	     printf "Is Relayhost Reachable On Port 25?: ${GREEN}Yes${NC}\n"
-  	  else
-   	     printf "Is Relayhost Reachable On Port 25?: ${RED}No${NC}\n"
+    if [[ ${smtp25} == "0" ]]; then
+          printf "Is Relayhost Reachable On Port 25?: ${GREEN}Yes${NC}\n"
+      else
+          printf "Is Relayhost Reachable On Port 25?: ${RED}No${NC}\n"
    fi
 
-   timeout 5 nc -zv -w 3 ${relayhost} 587 &>/dev/null
-   smtp587=$(echo $?)
+    timeout 5 nc -zv -w 3 ${relayhost} 587 &>/dev/null
+    smtp587=$(echo $?)
 
-   if [[ ${smtp587} == "0" ]]; then
-             printf "Is Relayhost Reachable On Port 587?: ${GREEN}Yes${NC}\n"
-   	 else
-   	     printf "Is Relayhost Reachable On Port 587?: ${RED}No${NC}\n"
+    if [[ ${smtp587} == "0" ]]; then
+            printf "Is Relayhost Reachable On Port 587?: ${GREEN}Yes${NC}\n"
+       else
+          printf "Is Relayhost Reachable On Port 587?: ${RED}No${NC}\n"
    fi
 
 }
@@ -291,35 +291,35 @@ print_testemail() {
 }
 
 print_smtpconfig() {
-   check_root
-   check_dependencies "print_smtpconfig" "command" "read" "systemctl" "postconf" "printf" "dnf" "echo" "postmap"
-   if command -v postfix &>/dev/null; then
+    check_root
+    check_dependencies "print_smtpconfig" "command" "read" "systemctl" "postconf" "printf" "dnf" "echo" "postmap"
+    if command -v postfix &>/dev/null; then
         read -p "Enter Relay Host's IP Or FQDN: " relayhost
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
         systemctl enable --now postfix &>/dev/null
-	postconf -e "relayhost = [${relayhost}]:${port}"
-	systemctl restart postfix
-	printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
-   else
+    postconf -e "relayhost = [${relayhost}]:${port}"
+    systemctl restart postfix
+    printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
+    else
         read -p "Enter Relay Host's IP Or FQDN: " relayhost
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
         dnf install postfix -y &>/dev/null
-	systemctl enable --now postfix &>/dev/null
-	postconf -e "relayhost = [${relayhost}]:${port}"
-	systemctl restart postfix
-	virtual_db="/etc/postfix/virtual.db"
+    systemctl enable --now postfix &>/dev/null
+    postconf -e "relayhost = [${relayhost}]:${port}"
+    systemctl restart postfix
+    virtual_db="/etc/postfix/virtual.db"
 
         if [ -r "${virtual_db}" ]; then
           exit 0
         else
-          echo "@softcomputer.com       seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-   	  echo "@isd.dp.ua     seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-   	  echo "@softsystem.pl seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+          echo "@softcomputer.com          seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+          echo "@isd.dp.ua        seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+          echo "@softsystem.pl seauto@mail.softcomputer.com" >>/etc/postfix/virtual
           postmap /etc/postfix/virtual
           systemctl restart postfix
         fi
-	printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
-   fi
+    printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
+    fi
 }
 
 
@@ -329,10 +329,10 @@ print_saslconfig() {
     if command -v postfix &>/dev/null; then
         read -p "Enter Relay Host's IP Or FQDN: " relayhost
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
-	read -p "Enter the authorized SASL sender: " saslsender
-	read -p "Enter the SASL password for the authorized SASL sender: " saslpassword
-	dnf install cyrus-sasl-plain -y &>/dev/null
-	systemctl enable --now postfix &>/dev/null
+    read -p "Enter the authorized SASL sender: " saslsender
+    read -p "Enter the SASL password for the authorized SASL sender: " saslpassword
+    dnf install cyrus-sasl-plain -y &>/dev/null
+    systemctl enable --now postfix &>/dev/null
         postconf -e "relayhost = [${relayhost}]:${port}"
         postconf -e "smtp_use_tls = yes"
         postconf -e "smtp_sasl_auth_enable = yes"
@@ -342,26 +342,26 @@ print_saslconfig() {
         postmap /etc/postfix/sasl_passwd
         chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
         systemctl restart postfix
-	virtual_db="/etc/postfix/virtual.db"
+    virtual_db="/etc/postfix/virtual.db"
 
         if [ -r "${virtual_db}" ]; then
           exit 0
         else
-          echo "@softcomputer.com       seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-          echo "@isd.dp.ua     seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+          echo "@softcomputer.com          seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+          echo "@isd.dp.ua        seauto@mail.softcomputer.com" >>/etc/postfix/virtual
           echo "@softsystem.pl seauto@mail.softcomputer.com" >>/etc/postfix/virtual
           postmap /etc/postfix/virtual
           systemctl restart postfix
         fi
-	printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
+    printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
     else
         read -p "Enter Relay Host's IP Or FQDN: " relayhost
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
-	read -p "Enter the authorized SASL sender: " saslsender
-	read -p "Enter the SASL password for the authorized SASL sender: " saslpassword
+    read -p "Enter the authorized SASL sender: " saslsender
+    read -p "Enter the SASL password for the authorized SASL sender: " saslpassword
         dnf install postfix -y &>/dev/null
-	dnf install cyrus-sasl-plain -y &>/dev/null
-	systemctl enable --now postfix &>/dev/null
+    dnf install cyrus-sasl-plain -y &>/dev/null
+    systemctl enable --now postfix &>/dev/null
         postconf -e "relayhost = [${relayhost}]:${port}"
         postconf -e "smtp_use_tls = yes"
         postconf -e "smtp_sasl_auth_enable = yes"
@@ -371,13 +371,13 @@ print_saslconfig() {
         postmap /etc/postfix/sasl_passwd
         chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
         systemctl restart postfix
-	virtual_db="/etc/postfix/virtual.db"
+    virtual_db="/etc/postfix/virtual.db"
 
         if [ -r "${virtual_db}" ]; then
           exit 0
         else
-          echo "@softcomputer.com       seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-          echo "@isd.dp.ua     seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+          echo "@softcomputer.com          seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+          echo "@isd.dp.ua        seauto@mail.softcomputer.com" >>/etc/postfix/virtual
           echo "@softsystem.pl seauto@mail.softcomputer.com" >>/etc/postfix/virtual
           postmap /etc/postfix/virtual
           systemctl restart postfix
@@ -408,7 +408,7 @@ print_saslremove() {
 
 print_systeminfo() {
     check_root
-    check_dependencies "printf" "hostnamectl" "awk" "grep" "uname" "who"
+    check_dependencies "printf" "hostnamectl" "awk" "grep" "uname" "who" "dnf" "uptime"
     local hostname=$(hostnamectl | grep -i hostname | awk '{print $3}')
     local os=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7, $8}')
     local virt=$(hostnamectl | grep -i virtualization | awk '{print $2}')
@@ -417,7 +417,7 @@ print_systeminfo() {
     local lastbootdate=$(who -b | awk -F " " '{print $3}')
     local daysup=$(uptime | awk '{sub(/,$/, "", $4); print $3, $4}')
     local updatetime=$(dnf history | grep -i update | head -1 | awk -F '|' '{print $3}')
-    
+
     printf "${CYAN}|---------------|${NC}\n"
     printf "${CYAN}|System Overview|${NC}\n"
     printf "${CYAN}|---------------|${NC}\n"
@@ -428,7 +428,7 @@ print_systeminfo() {
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel Build Date" "${kerndate}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Last Reboot Date" "${lastbootdate}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "System Uptime" "${daysup}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Last Update Date & Time" "${updatetime}"  
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Last Update Date & Time" "${updatetime}"
 }
 
 print_javainfo() {
@@ -437,16 +437,16 @@ print_javainfo() {
 
     local jreversion=$(java -version 2>&1 | head -n 1 | cut -d'"' -f 2)
     local javajrever=$(java -version 2>&1 | grep "OpenJDK Runtime" | awk '{gsub(/\)$/, "", $5); print $5}')
-    
-    
+
+
     local jdkversion="Unavailable"
     if command -v javac &>/dev/null; then
         local temp_jdkversion=$(javac -version 2>&1 | awk '{print $2}')
-        if [[ -n "$temp_jdkversion" ]]; then 
+        if [[ -n "$temp_jdkversion" ]]; then
             jdkversion="$temp_jdkversion"
         fi
     fi
-    
+
     [[ -z "$jreversion" ]] && jreversion="Unavailable"
     [[ -z "$javajrever" ]] && javajrever="Unavailable"
 
@@ -455,26 +455,46 @@ print_javainfo() {
 
     local jdkrpms=$(rpm -qa | grep -E 'java-[0-9]+\.[0-9]+\.[0-9]+-openjdk-devel|jdk[0-9]+(\.x86_64)?' | sort)
     [[ -z "$jdkrpms" ]] && jdkrpms="None Found"
-    
+
     local javarpmsum=$(rpm -qa | grep -i "java" | sort)
     [[ -z "$javarpmsum" ]] && javarpmsum="None found"
 
     printf "${CYAN}|---------------|${NC}\n"
-    printf "${CYAN}|   Java Info   |${NC}\n"
+    printf "${CYAN}|    Java Info  |${NC}\n"
     printf "${CYAN}|---------------|${NC}\n\n"
 
     printf "${MAGENTA}%-10s:${NC}${CYAN}%s${NC}\n" "Java JDK Version" "${jdkversion}"
     printf "${MAGENTA}%-10s:${NC}${CYAN}%s${NC}\n\n" "Java JRE Version" "${jreversion}"
 
     printf "${MAGENTA}%-20s:${NC}\n" "Summary Of JDK Related RPMs"
-    printf "${CYAN}${jdkrpms}${NC}\n"
+    printf "${CYAN}%s${NC}\n" "${jdkrpms}"
 
     printf "${MAGENTA}%-20s:${NC}\n" "Summary Of JRE Related RPMs"
-    printf "${CYAN}${jrerpms}${NC}\n" 
+    printf "${CYAN}%s${NC}\n" "${jrerpms}"
 
     printf "${MAGENTA}%-20s:${NC}\n" "Summary Of All Java Related RPMs"
-    printf "${CYAN}${javarpmsum}${NC}\n" 
+    printf "${CYAN}%s${NC}\n" "${javarpmsum}"
 }
+
+
+get_raw_mem_percentages() {
+    local totalmem_kb=$(free -k | awk 'NR==2{print $2}')
+    local usedmem_kb=$(free -k | awk 'NR==2{print $3}')
+    local totalswap_kb=$(free -k | awk 'NR==3{print $2}')
+    local usedswap_kb=$(free -k | awk 'NR==3{print $3}')
+
+    local memusepercent="0" 
+    if (( totalmem_kb > 0 )); then
+        memusepercent=$(awk "BEGIN {printf \"%.0f\", ($usedmem_kb / $totalmem_kb) * 100}" < /dev/null)
+    fi
+
+    local swapusepercent="0" 
+    if (( totalswap_kb > 0 )); then
+        swapusepercent=$(awk "BEGIN {printf \"%.0f\", ($usedswap_kb / $totalswap_kb) * 100}" < /dev/null)
+    fi
+    echo "$memusepercent $swapusepercent"
+}
+
 
 print_meminfo() {
     check_root
@@ -490,15 +510,9 @@ print_meminfo() {
     local usedswap_kb=$(free -k | head -3 | tail -1 | awk '{print $3}')
     local memprocesses=$(ps -eo pid,user,%cpu,%mem,cmd --sort=-%cpu | head -n 6)
 
-    local memusepercent="N/A"
-    if (( totalmem_kb > 0 )); then
-        local memusepercent=$(awk "BEGIN {printf \"%.0f\", ($usedmem_kb / $totalmem_kb) * 100}" < /dev/null)
-    fi
-
-    local swapusepercent="N/A"
-    if (( totalswap_kb > 0 )); then
-        local swapusepercent=$(awk "BEGIN {printf \"%.0f\", ($usedswap_kb / $totalswap_kb) * 100}" < /dev/null)
-    fi
+    # Use the helper function to get raw percentages
+    local memusepercent swapusepercent
+    read -r memusepercent swapusepercent <<< "$(get_raw_mem_percentages)"
 
     local si so
     read si so < <(vmstat 1 2 | tail -n 1 | awk '{print $7, $8}')
@@ -535,55 +549,71 @@ print_meminfo() {
 
 print_devconsolefix() {
     check_root
-    check_dependencies "printf" "echo" "grep" "stat" "chmod"
-    local $RULE_FILE="/etc/udev/rules.d/50-console.rules"
-    local $RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"'
-    local $DEVICE="/dev/console"
-    local $PERM="622"
-    
+    check_dependencies "print_devconsolefix" "printf" "echo" "grep" "stat" "chmod"
+    local RULE_FILE="/etc/udev/rules.d/50-console.rules" 
+    local RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"'
+    local DEVICE="/dev/console"
+    local PERM="622"
+
     printf "${CYAN}|----------------|${NC}\n"
     printf "${CYAN}|/dev/console Fix|${NC}\n"
     printf "${CYAN}|----------------|${NC}\n"
     if [ ! -f "$RULE_FILE" ] || ! grep -Fxq "$RULE_CONTENT" "$RULE_FILE"; then
-    	printf "${GREEN}Creating/Updating $RULE_FILE with correct rule...${NC}"
-    	echo "$RULE_CONTENT" > "$RULE_FILE"
+        printf "${GREEN}Creating/Updating $RULE_FILE with correct rule...${NC}\n" 
+        echo "$RULE_CONTENT" > "$RULE_FILE"
     else
-	printf "${GREEN}$RULE_FILE already contains the correct rule.${NC}"
+        printf "${GREEN}$RULE_FILE already contains the correct rule.${NC}\n"
     fi
     current_perm=$(stat -c "%a" "$DEVICE")
 
     if [ "$current_perm" != "$PERM" ]; then
-    	printf "${GREEN}Setting permissions of $DEVICE to $PERM"
-    	chmod "$PERM" "$DEVICE"
+        printf "${GREEN}Setting permissions of $DEVICE to $PERM...${NC}\n" \
+        chmod "$PERM" "$DEVICE"
     else
-    	printf "${GREEN}Permissions of $DEVICE are already correct: $current_perm ${NC}"
+        printf "${GREEN}Permissions of $DEVICE are already correct: $current_perm ${NC}\n" \
     fi
 }
 
 print_osupdatecheck() {
     check_root
-    check_dependencies "printf" "grep" "awk" "hostnamectl"
-    local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4. $5. $6. $7}')
+    
+    check_dependencies "print_osupdatecheck" "printf" "grep" "awk" "hostnamectl" "free" "vmstat"
+
+    
+    local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7}')
 
     printf "${CYAN}|-----------------|${NC}\n"
-    printf "${CYAN}|      LINUX      |${NC}\n"
+    printf "${CYAN}|     LINUX       |${NC}\n"
     printf "${CYAN}|OS UPDATE Checker|${NC}\n"
     printf "${CYAN}|-----------------|${NC}\n"
     printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n\n" "Operating System" "${ostype}"
-    
-    mempercent=$(print_meminfo | grep "Memory Use" | awk '{print $4}' | sed 's/[:%]//g')
-    swappercent=$(bash mrpz.sh --meminfo | grep "Swap Use" | awk '{print $4}' | sed 's/[:%]//g')
+
+    local mempercent swappercent
+    read -r mempercent swappercent <<< "$(get_raw_mem_percentages)"
+
     if ((mempercent > 80)); then
-    	printf "\n${MAGENTA}%-20s:${NC}${RED}%s${NC}${YELLOW}%s${NC}\n\n" "Memory Usage" "!!BAD!!" "Run bash mrpz --meminfo for more detailed information"      
-    else 
-    	printf "\n${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n\n" "Memory Usage" "!!GOOD!!" 
+        printf "\n${MAGENTA}%-20s:${NC}${RED}%s${NC} (Run 'bash mrpz.sh --meminfo' for more detailed information)${NC}\n" "Memory Usage" "!!BAD!!"
+    else
+        printf "\n${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Memory Usage" "!!GOOD!!"
     fi
+
+    if ((swappercent > 15)); then 
+        printf "${MAGENTA}%-20s:${NC}${RED}%s${NC} (Run 'bash mrpz.sh --meminfo' for more detailed information)${NC}\n" "Swap Usage" "!!BAD!!"
+    else
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Swap Usage" "!!GOOD!!"
+    fi
+
+    # Add other OS update related checks here, e.g.:
+    # local updates_available=$(dnf check-update -q | wc -l)
+    # if ((updates_available > 0)); then
+    #    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s${NC}\n" "Pending Updates" "Yes (${updates_available} packages)"
+    # else
+    #    printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Pending Updates" "No"
+    # fi
 }
 
 
-
-
-#Switch Statements For Script Options 
+#Switch Statements For Script Options
 case "$1" in
   --ver) print_version ;;
   --help) print_help ;;
@@ -592,7 +622,7 @@ case "$1" in
   --smtptest) print_testemail ;;
   --smtpconfig) print_smtpconfig ;;
   --smtpsaslconfig) print_saslconfig ;;
-  --smtpsaslremove) print_saslremove ;; 
+  --smtpsaslremove) print_saslremove ;;
   --systeminfo) print_systeminfo ;;
   --javainfo) print_javainfo ;;
   --meminfo) print_meminfo ;;
