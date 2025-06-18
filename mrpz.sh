@@ -580,7 +580,7 @@ print_osupdatecheck() {
     read -r mempercent swappercent <<< "$(get_raw_mem_percentages)"
 
     if ((mempercent > 80)); then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s${NC}${YELLOW}%s${NC}\n "Memory Usage" "!!BAD!!" "(Run 'bash mrpz.sh --meminfo' for more detailed information)"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s${NC}${YELLOW}%s${NC}\n" "Memory Usage" "!!BAD!!" "(Run 'bash mrpz.sh --meminfo' for more detailed information)"
     else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Memory Usage" "!!GOOD!!"
     fi
