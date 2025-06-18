@@ -577,6 +577,7 @@ print_osupdatecheck() {
     	printf "\n${MAGENTA}%-20s:${NC}${RED}%s${NC}${YELLOW}%s${NC}\n\n" "Memory Usage" "!!BAD!!" "Run bash mrpz --meminfo for more detailed information"      
     else 
     	printf "\n${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n\n" "Memory Usage" "!!GOOD!!" 
+    fi
 }
 
 
