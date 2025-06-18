@@ -476,19 +476,19 @@ print_javainfo() {
     printf "${CYAN}%s${NC}\n" "${javarpmsum}"
 }
 
-
+# New helper function to get raw memory percentages
 get_raw_mem_percentages() {
     local totalmem_kb=$(free -k | awk 'NR==2{print $2}')
     local usedmem_kb=$(free -k | awk 'NR==2{print $3}')
     local totalswap_kb=$(free -k | awk 'NR==3{print $2}')
     local usedswap_kb=$(free -k | awk 'NR==3{print $3}')
 
-    local memusepercent="0" 
+    local memusepercent="0" # Default to 0 to prevent errors
     if (( totalmem_kb > 0 )); then
         memusepercent=$(awk "BEGIN {printf \"%.0f\", ($usedmem_kb / $totalmem_kb) * 100}" < /dev/null)
     fi
 
-    local swapusepercent="0" 
+    local swapusepercent="0" # Default to 0 to prevent errors
     if (( totalswap_kb > 0 )); then
         swapusepercent=$(awk "BEGIN {printf \"%.0f\", ($usedswap_kb / $totalswap_kb) * 100}" < /dev/null)
     fi
@@ -550,8 +550,8 @@ print_meminfo() {
 print_devconsolefix() {
     check_root
     check_dependencies "print_devconsolefix" "printf" "echo" "grep" "stat" "chmod"
-    local RULE_FILE="/etc/udev/rules.d/50-console.rules" 
-    local RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"'
+    local RULE_FILE="/etc/udev/rules.d/50-console.rules" # Removed $
+    local RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"' # Removed $
     local DEVICE="/dev/console"
     local PERM="622"
 
@@ -559,27 +559,27 @@ print_devconsolefix() {
     printf "${CYAN}|/dev/console Fix|${NC}\n"
     printf "${CYAN}|----------------|${NC}\n"
     if [ ! -f "$RULE_FILE" ] || ! grep -Fxq "$RULE_CONTENT" "$RULE_FILE"; then
-        printf "${GREEN}Creating/Updating $RULE_FILE with correct rule...${NC}\n" 
+        printf "${GREEN}Creating/Updating $RULE_FILE with correct rule...${NC}\n" # Added \n for cleaner output
         echo "$RULE_CONTENT" > "$RULE_FILE"
     else
-        printf "${GREEN}$RULE_FILE already contains the correct rule.${NC}\n"
+        printf "${GREEN}$RULE_FILE already contains the correct rule.${NC}\n" # Added \n
     fi
     current_perm=$(stat -c "%a" "$DEVICE")
 
     if [ "$current_perm" != "$PERM" ]; then
-        printf "${GREEN}Setting permissions of $DEVICE to $PERM...${NC}\n" \
+        printf "${GREEN}Setting permissions of $DEVICE to $PERM...${NC}\n" # Added \n
         chmod "$PERM" "$DEVICE"
     else
-        printf "${GREEN}Permissions of $DEVICE are already correct: $current_perm ${NC}\n" \
+        printf "${GREEN}Permissions of $DEVICE are already correct: $current_perm ${NC}\n" # Added \n
     fi
 }
 
 print_osupdatecheck() {
     check_root
-    
+    # Added free and vmstat as they are used by get_raw_mem_percentages
     check_dependencies "print_osupdatecheck" "printf" "grep" "awk" "hostnamectl" "free" "vmstat"
 
-    
+    # Corrected awk for ostype - using commas instead of periods
     local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7}')
 
     printf "${CYAN}|-----------------|${NC}\n"
@@ -588,6 +588,7 @@ print_osupdatecheck() {
     printf "${CYAN}|-----------------|${NC}\n"
     printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n\n" "Operating System" "${ostype}"
 
+    # Get raw percentages from the helper function
     local mempercent swappercent
     read -r mempercent swappercent <<< "$(get_raw_mem_percentages)"
 
@@ -597,7 +598,8 @@ print_osupdatecheck() {
         printf "\n${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Memory Usage" "!!GOOD!!"
     fi
 
-    if ((swappercent > 15)); then 
+    # Check swap usage
+    if ((swappercent > 15)); then # Assuming 15% is the threshold for swap
         printf "${MAGENTA}%-20s:${NC}${RED}%s${NC} (Run 'bash mrpz.sh --meminfo' for more detailed information)${NC}\n" "Swap Usage" "!!BAD!!"
     else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s${NC}\n" "Swap Usage" "!!GOOD!!"
