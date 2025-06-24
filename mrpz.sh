@@ -45,7 +45,7 @@ check_dependencies() {
 print_version() {
   check_dependencies "print_version" "printf" "exit"
   printf "\n${CYAN}           ################${NC}\n"
-  printf "${CYAN}           ## Ver: 1.1.6 ##${NC}\n"
+  printf "${CYAN}           ## Ver: 1.1.7 ##${NC}\n"
   printf "${CYAN}           ################${NC}\n"
   printf "${CYAN}=====================================${NC}\n"
   printf "${CYAN} __   __   ____     _____    _____ ${NC}\n"
@@ -77,6 +77,7 @@ print_version() {
   printf "${MAGENTA} 1.1.4 | 06/17/2025 | - Created meminfo function building out system checks ${NC}\n"
   printf "${MAGENTA} 1.1.5 | 06/17/2025 | - Created devconsolefix function building out system checks ${NC}\n"
   printf "${MAGENTA} 1.1.6 | 06/17/2025 | - Begin OS update check for system ${NC}\n"
+  printf "${MAGENTA} 1.1.7 | 06/24/2025 | - Begin to build hardware platform detection functions ${NC}\n"
   exit 0
 }
 
@@ -101,6 +102,7 @@ print_help() {
   printf "${YELLOW}--systeminfo${NC}        # Gives you a general system information overview\n\n"
   printf "${YELLOW}--javainfo${NC}        # Gives you information in regards to java on the system\n\n"
   printf "${YELLOW}--meminfo${NC}         # Gives you information in regards to memory on the system\n\n"
+  printf "${YELLOW}--harddetect${NC}         # Detects the hardware platform a Linux host is running on\n\n"
   printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
   printf "${YELLOW}--devconsolefix${NC}       # Checks and corrects the /dev/console rules on system\n\n"
   printf "\n"
@@ -557,12 +559,46 @@ print_devconsolefix() {
     current_perm=$(stat -c "%a" "$DEVICE")
 
     if [ "$current_perm" != "$PERM" ]; then
-        printf "${GREEN}Setting permissions of $DEVICE to $PERM...${NC}\n" # Added \n
+        printf "${GREEN}Setting permissions of $DEVICE to $PERM...${NC}\n" 
         chmod "$PERM" "$DEVICE"
     else
-        printf "${GREEN}Permissions of $DEVICE are already correct: $current_perm ${NC}\n" # Added \n
+        printf "${GREEN}Permissions of $DEVICE are already correct: $current_perm ${NC}\n" 
     fi
 }
+
+print_harddetect() {
+    check_root
+    check_dependencies "printf" "break" "lsscsi" 
+    
+    #VMware Checker 
+    check_vmware() {
+    local found_vmware=false
+    local vendor
+    
+    while read -r _ _ vendor _; do
+        if [[ $vendor == VMware ]]; then
+            printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "VMware"
+            found_vmware=true
+            break           
+        fi
+    done < <(lsscsi)   
+    }
+
+    #Azure Checker
+
+
+    #OCI Checker
+
+
+    #AWS Checker 
+
+
+    
+
+   
+}
+
+
 
 print_osupdatecheck() {
     check_root
@@ -617,6 +653,7 @@ case "$1" in
   --meminfo) print_meminfo ;;
   --devconsolefix) print_devconsolefix ;;
   --osupdatecheck) print_osupdatecheck ;;
+  --harddetect) print_harddetect ;;
   *)
     printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
     printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
