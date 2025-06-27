@@ -77,7 +77,7 @@ print_version() {
   printf "${MAGENTA} 1.1.4 | 06/17/2025 | - Created meminfo function building out system checks ${NC}\n"
   printf "${MAGENTA} 1.1.5 | 06/17/2025 | - Created devconsolefix function building out system checks ${NC}\n"
   printf "${MAGENTA} 1.1.6 | 06/17/2025 | - Begin OS update check for system ${NC}\n"
-  printf "${MAGENTA} 1.1.7 | 06/24/2025 | - Begin to build hardware platform detection functions ${NC}\n"
+  printf "${MAGENTA} 1.1.7 | 06/24/2025 | - Build hardware platform detection functions ${NC}\n"
   exit 0
 }
 
@@ -299,27 +299,27 @@ print_smtpconfig() {
         read -p "Enter Relay Host's IP Or FQDN: " relayhost
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
         systemctl enable --now postfix &>/dev/null
-    postconf -e "relayhost = [${relayhost}]:${port}"
-    systemctl restart postfix
-    printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
+        postconf -e "relayhost = [${relayhost}]:${port}"
+        systemctl restart postfix
+        printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
     else
         read -p "Enter Relay Host's IP Or FQDN: " relayhost
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
         dnf install postfix -y &>/dev/null
-    systemctl enable --now postfix &>/dev/null
-    postconf -e "relayhost = [${relayhost}]:${port}"
-    systemctl restart postfix
-    virtual_db="/etc/postfix/virtual.db"
+        systemctl enable --now postfix &>/dev/null
+        postconf -e "relayhost = [${relayhost}]:${port}"
+        systemctl restart postfix
+        virtual_db="/etc/postfix/virtual.db"
 
-            if [ -r "${virtual_db}" ]; then
-            exit 0
-          else
-          echo "@softcomputer.com          seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-          echo "@isd.dp.ua        seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-          echo "@softsystem.pl seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-          postmap /etc/postfix/virtual
-          systemctl restart postfix
-        fi
+    if [ -r "${virtual_db}" ]; then
+        exit 0
+    else
+        echo "@softcomputer.com          seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+        echo "@isd.dp.ua        seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+        echo "@softsystem.pl seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+        postmap /etc/postfix/virtual
+        systemctl restart postfix
+    fi
     printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
     fi
 }
@@ -469,19 +469,18 @@ print_javainfo() {
     printf "${CYAN}%s${NC}\n" "${javarpmsum}"
 }
 
-# New helper function to get raw memory percentages
 get_raw_mem_percentages() {
     local totalmem_kb=$(free -k | awk 'NR==2{print $2}')
     local usedmem_kb=$(free -k | awk 'NR==2{print $3}')
     local totalswap_kb=$(free -k | awk 'NR==3{print $2}')
     local usedswap_kb=$(free -k | awk 'NR==3{print $3}')
 
-    local memusepercent="0" # Default to 0 to prevent errors
+    local memusepercent="0" 
     if (( totalmem_kb > 0 )); then
         memusepercent=$(awk "BEGIN {printf \"%.0f\", ($usedmem_kb / $totalmem_kb) * 100}" < /dev/null)
     fi
 
-    local swapusepercent="0" # Default to 0 to prevent errors
+    local swapusepercent="0"
     if (( totalswap_kb > 0 )); then
         swapusepercent=$(awk "BEGIN {printf \"%.0f\", ($usedswap_kb / $totalswap_kb) * 100}" < /dev/null)
     fi
@@ -502,10 +501,9 @@ print_meminfo() {
     local totalswap_kb=$(free -k | head -3 | tail -1 | awk '{print $2}')
     local usedswap_kb=$(free -k | head -3 | tail -1 | awk '{print $3}')
     local memprocesses=$(ps -eo pid,user,%cpu,%mem,cmd --sort=-%cpu | head -n 6)
-
+    
     local memusepercent swapusepercent
     read -r memusepercent swapusepercent <<< "$(get_raw_mem_percentages)"
-
     local si so
     read si so < <(vmstat 1 2 | tail -n 1 | awk '{print $7, $8}')
 
@@ -542,8 +540,8 @@ print_meminfo() {
 print_devconsolefix() {
     check_root
     check_dependencies "print_devconsolefix" "printf" "echo" "grep" "stat" "chmod"
-    local RULE_FILE="/etc/udev/rules.d/50-console.rules" # Removed $
-    local RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"' # Removed $
+    local RULE_FILE="/etc/udev/rules.d/50-console.rules" 
+    local RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"' 
     local DEVICE="/dev/console"
     local PERM="622"
 
@@ -551,11 +549,10 @@ print_devconsolefix() {
     printf "${CYAN}|/dev/console Fix|${NC}\n"
     printf "${CYAN}|----------------|${NC}\n"
     if [ ! -f "$RULE_FILE" ] || ! grep -Fxq "$RULE_CONTENT" "$RULE_FILE"; then
-        printf "${GREEN}Creating/Updating $RULE_FILE with correct rule...${NC}\n" # Added \n for cleaner output
+        printf "${GREEN}Creating/Updating $RULE_FILE with correct rule...${NC}\n" 
         echo "$RULE_CONTENT" > "$RULE_FILE"
     else
-        printf "${GREEN}$RULE_FILE already contains the correct rule.${NC}\n" # Added \n
-    fi
+        printf "${GREEN}$RULE_FILE already contains the correct rule.${NC}\n" 
     current_perm=$(stat -c "%a" "$DEVICE")
 
     if [ "$current_perm" != "$PERM" ]; then
@@ -584,18 +581,81 @@ print_harddetect() {
     done < <(lsscsi)   
     }
 
-    #Azure Checker
-
+    #HPE Checker 
+    check_hpe() {
+    local found_hpe=false
+    local vendor
+    
+    while read -r _ _ vendor _; do
+        if [[ ${vendor} == HPE ]]; then
+            printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "HPE"
+            found_hpe=true
+            break           
+        fi
+    done < <(lsscsi)   
+    }
 
     #OCI Checker
-
-
-    #AWS Checker 
-
-
+    check_oracle() {
+    local found_oracle=false
+    local vendor
     
+    while read -r _ _ vendor _; do
+        if [[ ${vendor} == ORACLE ]]; then
+            printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "Oracle"
+            found_oracle=true
+            break           
+        fi
+    done < <(lsscsi)   
+    }
+    
+    #AWS Checker 
+    check_aws() {
+    local found_aws=false
+    local vendor
+    
+    while read -r _ _ vendor _; do
+        if [[ ${vendor} == Amazon Elastic Block Store__1  ]]; then
+            printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "AWS"
+            found_aws=true
+            break           
+        fi
+    done < <(lsscsi)   
+    }
 
-   
+    #Azure Checker 
+    check_azure() {
+    local found_azure=false
+    local vendor
+    
+    while read -r _ _ vendor _; do
+        if [[ ${vendor} == Msft   ]]; then
+            printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "Azure"
+            found_azure=true
+            break           
+        fi
+    done < <(lsscsi)   
+    }
+
+    #Linux Hypervisor KVM
+    check_kvm() {
+    local found_kvm=false
+    local vendor
+    
+    while read -r _ _ vendor _; do
+        if [[ ${vendor} == QEMU   ]]; then
+            printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "KVM"
+            found_kvm=true
+            break           
+        fi
+    done < <(lsscsi)   
+    }
+    check_vmware
+    check_hpe
+    check_oracle
+    check_aws
+    check_kvm
+    check_azure
 }
 
 
@@ -635,10 +695,11 @@ print_osupdatecheck() {
       printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Term Of vt220scc" "!!GOOD!!" "$termtype"
     fi
 
+    #if print_harddetect exits 1 create a variable for the hardware that calls its specifics osupdatecheck
+
 }
 
 
-#Switch Statements For Script Options
 case "$1" in
   --ver) print_version ;;
   --help) print_help ;;
