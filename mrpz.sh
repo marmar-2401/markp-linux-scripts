@@ -610,18 +610,19 @@ print_harddetect() {
     done < <(lsscsi)   
     }
     
-    #AWS Checker 
+    #AWS Checker  
     check_aws() {
     local found_aws=false
-    local vendor
+
+    if lsscsi 2>/dev/null | grep -q "Amazon Elastic Block Store"; then
+        printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "AWS"
+        found_aws=true
+    fi 
+}
+
+
+
     
-    while read -r _ _ vendor _; do
-        if [[ ${vendor} == "Amazon Elastic Block Store__1"  ]]; then
-            printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "AWS"
-            found_aws=true
-            break           
-        fi
-    done < <(lsscsi)   
     }
 
     #Azure Checker 
