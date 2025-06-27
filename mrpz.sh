@@ -616,7 +616,7 @@ print_harddetect() {
     local vendor
     
     while read -r _ _ vendor _; do
-        if [[ ${vendor} == Amazon Elastic Block Store__1  ]]; then
+        if [[ ${vendor} == "Amazon Elastic Block Store__1"  ]]; then
             printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "AWS"
             found_aws=true
             break           
