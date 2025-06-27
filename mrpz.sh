@@ -647,12 +647,28 @@ print_harddetect() {
         fi
     done < <(lsscsi)   
     }
+
+    #Dell Checker 
+    check_dell() {
+    local found_dell=false
+    local vendor
+    
+    while read -r _ _ vendor _; do
+        if [[ ${vendor} == DELL  ]]; then
+            printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "Dell"
+            found_dell=true
+            break           
+        fi
+    done < <(lsscsi)   
+    }
+    
     check_vmware
     check_hpe
     check_oracle
     check_aws
     check_kvm
     check_azure
+    check_dell
 }
 
 
