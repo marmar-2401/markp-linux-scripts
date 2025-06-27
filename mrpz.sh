@@ -650,13 +650,11 @@ print_harddetect() {
 
     #Dell Checker 
     check_dell() {
-    local found_dell=false
     local vendor
     
     while read -r _ _ vendor _; do
         if [[ ${vendor} == DELL  ]]; then
             printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "Dell"
-            found_dell=true
             break           
         fi
     done < <(lsscsi)   
