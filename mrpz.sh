@@ -448,16 +448,16 @@ print_javainfo() {
     local jdkversion="Unavailable"
     if command -v javac &>/dev/null; then
         local temp_jdkversion=$(javac -version 2>&1 | awk '{print $2}')
-        if [[ -n "$temp_jdkversion" ]]; then
-            jdkversion="$temp_jdkversion"
+        if [[ -n "${temp_jdkversion}" ]]; then
+            jdkversion="${temp_jdkversion}"
         fi
     fi
 
-    [[ -z "$jreversion" ]] && jreversion="Unavailable"
-    [[ -z "$javajrever" ]] && javajrever="Unavailable"
+    [[ -z "${jreversion}" ]] && jreversion="Unavailable"
+    [[ -z "${javajrever}" ]] && javajrever="Unavailable"
 
     local javarpmsum=$(rpm -qa | grep -i "java" | sort)
-    [[ -z "$javarpmsum" ]] && javarpmsum="None found"
+    [[ -z "${javarpmsum}" ]] && javarpmsum="None found"
 
     printf "${CYAN}|---------------|${NC}\n"
     printf "${CYAN}|    Java Info  |${NC}\n"
@@ -484,7 +484,7 @@ get_raw_mem_percentages() {
     if (( totalswap_kb > 0 )); then
         swapusepercent=$(awk "BEGIN {printf \"%.0f\", ($usedswap_kb / $totalswap_kb) * 100}" < /dev/null)
     fi
-    echo "$memusepercent $swapusepercent"
+    echo "${memusepercent} ${swapusepercent}"
 }
 
 
@@ -552,15 +552,15 @@ print_devconsolefix() {
         printf "${GREEN}Creating/Updating $RULE_FILE with correct rule...${NC}\n" 
         echo "$RULE_CONTENT" > "$RULE_FILE"
     else
-        printf "${GREEN}$RULE_FILE already contains the correct rule.${NC}\n" 
+        printf "${GREEN}${RULE_FILE} already contains the correct rule.${NC}\n" 
     current_perm=$(stat -c "%a" "$DEVICE")
     fi
 
     if [ "$current_perm" != "$PERM" ]; then
-        printf "${GREEN}Setting permissions of $DEVICE to $PERM...${NC}\n" 
-        chmod "$PERM" "$DEVICE"
+        printf "${GREEN}Setting permissions of ${DEVICE} to ${PERM}...${NC}\n" 
+        chmod "${PERM}" "${DEVICE}"
     else
-        printf "${GREEN}Permissions of $DEVICE are already correct: $current_perm ${NC}\n" 
+        printf "${GREEN}Permissions of ${DEVICE} are already correct: ${current_perm} ${NC}\n" 
     fi
 }
 
