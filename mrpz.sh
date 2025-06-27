@@ -618,11 +618,6 @@ print_harddetect() {
         printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "AWS"
         found_aws=true
     fi 
-}
-
-
-
-    
     }
 
     #Azure Checker 
