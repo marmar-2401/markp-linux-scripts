@@ -554,6 +554,7 @@ print_devconsolefix() {
     else
         printf "${GREEN}$RULE_FILE already contains the correct rule.${NC}\n" 
     current_perm=$(stat -c "%a" "$DEVICE")
+    fi
 
     if [ "$current_perm" != "$PERM" ]; then
         printf "${GREEN}Setting permissions of $DEVICE to $PERM...${NC}\n" 
