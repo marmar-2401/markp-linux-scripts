@@ -676,7 +676,7 @@ print_osupdatecheck() {
     check_dependencies "print_osupdatecheck" "printf" "grep" "awk" "hostnamectl" "free" "vmstat"
 
     local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7}')
-    local hardtype=$(print_harddetect | awk -F : '{print $2}')
+    local hardtype=$(print_harddetect | tail -n 1 | awk -F : '{print $2}')
 
     printf "${CYAN}|-----------------|${NC}\n"
     printf "${CYAN}|     LINUX       |${NC}\n"
