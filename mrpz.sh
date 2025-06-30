@@ -744,7 +744,7 @@ print_osupdatecheck() {
     fi
 
     local current_date=$(date +%Y-%m-%d)
-    local update_date=$(dnf history | grep -i update | head -1 | awk -F '|' '{print $3}' | xargs | cut -d' ' -f1) #
+    local update_date=$(dnf history | grep -i update | head -1 | awk -F '|' '{print $3}' | xargs | cut -d' ' -f1) 
     local days_since_update=-1 
 
     if [[ -z "$update_date" ]]; then
@@ -756,10 +756,10 @@ print_osupdatecheck() {
         days_since_update=$(( diff_seconds / 86400 ))
     fi
 
-    if (( days_since_update > 365 )); then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "${update_date} System has not been updated in over 365 Days"
+    if (( days_since_update > 183 )); then
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "${update_date} System has not been updated in over 6 Months"
     else
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!GOOD!!" "${update_date} System has been updated under 365 days"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!GOOD!!" "${update_date} System has been updated under 6 Months"
     fi
     
     
