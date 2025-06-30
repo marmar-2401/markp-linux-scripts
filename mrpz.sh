@@ -676,12 +676,15 @@ print_osupdatecheck() {
     check_dependencies "print_osupdatecheck" "printf" "grep" "awk" "hostnamectl" "free" "vmstat"
 
     local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7}')
+    local hardtype=$(print_harddetect | awk -F : '{print $2}')
 
     printf "${CYAN}|-----------------|${NC}\n"
     printf "${CYAN}|     LINUX       |${NC}\n"
     printf "${CYAN}|OS UPDATE Checker|${NC}\n"
     printf "${CYAN}|-----------------|${NC}\n"
     printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Operating System" "${ostype}"
+    printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Type" "${hardtype}"
+
     
     local mempercent swappercent
     read -r mempercent swappercent <<< "$(get_raw_mem_percentages)"
