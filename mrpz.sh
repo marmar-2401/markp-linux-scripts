@@ -677,7 +677,7 @@ print_osupdatecheck() {
 
     local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7}')
     #local hardtype=$(print_harddetect | tail -n 1 | awk -F : '{print $2}')
-    local hardtype=$(print_harddetect | tail -n 1 | cut -d: -f2 | xargs)
+    local hardtype=$(print_harddetect | tail -n 1 | sed -E 's/^[^:]*:[[:space:]]*(.*)[[:space:]]*$/\1/')
     
     printf "${CYAN}|-----------------|${NC}\n"
     printf "${CYAN}|     LINUX       |${NC}\n"
