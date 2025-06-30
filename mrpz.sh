@@ -724,9 +724,9 @@ print_osupdatecheck() {
     termtype="$TERM"
 
     if [[ "$termtype" != "vt220scc" ]]; then
-      printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Term Of vt220scc" "!!BAD!!" "${termtype} (Run 'TERM=vt220scc' to correct term type)"
+      printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "TERM Of vt220scc" "!!BAD!!" "${termtype} (Run 'TERM=vt220scc' to correct term type)"
     else
-      printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Term Of vt220scc" "!!GOOD!!" "${termtype}"
+      printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "TERM Of vt220scc" "!!GOOD!!" "${termtype}"
     fi
 
     local current_shell="$SHELL"
@@ -736,6 +736,16 @@ print_osupdatecheck() {
     else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "SHELL" "!!GOOD!!" "${current_shell}"
     fi
+    
+    needs-restarting -r > /dev/null 2>&1
+
+    if (( echo $1 > 0 )) then;
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Reboot Hint" "!!BAD!!" "Systems was not rebooted from previous update (Run 'needs-restarting -r' to see additional details)
+    else 
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Reboot Hint" "!!GOOD!!" "System has been rebooted since last update"
+    fi
+
+    
     
 
     #if print_harddetect exits 1 create a variable for the hardware that calls its specifics osupdatecheck
