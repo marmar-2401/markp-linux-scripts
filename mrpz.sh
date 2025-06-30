@@ -743,6 +743,25 @@ print_osupdatecheck() {
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Reboot Hint" "!!BAD!!" "System was not rebooted from previous update (Run 'needs-restarting -r' to see additional details)"
     fi
 
+    local current_date=$(date +%Y-%m-%d)
+    local update_date=$(dnf history | grep -i update | head -1 | awk -F '|' '{print $3}')
+    local days_since_update=-1 
+
+    if [[ -z "$update_date" ]]; then
+        days_since_update=366 
+    else
+        current_timestamp=$(date -d "$current_date" +%s)
+        update_timestamp=$(date -d "$update_date" +%s)
+        diff_seconds=$(( current_timestamp - update_timestamp ))
+        days_since_update=$(( diff_seconds / 86400 ))
+    fi
+
+    if (( days_since_update > 365 )); then
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "${update_date} System has not been updated in over 365 Days"
+    else
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!GOOD!!" "${update_date} System has been updated under 365 days"
+    fi
+
     
     
 
