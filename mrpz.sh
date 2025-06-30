@@ -567,106 +567,118 @@ print_devconsolefix() {
 print_harddetect() {
     check_root
     check_dependencies "printf" "break" "lsscsi" 
-    
-    #VMware Checker 
+
+    local detected_hardware="" 
+
+    # VMware Checker
     check_vmware() {
-    local found_vmware=false
-    local vendor
-    
-    while read -r _ _ vendor _; do
-        if [[ $vendor == VMware ]]; then
-            printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "VMware"
-            found_vmware=true
-            break           
-        fi
-    done < <(lsscsi)   
+        local vendor
+        while read -r _ _ vendor _; do
+            if [[ "$vendor" == "VMware" ]]; then
+                echo "VMware" 
+                return 0 
+            fi
+        done < <(lsscsi)
+        return 1 
     }
 
-    #HPE Checker 
+    # HPE Checker
     check_hpe() {
-    local found_hpe=false
-    local vendor
-    
-    while read -r _ _ vendor _; do
-        if [[ ${vendor} == HPE ]]; then
-            printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "HPE"
-            found_hpe=true
-            break           
-        fi
-    done < <(lsscsi)   
+        local vendor
+        while read -r _ _ vendor _; do
+            if [[ "$vendor" == "HPE" ]]; then
+                echo "HPE"
+                return 0
+            fi
+        done < <(lsscsi)
+        return 1
     }
 
-    #OCI Checker
+    # OCI Checker
     check_oracle() {
-    local found_oracle=false
-    local vendor
-    
-    while read -r _ _ vendor _; do
-        if [[ ${vendor} == ORACLE ]]; then
-            printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "Oracle"
-            found_oracle=true
-            break           
-        fi
-    done < <(lsscsi)   
+        local vendor
+        while read -r _ _ vendor _; do
+            if [[ "$vendor" == "ORACLE" ]]; then
+                echo "Oracle"
+                return 0
+            fi
+        done < <(lsscsi)
+        return 1
     }
-    
-    #AWS Checker  
+
+    # AWS Checker
     check_aws() {
-    local found_aws=false
-
-    if lsscsi 2>/dev/null | grep -q "Amazon Elastic Block Store"; then
-        printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "AWS"
-        found_aws=true
-    fi 
+        if lsscsi 2>/dev/null | grep -q "Amazon Elastic Block Store"; then
+            echo "AWS"
+            return 0
+        fi
+        return 1
     }
 
-    #Azure Checker 
+    # Azure Checker
     check_azure() {
-    local found_azure=false
-    local vendor
-    
-    while read -r _ _ vendor _; do
-        if [[ ${vendor} == Msft   ]]; then
-            printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "Azure"
-            found_azure=true
-            break           
-        fi
-    done < <(lsscsi)   
+        local vendor
+        while read -r _ _ vendor _; do
+            if [[ "$(echo "$vendor" | tr -d ' ')" == "Msft" ]]; then 
+                echo "Azure"
+                return 0
+            fi
+        done < <(lsscsi)
+        return 1
     }
 
-    #Linux Hypervisor KVM
+    # Linux Hypervisor KVM
     check_kvm() {
-    local found_kvm=false
-    local vendor
-    
-    while read -r _ _ vendor _; do
-        if [[ ${vendor} == QEMU   ]]; then
-            printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "KVM"
-            found_kvm=true
-            break           
-        fi
-    done < <(lsscsi)   
+        local vendor
+        while read -r _ _ vendor _; do
+            if [[ "$(echo "$vendor" | tr -d ' ')" == "QEMU" ]]; then
+                echo "KVM"
+                return 0
+            fi
+        done < <(lsscsi)
+        return 1
     }
 
-    #Dell Checker 
+    # Dell Checker
     check_dell() {
-    local vendor
-    
-    while read -r _ _ vendor _; do
-        if [[ ${vendor} == DELL  ]]; then
-            printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "Dell"
-            break           
-        fi
-    done < <(lsscsi)   
+        local vendor
+        while read -r _ _ vendor _; do
+            if [[ "$(echo "$vendor" | tr -d ' ')" == "DELL" ]]; then
+                echo "Dell"
+                return 0
+            fi
+        done < <(lsscsi)
+        return 1
     }
-    
-    check_vmware
-    check_hpe
-    check_oracle
-    check_aws
-    check_kvm
-    check_azure
-    check_dell
+
+    # --- Execution order ---
+    # Call the checkers and assign the output if successful
+    if detected_hardware=$(check_vmware); then
+        # VMware detected, we're done
+        echo "$detected_hardware"
+        return 0
+    elif detected_hardware=$(check_hpe); then
+        echo "$detected_hardware"
+        return 0
+    elif detected_hardware=$(check_oracle); then
+        echo "$detected_hardware"
+        return 0
+    elif detected_hardware=$(check_aws); then
+        echo "$detected_hardware"
+        return 0
+    elif detected_hardware=$(check_kvm); then
+        echo "$detected_hardware"
+        return 0
+    elif detected_hardware=$(check_azure); then
+        echo "$detected_hardware"
+        return 0
+    elif detected_hardware=$(check_dell); then
+        echo "$detected_hardware"
+        return 0
+    else
+        echo "Unknown" # 
+        return 1
+    fi
 }
 
 
