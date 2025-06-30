@@ -687,24 +687,33 @@ print_osupdatecheck() {
     read -r mempercent swappercent <<< "$(get_raw_mem_percentages)"
 
     if ((mempercent > 80)); then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Memory Usage" "!!BAD!!" "$mempercent % (Run 'bash mrpz.sh --meminfo' for more detailed information)"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Memory Usage" "!!BAD!!" "${mempercent} % (Run 'bash mrpz.sh --meminfo' for more detailed information)"
     else
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Memory Usage" "!!GOOD!!" "$mempercent %"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Memory Usage" "!!GOOD!!" "${mempercent} %"
     fi
 
     if ((swappercent > 15)); then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Swap Usage" "!!BAD!!" "($swappercent % Run 'bash mrpz.sh --meminfo' for more detailed information)"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Swap Usage" "!!BAD!!" "(${swappercent} % Run 'bash mrpz.sh --meminfo' for more detailed information)"
     else
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Swap Usage" "!!GOOD!!" "$swappercent %"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Swap Usage" "!!GOOD!!" "${swappercent} %"
     fi
   
     termtype="$TERM"
 
     if [[ "$termtype" != "vt220scc" ]]; then
-      printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Term Of vt220scc" "!!BAD!!" "$termtype (Run 'TERM=vt220scc' to correct term type)"
+      printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Term Of vt220scc" "!!BAD!!" "${termtype} (Run 'TERM=vt220scc' to correct term type)"
     else
-      printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Term Of vt220scc" "!!GOOD!!" "$termtype"
+      printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Term Of vt220scc" "!!GOOD!!" "${termtype}"
     fi
+
+    local current_shell="$SHELL"
+
+    if [[ "${current_shell}" != "/bin/bash" ]]; then
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "SHELL" "!!BAD!!" "${current_shell} (Run 'chsh -s /bin/bash > /dev/null 2>&1' To Change Shell To Bash)"
+    else
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "SHELL" "!!GOOD!!" "${current_shell}"
+    fi
+    
 
     #if print_harddetect exits 1 create a variable for the hardware that calls its specifics osupdatecheck
 
