@@ -776,9 +776,9 @@ print_osupdatecheck() {
    done
 
    if $bad_disks_found; then
-      printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!BAD!!" "File systems below are over ${USAGE_THRESHOLD} percent usage (Run 'df -h' for additional details)"
+      printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!BAD!!" "File systems below are over ${USAGE_THRESHOLD} percent usage (Run 'df -h' for additional details)"
    else
-      printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!GOOD!!" "No filesystem is over ${USAGE_THRESHOLD} percent usage"
+      printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!GOOD!!" "No filesystem is over ${USAGE_THRESHOLD} percent usage"
    fi
     
 
