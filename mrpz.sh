@@ -696,7 +696,7 @@ print_osupdatecheck() {
     printf "${CYAN}|OS UPDATE Checker|${NC}\n"
     printf "${CYAN}|-----------------|${NC}\n"
     printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Operating System" "${ostype}"
-    printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Type" "${hardtype}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Type" "${hardtype}"
 
     
     local mempercent swappercent
