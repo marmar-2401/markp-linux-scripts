@@ -764,17 +764,22 @@ print_osupdatecheck() {
 
     USAGE_THRESHOLD=80
 
-    df -h | tail -n +2 | while read -r filesystem size used avail usage_percent mounted_on; do
-   
-    numeric_usage=$(echo "$usage_percent" | sed 's/%//')
+    bad_disks_found=false
 
-        if (( numeric_usage > USAGE_THRESHOLD )); then
-		        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!BAD!!" "File systems below are over 80 percent usage (Run 'df -h' for additional details)"
-            echo "$mounted_on"
-	      else
-		        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!GOOD!!" "No filesystem is over 80 percent usage"
-        fi
-    done
+    df -h | tail -n +2 | while read -r filesystem size used avail usage_percent mounted_on; do
+    	numeric_usage=$(echo "$usage_percent" | sed 's/%//')
+
+    	if (( numeric_usage > USAGE_THRESHOLD )); then
+        	bad_disks_found=true
+        	echo "${mounted_on} (${usage_percent} used)"
+    	fi
+   done
+
+   if $bad_disks_found; then
+      printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!BAD!!" "File systems below are over ${USAGE_THRESHOLD} percent usage (Run 'df -h' for additional details)"
+   else
+      printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!GOOD!!" "No filesystem is over ${USAGE_THRESHOLD} percent usage"
+   fi
     
 
     #if print_harddetect exits 1 create a variable for the hardware that calls its specifics osupdatecheck
