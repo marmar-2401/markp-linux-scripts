@@ -688,7 +688,6 @@ print_osupdatecheck() {
     check_dependencies "print_osupdatecheck" "printf" "grep" "awk" "hostnamectl" "free" "vmstat"
 
     local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7}')
-    #local hardtype=$(print_harddetect | tail -n 1 | awk -F : '{print $2}')
     local hardtype=$(print_harddetect | tail -n 1 | sed -E 's/^[^:]*:[[:space:]]*(.*)[[:space:]]*$/\1/')
     
     printf "${CYAN}|-----------------|${NC}\n"
@@ -713,7 +712,15 @@ print_osupdatecheck() {
     else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Swap Usage" "!!GOOD!!" "${swappercent} %"
     fi
-  
+
+    local days_up=$(uptime | awk '{print $3}')
+    
+    if ((${days_up} > 90)); then
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Uptime" "!!BAD!!" "${days_up} days" "(Longer than 90 days uptime!)"
+    else
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Uptime" "!!GOOD!!" "${days_up} days"
+    fi
+    
     termtype="$TERM"
 
     if [[ "$termtype" != "vt220scc" ]]; then
