@@ -737,12 +737,10 @@ print_osupdatecheck() {
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "SHELL" "!!GOOD!!" "${current_shell}"
     fi
     
-    needs-restarting -r > /dev/null 2>&1
-
-    if (( echo $1 > 0 )) then;
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Reboot Hint" "!!BAD!!" "Systems was not rebooted from previous update (Run 'needs-restarting -r' to see additional details)
-    else 
+    if needs-restarting -r &> /dev/null; then
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Reboot Hint" "!!GOOD!!" "System has been rebooted since last update"
+    else
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Reboot Hint" "!!BAD!!" "System was not rebooted from previous update (Run 'needs-restarting -r' to see additional details)"
     fi
 
     
