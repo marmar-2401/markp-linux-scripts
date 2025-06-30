@@ -575,7 +575,7 @@ print_harddetect() {
     
     while read -r _ _ vendor _; do
         if [[ $vendor == VMware ]]; then
-            printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "VMware"
+            printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "VMware"
             found_vmware=true
             break           
         fi
@@ -589,7 +589,7 @@ print_harddetect() {
     
     while read -r _ _ vendor _; do
         if [[ ${vendor} == HPE ]]; then
-            printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "HPE"
+            printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "HPE"
             found_hpe=true
             break           
         fi
@@ -603,7 +603,7 @@ print_harddetect() {
     
     while read -r _ _ vendor _; do
         if [[ ${vendor} == ORACLE ]]; then
-            printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "Oracle"
+            printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "Oracle"
             found_oracle=true
             break           
         fi
@@ -615,7 +615,7 @@ print_harddetect() {
     local found_aws=false
 
     if lsscsi 2>/dev/null | grep -q "Amazon Elastic Block Store"; then
-        printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "AWS"
+        printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "AWS"
         found_aws=true
     fi 
     }
@@ -627,7 +627,7 @@ print_harddetect() {
     
     while read -r _ _ vendor _; do
         if [[ ${vendor} == Msft   ]]; then
-            printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "Azure"
+            printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "Azure"
             found_azure=true
             break           
         fi
@@ -641,7 +641,7 @@ print_harddetect() {
     
     while read -r _ _ vendor _; do
         if [[ ${vendor} == QEMU   ]]; then
-            printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "KVM"
+            printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "KVM"
             found_kvm=true
             break           
         fi
@@ -654,7 +654,7 @@ print_harddetect() {
     
     while read -r _ _ vendor _; do
         if [[ ${vendor} == DELL  ]]; then
-            printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "Dell"
+            printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Platform" "Dell"
             break           
         fi
     done < <(lsscsi)   
