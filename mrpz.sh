@@ -777,10 +777,10 @@ print_osupdatecheck() {
    done
 
     if $bad_disks_found; then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!BAD!!" "File systems below are over ${USAGE_THRESHOLD} percent usage (Run 'df -h' for additional details)"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s -${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!BAD!!" "File systems below are over ${USAGE_THRESHOLD} percent usage (Run 'df -h' for additional details)"
         printf "%b" "$bad_filesystems"
     else
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!GOOD!!" "No filesystem is over ${USAGE_THRESHOLD} percent usage"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s -${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!GOOD!!" "No filesystem is over ${USAGE_THRESHOLD} percent usage"
     fi
 
     OVERALL_STATUS=0
@@ -796,9 +796,9 @@ print_osupdatecheck() {
     fi
 
     if [ $OVERALL_STATUS -eq 0 ]; then
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!GOOD!!" "All fstab entries are valid and 'mount -a' completed successfully."
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s -${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!GOOD!!" "All fstab entries are valid and 'mount -a' completed successfully."
     else
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "Problematic mount points or fstab issues detected (Run 'journalctl -xe' or '/var/log/messages' for additional details)" 
+        printf "${MAGENTA}%-20s:${NC}${RED}%s -${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "Problematic mount points or fstab issues detected (Run 'journalctl -xe' or '/var/log/messages' for additional details)" 
     fi
 
     #if print_harddetect exits 1 create a variable for the hardware that calls its specifics osupdatecheck
