@@ -830,6 +830,20 @@ print_osupdatecheck() {
 	printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%s${NC}\n" "Failed Units" "!!BAD!!" "Failed units have been detected (Run 'systemctl --failed' for additional details)"
     fi
 
+    THRESHOLD_PERCENT=5.0  
+    cpu_usage=$(ps aux | grep setroubleshootd | grep -v grep | awk '{print $3}')
+    total_cpu=0
+
+    for cpu in $cpu_usage; do
+	total_cpu=$(awk "BEGIN {print $total_cpu + $cpu}")
+    done
+
+    if (( $(awk "BEGIN {print ($total_cpu >= $THRESHOLD_PERCENT)}") )); then
+	printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!BAD!!" "${total_cpu}% Usage (Run 'top' or 'journalctl -p err' for additional details)"        
+    else
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!GOOD!!" "${total_cpu}% Usage"       
+    fi
+
     #if print_harddetect exits 1 create a variable for the hardware that calls its specifics osupdatecheck
 
 }
