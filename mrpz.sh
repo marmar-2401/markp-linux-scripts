@@ -822,6 +822,14 @@ print_osupdatecheck() {
 		    printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%s${NC}\n" "Setroubleshootd Unit" "!!BAD!!" "Not Running or Installed (Run 'dnf install setroubleshoot -y' to install & 'systemctl enable --now setroubleshootd' to enable it)"
     fi
 
+    local failed_units_output=$(systemctl --failed)
+
+    if echo "${failed_units_output}" | grep -q "0 loaded units listed."; then
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Failed Units" "!!GOOD!!" "No failed units"
+    else
+	printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%s${NC}\n" "Failed Units" "!!BAD!!" "Failed units have been detected (Run 'systemctl --failed' for additional details)"
+    fi
+
     #if print_harddetect exits 1 create a variable for the hardware that calls its specifics osupdatecheck
 
 }
