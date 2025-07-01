@@ -805,9 +805,21 @@ print_osupdatecheck() {
     selinux_status=$(getenforce)
 
     if [[ "${selinux_status}" == "Enforcing" ]]; then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%s${NC} (To persistently enforce, adjust '/etc/selinux/config' and reboot)\n" "SELinux Status" "!!BAD!!" "${selinux_status}"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!BAD!!" "${selinux_status} (To persistently enforce adjust '/etc/selinux/config' and reboot)"
     else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!GOOD!!" "${selinux_status}"
+    fi
+
+    if systemctl is-active --quiet firewalld.service; then
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Firewalld" "!!GOOD!!" "Running"
+    else
+        printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%s${NC}\n" "Firewalld" "!!BAD!!" "Not Running"
+    fi
+
+    if systemctl is-active --quiet firewalld.service; then
+		    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Setroubleshootd Unit" "!!GOOD!!" "Running"
+    else
+		    printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%s${NC}\n" "Setroubleshootd Unit" "!!BAD!!" "Not Running or Installed (Run 'dnf install setroubleshoot -y' to install & 'systemctl enable --now setroubleshootd' to enable it)"
     fi
 
     #if print_harddetect exits 1 create a variable for the hardware that calls its specifics osupdatecheck
