@@ -801,6 +801,15 @@ print_osupdatecheck() {
         printf "${MAGENTA}%-20s:${NC}${RED}%s -${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "Problematic mount points or fstab issues detected (Run 'journalctl -xe' or '/var/log/messages' for additional details)" 
     fi
 
+
+    selinux_status=$(getenforce)
+
+    if [[ "${selinux_status}" == "Enforcing" ]]; then
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC} (To persistently enforce, adjust '/etc/selinux/config' and reboot)\n" "SELinux Status" "!!BAD!!" "${selinux_status}"
+    else
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!GOOD!!" "${selinux_status}"
+    fi
+
     #if print_harddetect exits 1 create a variable for the hardware that calls its specifics osupdatecheck
 
 }
