@@ -777,7 +777,7 @@ print_osupdatecheck() {
    done
 
     if $bad_disks_found; then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!BAD!!" "File systems below are over ${USAGE_THRESHOLD} percent usage (Run 'df -h' for additional details)"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!BAD!!" "File systems below are over ${USAGE_THRESHOLD} percent usage (Run 'df -h' for additional details)"
         printf "%b" "$bad_filesystems"
     else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!GOOD!!" "No filesystem is over ${USAGE_THRESHOLD} percent usage"
@@ -798,14 +798,14 @@ print_osupdatecheck() {
     if [ $OVERALL_STATUS -eq 0 ]; then
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!GOOD!!" "All fstab entries are valid and 'mount -a' completed successfully."
     else
-        printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "Problematic mount points or fstab issues detected (Run 'journalctl -xe' or '/var/log/messages' for additional details)" 
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "Problematic mount points or fstab issues detected (Run 'journalctl -xe' or '/var/log/messages' for additional details)" 
     fi
 
 
     selinux_status=$(getenforce)
 
     if [[ "${selinux_status}" == "Enforcing" ]]; then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!BAD!!" "${selinux_status} (To persistently enforce adjust '/etc/selinux/config' and reboot)"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!BAD!!" "${selinux_status} (To persistently enforce adjust '/etc/selinux/config' and reboot)"
     else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!GOOD!!" "${selinux_status}"
     fi
@@ -813,13 +813,13 @@ print_osupdatecheck() {
     if systemctl is-active --quiet firewalld.service; then
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Firewalld" "!!GOOD!!" "Running"
     else
-        printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%s${NC}\n" "Firewalld" "!!BAD!!" "Not Running"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Firewalld" "!!BAD!!" "Not Running"
     fi
 
     if systemctl is-active --quiet firewalld.service; then
 		    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Setroubleshootd Unit" "!!GOOD!!" "Running"
     else
-		    printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%s${NC}\n" "Setroubleshootd Unit" "!!BAD!!" "Not Running or Installed (Run 'dnf install setroubleshoot -y' to install & 'systemctl enable --now setroubleshootd' to enable it)"
+		    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Setroubleshootd Unit" "!!BAD!!" "Not Running or Installed (Run 'dnf install setroubleshoot -y' to install & 'systemctl enable --now setroubleshootd' to enable it)"
     fi
 
     local failed_units_output=$(systemctl --failed)
@@ -827,7 +827,7 @@ print_osupdatecheck() {
     if echo "${failed_units_output}" | grep -q "0 loaded units listed."; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Failed Units" "!!GOOD!!" "No failed units"
     else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%s${NC}\n" "Failed Units" "!!BAD!!" "Failed units have been detected (Run 'systemctl --failed' for additional details)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Failed Units" "!!BAD!!" "Failed units have been detected (Run 'systemctl --failed' for additional details)"
     fi
 
     THRESHOLD_PERCENT=5.0  
@@ -839,7 +839,7 @@ print_osupdatecheck() {
     done
 
     if (( $(awk "BEGIN {print ($total_cpu >= $THRESHOLD_PERCENT)}") )); then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!BAD!!" "${total_cpu}% Usage (Run 'top' or 'journalctl -p err' for additional details)"        
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!BAD!!" "${total_cpu}% Usage (Run 'top' or 'journalctl -p err' for additional details)"        
     else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!GOOD!!" "${total_cpu}% Usage"       
     fi
