@@ -801,7 +801,6 @@ print_osupdatecheck() {
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "Problematic mount points or fstab issues detected (Run 'journalctl -xe' or '/var/log/messages' for additional details)" 
     fi
 
-
     selinux_status=$(getenforce)
 
     if [[ "${selinux_status}" == "Enforcing" ]]; then
@@ -817,9 +816,9 @@ print_osupdatecheck() {
     fi
 
     if systemctl is-active --quiet firewalld.service; then
-		    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Setroubleshootd" "!!GOOD!!" "Running"
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Setroubleshootd" "!!GOOD!!" "Running"
     else
-		    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Setroubleshootd" "!!BAD!!" "Not Running or Installed (Run 'dnf install setroubleshoot -y' to install & 'systemctl enable --now setroubleshootd' to enable it)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Setroubleshootd" "!!BAD!!" "Not Running or Installed (Run 'dnf install setroubleshoot -y' to install & 'systemctl enable --now setroubleshootd' to enable it)"
     fi
 
     local failed_units_output=$(systemctl --failed)
@@ -844,7 +843,44 @@ print_osupdatecheck() {
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!GOOD!!" "${total_cpu}% Usage"       
     fi
 
-    #if print_harddetect exits 1 create a variable for the hardware that calls its specifics osupdatecheck
+    dnf repolist > /dev/null 2>&1
+
+    if [ $? -eq 0 ]; then
+    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Repolist" "!!GOOD!!" "Repolist configuration is correct"   
+    else
+    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Repolist" "!!BAD!!" "Repolist Configuration Is Incorrect (Check '/etc/yum.repos.d' for additional details and syntax)" 
+    fi
+
+    UNLABELED_FILES=$(find / -xdev -type f -context '*:unlabeled_t:*' -printf "%Z %p\n" 2>/dev/null)
+
+    if [ -z "$UNLABELED_FILES" ]; then
+    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SELinux Unlabled" "!!GOOD!!" "No unlabeled context" 
+    else
+    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Unlabled" "!!BAD!!" "Unlabeled context detectect (Run 'restorecon -Rv /' to relabel / or 'journalctl -t setroubleshoot' for additional details and syntax)" 
+    fi
+
+    if systemctl is-active --quiet postfix.service; then
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Postfix" "!!GOOD!!" "Running"
+    else
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Postfix" "!!BAD!!" "Not Running or Installed (Run 'dnf install postfix -y' to install & 'systemctl enable --now postfix' to enable it)"
+    fi
+
+    ntpsync=$(timedatectl | head -5 | tail -1 | awk '{ print $NF }')
+
+    if [[ ${ntpsync} == "yes" ]]; then
+    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}\n" "NTP Syncronization" "!!GOOD!!" "Running"
+    else
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NTP Syncronization" "!!BAD!!" "NTP time is not synced (Run 'bash mrpz.sh --ntpcheck' for additional details)"
+    fi
+
+    for server in $(grep -E "^(server|pool)" /etc/chrony.conf | awk '{print $2}'); do
+  	count=3
+  	if ping -c ${count} ${server} > /dev/null 2>&1; then
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "NTP Reachability" "!!GOOD!!" "${server}"
+  	else
+		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NTP Reachability" "!!BAD!!" "Cannot ping ${server}"
+  	fi
+   done
 
 }
 
