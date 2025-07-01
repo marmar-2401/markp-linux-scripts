@@ -868,13 +868,13 @@ print_osupdatecheck() {
     ntpsync=$(timedatectl | head -5 | tail -1 | awk '{ print $NF }')
 
     if [[ ${ntpsync} == "yes" ]]; then
-    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}\n" "NTP Syncronization" "!!GOOD!!" "Running"
+    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}\n" "NTP Syncronization" "!!GOOD!!" 
     else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NTP Syncronization" "!!BAD!!" "NTP time is not synced (Run 'bash mrpz.sh --ntpcheck' for additional details)"
     fi
 
     for server in $(grep -E "^(server|pool)" /etc/chrony.conf | awk '{print $2}'); do
-  	count=3
+  	count=5
   	if ping -c ${count} ${server} > /dev/null 2>&1; then
 		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "NTP Reachability" "!!GOOD!!" "${server}"
   	else
