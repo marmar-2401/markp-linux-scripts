@@ -783,6 +783,24 @@ print_osupdatecheck() {
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!GOOD!!" "No filesystem is over ${USAGE_THRESHOLD} percent usage"
     fi
 
+    OVERALL_STATUS=0
+    FINDMNT_VERIFY_OUTPUT=$(findmnt --verify --fstab 2>&1)
+    FINDMNT_VERIFY_STATUS=$?
+
+    if [ $FINDMNT_VERIFY_STATUS -ne 0 ]; then
+        OVERALL_STATUS=1
+    fi
+
+    if ! mount -a >/dev/null 2>&1; then
+        OVERALL_STATUS=1
+    fi
+
+    if [ $OVERALL_STATUS -eq 0 ]; then
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!GOOD!!" "All fstab entries are valid and 'mount -a' completed successfully."
+    else
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "Problematic mount points or fstab issues detected (Run 'journalctl -xe' or '/var/log/messages' for additional details)" 
+    fi
+
     #if print_harddetect exits 1 create a variable for the hardware that calls its specifics osupdatecheck
 
 }
