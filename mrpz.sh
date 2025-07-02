@@ -696,8 +696,8 @@ print_osupdatecheck() {
     printf "${CYAN}|     LINUX       |${NC}\n"
     printf "${CYAN}|OS UPDATE Checker|${NC}\n"
     printf "${CYAN}|-----------------|${NC}\n"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hostname" "${hostname}"
-    printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Operating System" "${ostype}"
+    printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hostname" "${hostname}"
+    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Operating System" "${ostype}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Type" "${hardtype}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel Version" "${kernelver}"
     
