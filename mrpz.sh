@@ -921,7 +921,7 @@ else
 fi
 
 if systemctl is-enabled --quiet oracle.service 2>/dev/null; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Oracle (Reboot)" "!!GOOD!!" "Running"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Oracle (Reboot)" "!!GOOD!!" "Enabled to survive reboot"
 else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle (Reboot)" "!!BAD!!" "Not enabled to survive reboot (Run 'systemctl enable oracle' to enable it)"
 fi
