@@ -928,12 +928,12 @@ fi
 
 backup_exists=false
 
-if find /SCCbackups -maxdepth 1 -type f -name "SCC_OS_UEFI_*.tar" -o -name "rear*.iso" 2>/dev/null | grep -q .; then
+if find /SCCbackups -maxdepth 1 -type f -name "mklinb_*" -o -name "rear*.iso" 2>/dev/null | grep -q .; then
     backup_exists=true
 fi
 
 if "$backup_exists"; then
-    if find /SCCbackups -maxdepth 1 -type f -name "SCC_OS_UEFI_*.tar" -o -name "rear*.iso" -newermt "$(date -d '1 month ago' +%Y-%m-%d)" 2>/dev/null | grep -q .; then
+    if find /SCCbackups -maxdepth 1 -type f -name "mklinb_*" -o -name "rear*.iso" -newermt "$(date -d '1 month ago' +%Y-%m-%d)" 2>/dev/null | grep -q .; then
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "/SCCbackup" "!!GOOD!!" "There is a backup newer than a month"
     else
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "/SCCbackup" "!!BAD!!" "Problem with backup (Run '/SCCbackup/mklinb --compress --backup --lvsize=50 --path=/SCCbackup --force > /SCCbackup/up.out 2>&1 &' to create a new one)"
