@@ -902,6 +902,31 @@ print_osupdatecheck() {
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!GOOD!!" "Kernel has been updated within 6 months"
   fi
 
+  if systemctl is-active --quiet sccmain.service; then
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Sccmain Status" "!!GOOD!!" "Running"
+  else
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Sccmain Status" "!!BAD!!" "Not Running (Run 'journalctl -u sccmain.service' for additional details reach out to SEs)"
+  fi
+
+  if systemctl is-active --quiet oracle.service; then
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Oracle Status" "!!GOOD!!" "Running"
+  else
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle Status" "!!BAD!!" "Not Running (Run 'journalctl -u oracle.service' for additional details reach out to DBAs)"
+  fi
+
+  if systemctl is-enabled --quiet sccmain.service; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Sccmain (Reboot)" "!!GOOD!!" "Enabled to survive reboot"
+  else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Sccmain (Reboot)" "!!BAD!!" "Not enabled to survive reboot (Run 'systemctl enable sccmain' to enable it)"
+  fi
+
+  if systemctl is-enabled --quiet oracle.service; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Oracle (Reboot)" "!!GOOD!!" "Enabled to survive reboot"
+  else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle (Reboot)" "!!BAD!!" "Not enabled to survive reboot (Run 'systemctl enable oracle' to enable it)"
+  fi
+
+
 }
 
 
