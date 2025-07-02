@@ -882,6 +882,22 @@ print_osupdatecheck() {
   	fi
    done
 
+   GOOD_KERNEL_MONTHS=6
+   KERNEL_BUILD_DATE_STR=$(get_kernel_build_date)
+   KERNEL_TIMESTAMP=$(date -d "$KERNEL_BUILD_DATE_STR" +%s 2>/dev/null)
+   SIX_MONTHS_AGO_TIMESTAMP=$(date -d "-$GOOD_KERNEL_MONTHS months" +%s)
+
+   get_kernel_build_date() {
+   	local kernel_version_string=$(uname -v)
+     	local build_date_str=$(echo "$kernel_version_string" | grep -oP '\w{3} \w{3} \s*\d{1,2} \d{2}:\d{2}:\d{2} \w{3,4} \d{4}')
+}
+
+if (( KERNEL_TIMESTAMP < SIX_MONTHS_AGO_TIMESTAMP )); then
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!BAD!!" "Kernel was updated longer than 6 months ago"
+else
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!GOOD!!" "Kernel has been updated within 6 months"
+fi
+
 }
 
 
