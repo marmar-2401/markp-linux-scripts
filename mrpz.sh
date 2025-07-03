@@ -804,13 +804,16 @@ print_osupdatecheck() {
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!GOOD!!" "All fstab entries are valid and 'mount -a' completed successfully"   
     fi
 
-    selinux_status=$(getenforce)
+selinux_status=$(getenforce)
 
-    if [[ "${selinux_status}" == "Enforcing" ]]; then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!BAD!!" "${selinux_status} (To persistently enforce adjust '/etc/selinux/config' and reboot)"
-    else
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!GOOD!!" "${selinux_status}"
-    fi
+if [[ "${selinux_status}" == "Enforcing" ]]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!GOOD!!" "${selinux_status}"
+elif [[ "${selinux_status}" == "Permissive" ]]; then
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!BAD!!" "${selinux_status} (To persistently enforce adjust '/etc/selinux/config' and reboot)"
+else 
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!BAD!!" "${selinux_status} (To persistently enforce adjust '/etc/selinux/config' and reboot)"
+fi
+
 
     if systemctl is-active --quiet firewalld.service; then
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Firewalld" "!!GOOD!!" "Running"
