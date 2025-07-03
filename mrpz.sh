@@ -998,7 +998,7 @@ else
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "sshd_config Check" "!!GOOD!!" "Include /etc/ssh/sshd_config.d/*.conf is commented out"
 fi
 
-
+printf "${CYAN}Check Complete!${NC}\n"
 }
 
 
