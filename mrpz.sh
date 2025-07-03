@@ -989,7 +989,14 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Domain Name IP Check" "!!BAD!!" "FQDN long and short may be using IPv6 or are not the same"
 fi
 
+SSHD_CONFIG_FILE="/etc/ssh/sshd_config"
+PROBLEM_LINE_PATTERN="^[^#]*Include /etc/ssh/sshd_config.d/\*\.conf"
 
+if grep -Pq "$PROBLEM_LINE_PATTERN" "$SSHD_CONFIG_FILE"; then
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "sshd_config Check" "!!BAD!!" "Include /etc/ssh/sshd_config.d/*.conf needs commented out"
+else
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "sshd_config Check" "!!GOOD!!" "Include /etc/ssh/sshd_config.d/*.conf is commented out"
+fi
 
 
 }
