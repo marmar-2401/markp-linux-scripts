@@ -998,6 +998,37 @@ else
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "sshd_config Check" "!!GOOD!!" "Include /etc/ssh/sshd_config.d/*.conf is commented out"
 fi
 
+local EXPECTED_ENABLED=1
+local EXPECTED_FAILURE=1
+local EXPECTED_BACKLOG_LIMIT=8192
+local AUDIT_SETTINGS=$(auditctl -s 2>/dev/null)
+local CURRENT_ENABLED=$(echo "$AUDIT_SETTINGS" | grep -oP 'enabled \K\d+' || echo "0")
+local CURRENT_FAILURE=$(echo "$AUDIT_SETTINGS" | grep -oP 'failure \K\d+' || echo "0")
+local CURRENT_BACKLOG_LIMIT=$(echo "$AUDIT_SETTINGS" | grep -oP 'backlog_limit \K\d+' || echo "0")
+local IS_GOOD="true"
+local REASON=""
+
+if ! systemctl is-active --quiet "auditd.service"; then
+    IS_GOOD="false"
+    REASON="auditd is not running"
+elif [ "$CURRENT_ENABLED" -ne "$EXPECTED_ENABLED" ]; then
+    IS_GOOD="false"
+    REASON="enabled should be $EXPECTED_ENABLED (found $CURRENT_ENABLED)"
+elif [ "$CURRENT_FAILURE" -ne "$EXPECTED_FAILURE" ]; then
+    IS_GOOD="false"
+    REASON="failure should be $EXPECTED_FAILURE (found $CURRENT_FAILURE)"
+elif [ "$CURRENT_BACKLOG_LIMIT" -ne "$EXPECTED_BACKLOG_LIMIT" ]; then
+    IS_GOOD="false"
+    REASON="backlog_limit should be $EXPECTED_BACKLOG_LIMIT (found $CURRENT_BACKLOG_LIMIT)"
+fi
+
+if [ "$IS_GOOD" = "true" ]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Audit Rules Check" "!!GOOD!!" "All configurations are correct"
+else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Audit Rules Check" "!!BAD!!" "${REASON} (Change audit configuration in '/etc/audit/rules.d/audit.rules' make sure its restarted 'systemctl restart auditd')"
+fi
+
+
 printf "${CYAN}Check Complete!${NC}\n"
 }
 
