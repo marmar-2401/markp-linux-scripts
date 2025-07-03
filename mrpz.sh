@@ -786,23 +786,28 @@ print_osupdatecheck() {
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!GOOD!!" "No filesystem is over ${USAGE_THRESHOLD} percent usage"
     fi
 
-    local OVERALL_STATUS=0
-    local FINDMNT_VERIFY_OUTPUT=$(findmnt --verify --fstab 2>&1)
-    local FINDMNT_VERIFY_STATUS=$?
+local OVERALL_STATUS=0
+local FINDMNT_VERIFY_OUTPUT=$(findmnt --verify --fstab 2>&1)
+local FINDMNT_VERIFY_STATUS=$?
 
-    if [ $FINDMNT_VERIFY_STATUS -ne 0 ]; then
-        OVERALL_STATUS=1
-    fi
+if [ $FINDMNT_VERIFY_STATUS -ne 0 ]; then
+    echo "findmnt --verify --fstab failed with status: $FINDMNT_VERIFY_STATUS"
+    echo "Output: $FINDMNT_VERIFY_OUTPUT"
+    OVERALL_STATUS=1
+fi
 
+if [ $OVERALL_STATUS -eq 0 ]; then
     if ! mount -a >/dev/null 2>&1; then
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "Problematic mount points or fstab issues detected (Run 'journalctl -xe' or '/var/log/messages' for additional details)"
         OVERALL_STATUS=1
     fi
+fi
 
-    if [ $OVERALL_STATUS -eq 0 ]; then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "Problematic mount points or fstab issues detected (Run 'journalctl -xe' or '/var/log/messages' for additional details)" 
-    else
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!GOOD!!" "All fstab entries are valid and 'mount -a' completed successfully"   
-    fi
+if [ $OVERALL_STATUS -eq 0 ]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!GOOD!!" "All fstab entries are valid and 'mount -a' completed successfully"
+else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "Problematic mount points or fstab issues detected (Run 'journalctl -xe' or '/var/log/messages' for additional details)"
+fi
 
     selinux_status=$(getenforce)
 
