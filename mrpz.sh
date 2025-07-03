@@ -953,8 +953,10 @@ else
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "RNGD" "!!GOOD!!" "Installed & enabled to survive reboot"
 fi
 
-if yum check-update >/dev/null; then
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Updates Available" "!!BAD!!" "System has available updates (Run 'yum updateinfo' to inspect further)"
+local FULL_UPDATE_OUTPUT=$(yum list updates 2>/dev/null)
+
+if echo "$FULL_UPDATE_OUTPUT" | grep -q "Available Upgrades"; then
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Updates Available" "!!BAD!!" "System has available updates (Run 'yum updateinfo' or 'yum list updates' to inspect further)"
 else
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Updates Available" "!!GOOD!!" "System has no available updates"
 fi
@@ -964,6 +966,29 @@ if mokutil --sb-state >/dev/null; then
 else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!BAD!!" "Secure boot issues (Run 'rpm -qa grub2-efi-x64 shim-x64' & 'yum check-update grub2-efi-x64 shim-x64' to inspect further)"
 fi
+
+local fqdn_long=$(hostname -f)
+local fqdn_short=$(hostname -s)
+
+get_ipv4_from_nslookup() {
+    local hostname="$1"
+    nslookup "${hostname}" 2>/dev/null | awk '/^Address: / {
+        if ($2 ~ /^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/) {
+            print $2;
+            exit;
+        }
+    }'
+}
+
+local long_ip=$(get_ipv4_from_nslookup "${fqdn_long}")
+local short_ip=$(get_ipv4_from_nslookup "${fqdn_short}")
+
+if [[ "${long_ip}" == "${short_ip}" && -n "${long_ip}" ]]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Domain Name IP Check" "!!GOOD!!" "Both FQDN long and short name are using IPv4 and match"
+else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Domain Name IP Check" "!!BAD!!" "FQDN long and short may be using IPv6 or are not the same"
+fi
+
 
 
 
