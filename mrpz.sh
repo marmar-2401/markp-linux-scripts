@@ -1036,6 +1036,13 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Audit Rules Check" "!!BAD!!" "${REASON} (Change audit configuration in '/etc/audit/rules.d/audit.rules' make sure its restarted 'systemctl restart auditd')"
 fi
 
+local podver=$(podman --version)
+
+if command -v podman &> /dev/null; then
+    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${YELLOW}%s${NC}\n" "Podman" "!!ATTN!!" "Podman is installed and the version is ${podver}"
+else
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Podman" "!!GOOD!!" "Podman is not installed"    
+fi
 
 printf "${CYAN}Check Complete!${NC}\n"
 }
