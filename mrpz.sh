@@ -1044,32 +1044,34 @@ else
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Podman" "!!GOOD!!" "Podman is not installed"    
 fi
 
-local RULE_FILE="/etc/udev/rules.d/50-console.rules"
-local RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"'
-local DEVICE="/dev/console"
-local PERM="622"
+RULE_FILE="/etc/udev/rules.d/50-console.rules"
+RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"'
+DEVICE="/dev/console"
+PERM="622"
 
-ISSUES_FOUND=0
+RULE_FIX_NEEDED=0
+PERM_FIX_NEEDED=0
 
-if [ ! -f "${RULE_FILE}" ] || ! grep -Fxq "${RULE_CONTENT}" "${RULE_FILE}"; then
-    echo "${RULE_CONTENT}" > "${RULE_FILE}"
-    ISSUES_FOUND=1
+if [ ! -f "$RULE_FILE" ] || ! grep -Fxq "$RULE_CONTENT" "$RULE_FILE"; then
+    echo "$RULE_CONTENT" > "$RULE_FILE"
+    RULE_FIX_NEEDED=1
 fi
 
-current_perm=$(stat -c "%a" "${DEVICE}" 2>/dev/null)
+current_perm=$(stat -c "%a" "$DEVICE" 2>/dev/null)
 
-if [ -z "${current_perm}" ]; then
-    ISSUES_FOUND=1
-elif [ "${current_perm}" != "${PERM}" ]; then
+if [ -z "$current_perm" ]; then
+    PERM_FIX_NEEDED=1
+elif [ "$current_perm" != "$PERM" ]; then
     chmod "${PERM}" "${DEVICE}"
-    ISSUES_FOUND=1
+    PERM_FIX_NEEDED=1
 fi
 
-if [ "${ISSUES_FOUND}" -eq 0 ]; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "/dev/console" "!!GOOD!!" "Optimal"    
+if [ "$RULE_FIX_NEEDED" -eq 0 ] && [ "$PERM_FIX_NEEDED" -eq 0 ]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "/dev/console" "!!GOOD!!" "Optimal"
 else
     printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%s${NC}\n" "/dev/console" "!!BAD!!" "Issues exist (Run 'bash mrpz.sh --devconsolefix' to address issues)"
 fi
+
 
 printf "${CYAN}Check Complete!${NC}\n"
 }
