@@ -1077,6 +1077,32 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "/dev/console" "!!BAD!!" "Issues exist (Run 'bash mrpz.sh --devconsolefix' to address issues)"
 fi
 
+multiple_ip_interfaces=$(ip -br a | \
+    grep -v "lo" | \
+    awk '{
+        interface_name = $1;
+        ipv4_count = 0;
+        for (i = 3; i <= NF; i++) {
+            if ($i !~ /::/) {
+                ipv4_count++;
+            }
+        }
+        if (ipv4_count > 0) {
+            for (j = 1; j <= ipv4_count; j++) {
+                print interface_name;
+            }
+        }
+    }' | \
+    sort | \
+    uniq -c | \
+    awk '$1 > 1 {print $2}')
+
+if [ -n "$multiple_ip_interfaces" ]; then
+    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!ATTN!!" "Service IP is likely in use (Run 'ip -br a' & reference the /etc/hosts files for additional details)"
+else
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!GOOD!!" "Service IP does not appear to be in use on this system"
+fi
+
 
 
 printf "${CYAN}Check Complete!${NC}\n"
