@@ -545,22 +545,14 @@ print_devconsolefix() {
     local DEVICE="/dev/console"
     local PERM="622"
 
-    printf "${CYAN}|----------------|${NC}\n"
-    printf "${CYAN}|/dev/console Fix|${NC}\n"
-    printf "${CYAN}|----------------|${NC}\n"
-    if [ ! -f "$RULE_FILE" ] || ! grep -Fxq "$RULE_CONTENT" "$RULE_FILE"; then
-        printf "${GREEN}Creating/Updating $RULE_FILE with correct rule...${NC}\n" 
+    if [ ! -f "$RULE_FILE" ] || ! grep -Fxq "$RULE_CONTENT" "$RULE_FILE"; then 
         echo "$RULE_CONTENT" > "$RULE_FILE"
     else
-        printf "${GREEN}${RULE_FILE} already contains the correct rule.${NC}\n" 
-    current_perm=$(stat -c "%a" "$DEVICE")
+    	current_perm=$(stat -c "%a" "$DEVICE")
     fi
 
     if [ "$current_perm" != "$PERM" ]; then
-        printf "${GREEN}Setting permissions of ${DEVICE} to ${PERM}...${NC}\n" 
         chmod "${PERM}" "${DEVICE}"
-    else
-        printf "${GREEN}Permissions of ${DEVICE} are already correct: ${current_perm} ${NC}\n" 
     fi
 }
 
@@ -1082,7 +1074,7 @@ fi
 if [ "$RULE_FIX_NEEDED" -eq 0 ] && [ "$PERM_FIX_NEEDED" -eq 0 ]; then
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "/dev/console" "!!GOOD!!" "Optimal"
 else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s- ${NC}${YELLOW}%s${NC}\n" "/dev/console" "!!BAD!!" "Issues exist (Run 'bash mrpz.sh --devconsolefix' to address issues)"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "/dev/console" "!!BAD!!" "Issues exist (Run 'bash mrpz.sh --devconsolefix' to address issues)"
 fi
 
 
