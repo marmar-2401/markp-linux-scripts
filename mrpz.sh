@@ -1112,8 +1112,14 @@ else
   printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Java" "!!Bad!!" "Java does not appear to be installed on the system"
 fi
 
+local FILE="/etc/scc/Run.ascenv"
+local FILE_OUTPUT="cat ${java_output}"
 
-
+if [ -f "$FILE" ]; then
+  printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${GREEN}%s${NC}\n${CYAN}%s${NC}\n" "ascenv Startup" "!!Good!!" "There appear to be entries in /etc/scc/Run.ascenv see below:" "${FILE_OUTPUT)"  
+else
+  printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "ascenv Startup" "!!Bad!!" "There does not appear to be any entries in /etc/scc/Run.ascenv"
+fi
 
 printf "${GREEN}Check Complete!${NC}\n"
 }
