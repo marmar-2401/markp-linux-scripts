@@ -1103,6 +1103,16 @@ else
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!GOOD!!" "Service IP does not appear to be in use on this system"
 fi
 
+java_output=$(java -version 2>&1)
+java_exit_status=$?
+
+if [ $java_exit_status -eq 0 ]; then
+  printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Java" "!!ATTN!!" "Java appears to be installed versions: ${java_output}"
+else
+  printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Java" "!!Bad!!" "Java does not appear to be installed on the system"
+fi
+
+
 
 
 printf "${CYAN}Check Complete!${NC}\n"
