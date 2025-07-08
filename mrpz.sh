@@ -1107,7 +1107,7 @@ java_output=$(java -version 2>&1)
 java_exit_status=$?
 
 if [ $java_exit_status -eq 0 ]; then
-  printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n${CYAN}%s${NC}\n" "Java" "!!ATTN!!" "Java appears to be installed see below:" "${java_output}"
+  printf "\n${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n${CYAN}%s${NC}\n" "Java" "!!ATTN!!" "Java appears to be installed see below:" "${java_output}"
 else
   printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Java" "!!Bad!!" "Java does not appear to be installed on the system"
 fi
@@ -1117,7 +1117,7 @@ FILE="/etc/scc/Run.ascenv"
 if [ -f "$FILE" ]; then
   FILE_CONTENT="$(cat "$FILE")"
 
-  printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${GREEN}%s${NC}\n${CYAN}%s${NC}\n" "ascenv Startup" "!!Good!!" "There appear to be entries in /etc/scc/Run.ascenv see below:" "${FILE_CONTENT}"
+  printf "\n${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${GREEN}%s${NC}\n${CYAN}%s${NC}\n" "ascenv Startup" "!!Good!!" "There appear to be entries in /etc/scc/Run.ascenv see below:" "${FILE_CONTENT}"
 else
   printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "ascenv Startup" "!!Bad!!" "There does not appear to be any entries in /etc/scc/Run.ascenv"
 fi
