@@ -651,10 +651,7 @@ print_harddetect() {
         return 1
     }
 
-    # --- Execution order ---
-    # Call the checkers and assign the output if successful
     if detected_hardware=$(check_vmware); then
-        # VMware detected, we're done
         echo "$detected_hardware"
         return 0
     elif detected_hardware=$(check_hpe); then
@@ -676,7 +673,7 @@ print_harddetect() {
         echo "$detected_hardware"
         return 0
     else
-        echo "Unknown" # 
+        echo "Unknown Hardware Platform" 
         return 1
     fi
 }
@@ -1051,10 +1048,20 @@ PERM="622"
 
 RULE_FIX_NEEDED=0
 PERM_FIX_NEEDED=0
+UDEV_RELOAD_NEEDED=0
 
-if [ ! -f "$RULE_FILE" ] || ! grep -Fxq "$RULE_CONTENT" "$RULE_FILE"; then
-    echo "$RULE_CONTENT" > "$RULE_FILE"
-    RULE_FIX_NEEDED=1
+if [ ! -f "$RULE_FILE" ]; then
+    echo "$RULE_CONTENT" | sudo tee "$RULE_FILE" > /dev/null
+    if [ $? -eq 0 ]; then
+        RULE_FIX_NEEDED=1
+        UDEV_RELOAD_NEEDED=1
+    fi
+elif ! grep -Fxq "$RULE_CONTENT" "$RULE_FILE"; then
+    echo "$RULE_CONTENT" | sudo tee -a "$RULE_FILE" > /dev/null
+    if [ $? -eq 0 ]; then
+        RULE_FIX_NEEDED=1
+        UDEV_RELOAD_NEEDED=1
+    fi
 fi
 
 current_perm=$(stat -c "%a" "$DEVICE" 2>/dev/null)
@@ -1062,8 +1069,14 @@ current_perm=$(stat -c "%a" "$DEVICE" 2>/dev/null)
 if [ -z "$current_perm" ]; then
     PERM_FIX_NEEDED=1
 elif [ "$current_perm" != "$PERM" ]; then
-    chmod "${PERM}" "${DEVICE}"
-    PERM_FIX_NEEDED=1
+    sudo chmod "${PERM}" "${DEVICE}"
+    if [ $? -eq 0 ]; then
+        PERM_FIX_NEEDED=1
+    fi
+fi
+
+if [ "$UDEV_RELOAD_NEEDED" -eq 1 ]; then
+    sudo udevadm control --reload-rules
 fi
 
 if [ "$RULE_FIX_NEEDED" -eq 0 ] && [ "$PERM_FIX_NEEDED" -eq 0 ]; then
