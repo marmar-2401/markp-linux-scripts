@@ -736,11 +736,11 @@ print_osupdatecheck() {
     fi
 
     local current_date=$(date +%Y-%m-%d)
-    local update_date=$(dnf history | grep -i update | head -1 | awk -F '|' '{print $3}' | xargs | cut -d' ' -f1) 
-    local days_since_update=-1 
+    local update_date=$(dnf history | grep -i -E 'update|upgrade' | head -1 | awk -F '|' '{print $3}' | xargs | cut -d' ' -f1)
+    local days_since_update=-1
 
     if [[ -z "$update_date" ]]; then
-        days_since_update=366 
+        days_since_update=366
     else
         current_timestamp=$(date -d "$current_date" +%s)
         update_timestamp=$(date -d "$update_date" +%s)
@@ -1117,7 +1117,7 @@ FILE="/etc/scc/Run.ascenv"
 if [ -f "$FILE" ]; then
   FILE_CONTENT="$(cat "$FILE")"
 
-  printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${GREEN}%s${NC}\n${CYAN}%s${NC}\n" "ascenv Startup" "!!Good!!" "There appear to be entries in /etc/scc/Run.ascenv see below:" "${FILE_CONTENT}"
+  printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n${CYAN}%s${NC}\n" "ascenv Startup" "!!Good!!" "There appear to be entries in /etc/scc/Run.ascenv see below:" "${FILE_CONTENT}"
 else
   printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "ascenv Startup" "!!Bad!!" "There does not appear to be any entries in /etc/scc/Run.ascenv"
 fi
