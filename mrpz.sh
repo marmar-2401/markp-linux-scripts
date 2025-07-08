@@ -8,7 +8,7 @@ BLUE='\033[0;34m'
 MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'
 WHITE='\033[0;37m'
-NC='\033[0m' #No Color
+NC='\033[0m' 
 
 
 check_root() {
@@ -406,8 +406,6 @@ print_saslremove() {
     printf "${GREEN}!!!SASL Configuration Has Been Removed!!!${NC}\n"
 }
 
-#### Below this line is are functions for oscheck
-
 print_systeminfo() {
     check_root
     check_dependencies "printf" "hostnamectl" "awk" "grep" "uname" "who" "dnf" "uptime"
@@ -435,38 +433,6 @@ print_systeminfo() {
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Last Update Date & Time" "${updatetime}"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Terminal Type" "${termtype} (Run: '/usr/share/terminfo -type f | xargs -n1 basename | sort' for available options)"
     printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Shell Type" "${shelltype} (Run: 'cat /etc/shells' for available options)"
-}
-
-print_javainfo() {
-    check_root
-    check_dependencies "printf" "java" "awk" "grep" "uname" "rpm" "sort" "echo" "head" "command"
-
-    local jreversion=$(java -version 2>&1 | head -n 1 | cut -d'"' -f 2)
-    local javajrever=$(java -version 2>&1 | grep "OpenJDK Runtime" | awk '{gsub(/\)$/, "", $5); print $5}')
-
-
-    local jdkversion="Unavailable"
-    if command -v javac &>/dev/null; then
-        local temp_jdkversion=$(javac -version 2>&1 | awk '{print $2}')
-        if [[ -n "${temp_jdkversion}" ]]; then
-            jdkversion="${temp_jdkversion}"
-        fi
-    fi
-
-    [[ -z "${jreversion}" ]] && jreversion="Unavailable"
-    [[ -z "${javajrever}" ]] && javajrever="Unavailable"
-
-    local javarpmsum=$(rpm -qa | grep -i "java" | sort)
-    [[ -z "${javarpmsum}" ]] && javarpmsum="None found"
-
-    printf "${CYAN}|---------------|${NC}\n"
-    printf "${CYAN}|    Java Info  |${NC}\n"
-    printf "${CYAN}|---------------|${NC}\n\n"
-
-    printf "${MAGENTA}%-10s:${NC}${CYAN}%s${NC}\n" "Java JDK Version" "${jdkversion}"
-    printf "${MAGENTA}%-10s:${NC}${CYAN}%s${NC}\n\n" "Java JRE Version" "${jreversion}"
-    printf "${MAGENTA}%-20s:${NC}\n" "Summary Of All Java Related RPMs"
-    printf "${CYAN}%s${NC}\n" "${javarpmsum}"
 }
 
 get_raw_mem_percentages() {
@@ -1136,7 +1102,6 @@ case "$1" in
   --smtpsaslconfig) print_saslconfig ;;
   --smtpsaslremove) print_saslremove ;;
   --systeminfo) print_systeminfo ;;
-  --javainfo) print_javainfo ;;
   --meminfo) print_meminfo ;;
   --devconsolefix) print_devconsolefix ;;
   --osupdatecheck) print_osupdatecheck ;;
