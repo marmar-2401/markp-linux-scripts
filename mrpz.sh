@@ -1067,9 +1067,10 @@ else
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!GOOD!!" "Service IP does not appear to be in use on this system"
 fi
 
-MULTIPATH_OUTPUT=$(multipath -ll 2>&1)
+multipath -ll >/dev/null 2>&1
+EXIT_STATUS=$?
 
-if [ -n "$MULTIPATH_OUTPUT" ]; then
+if [ $EXIT_STATUS -eq 0 ]; then
   printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!ATTN!!" "SAN is likely in use (Run 'lsscsi' & 'multipath -ll' for additional details)"
 else
   printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!GOOD!!" "A SAN does not appear to be in use"
