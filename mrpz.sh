@@ -1091,7 +1091,7 @@ elif rpm -q "$YUM_PLUGIN" &> /dev/null; then
 fi
 
 if [ -z "$VERSIONLOCK_PLUGIN_FOUND" ]; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "YUM/DNF Version Locks" "!!GOOD!!" "Plugins do not exist for version locking to work"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!GOOD!!" "Plugins do not exist for version locking to work"
     exit 0
 fi
 
@@ -1104,9 +1104,9 @@ FILTERED_LOCKS=$(echo "$LOCK_OUTPUT" | \
     grep -v "^$")
 
 if [ -z "$FILTERED_LOCKS" ]; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "YUM/DNF Version Locks" "!!GOOD!!" "Version lock does not appear to be in use"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!GOOD!!" "Version lock does not appear to be in use"
 else
-    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "YUM/DNF Version Locks" "!!ATTN!!" "Version lock is likely in use (Run 'yum versionlock list' for additional details)"
+    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!ATTN!!" "Version lock is likely in use (Run 'yum versionlock list' for additional details)"
 fi
 
 java_output=$(java -version 2>&1)
