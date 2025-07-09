@@ -1092,10 +1092,9 @@ fi
 
 if [ -z "$VERSIONLOCK_PLUGIN_FOUND" ]; then
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!GOOD!!" "Plugins do not exist for version locking to work"
-    exit 0
 fi
 
-LOCK_OUTPUT=$(sudo $PACKAGE_MANAGER versionlock list 2>&1)
+LOCK_OUTPUT=$(${PACKAGE_MANAGER} versionlock list 2>&1)
 
 FILTERED_LOCKS=$(echo "$LOCK_OUTPUT" | \
     grep -v "Loaded plugins:" | \
