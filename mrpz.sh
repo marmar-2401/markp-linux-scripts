@@ -1094,7 +1094,7 @@ local DEFAULT_MAX_QUEUE_SIZE=$(echo "$IPCS_OUTPUT" | grep "default max size of q
 if [ "$MAX_MSG_SIZE" -eq "$EXPECTED_VALUE" ] && [ "$DEFAULT_MAX_QUEUE_SIZE" -eq "$EXPECTED_VALUE" ]; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "MQ Limits" "!!GOOD!!" "The message queue limits are correct"
 else
-	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${YELLOW}%s${NC}\n" "MQ Limits" "!!BAD!!" "The message queue limits are incorrect (Run 'bash mrpz.sh --mqfix' to correct issue)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "MQ Limits" "!!BAD!!" "The message queue limits are incorrect (Run 'bash mrpz.sh --mqfix' to correct issue)"
 fi
 
 local java_output=$(java -version 2>&1)
