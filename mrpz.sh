@@ -1139,6 +1139,12 @@ else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle Listener" "!!BAD!!" "Oracle listener is missing (Run 'ps -ef | egrep '_pmon_|tnslsnr' | grep -q -v 'grep -E _pmon_|tnslsnr' for additional details)"
 fi
 
+if journalctl -rp err | grep -q .; then
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Journal" "!!BAD!!" "The journal contains errors (Run 'journalctl -rp errr' for additional details)"
+else
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Journal" "!!GOOD!!" "The journal does not have any errors"
+fi
+
 local java_output=$(java -version 2>&1)
 local java_exit_status=$?
 
