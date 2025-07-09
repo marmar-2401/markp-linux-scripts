@@ -1110,6 +1110,15 @@ else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SSL HTTPS" "!!GOOD!!" "HTTPS certificates do not appear to be in use"
 fi
 
+local CPU_THRESHOLD=70
+local high_cpu_output=$(ps aux | tail -n +2 | awk -v threshold="${CPU_THRESHOLD}" '{if ($3 >= threshold) {print $3 "% " substr($0, index($0, $11));}}')
+
+if [ -n "${high_cpu_output}" ]; then
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "High CPU Usage" "!!BAD!!" "The CPU usage is over 70 percent usage (Run 'top' for additional details)"
+else
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "High CPU Usage" "!!GOOD!!" "The CPU usage is under 70 percent usage"
+fi
+
 local EXPECTED_VALUE=4194304
 local IPCS_OUTPUT=$(ipcs -l)
 local MAX_MSG_SIZE=$(echo "$IPCS_OUTPUT" | grep "max size of message (bytes)" | awk '{print $NF}')
