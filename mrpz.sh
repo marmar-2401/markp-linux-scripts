@@ -1045,6 +1045,18 @@ else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "VSIFAX" "!!GOOD!!" "VSIFAX does not appear to be in use"
 fi
 
+if [ -e "/SCC/TPC/JavaTrust" ]; then
+	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SSL LDAP/JAVA" "!!ATTN!!" "LDAP Java certificates are likely in use (Run 'ls -l /SCC/TPC/JavaTrust ' for additional details)"
+else
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SSL LDAP/JAVA" "!!GOOD!!" "LDAP Jaca certificates do not appear to be in use"
+fi
+
+if [ -e "ls -l /SCC/TPC/ssl" ]; then
+	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SSL HTTPS" "!!ATTN!!" "HTTPS certificates are likely in use (Run 'ls -l /SCC/TPC/ssl ' for additional details)"
+else
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SSL HTTPS" "!!GOOD!!" "HTTPS certificates do not appear to be in use"
+fi
+
 local java_output=$(java -version 2>&1)
 local java_exit_status=$?
 
