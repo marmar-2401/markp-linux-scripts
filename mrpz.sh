@@ -1145,6 +1145,12 @@ else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Journal" "!!GOOD!!" "The journal does not have any errors"
 fi
 
+if firewall-cmd --list-rich-rules | grep -q 'rule'; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!GOOD!!" "Firewall rich rules are present"
+else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!BAD!!" "No firewall rich rules present (Run 'firewall-cmd --list-rich-rules' for additional details NOTE: Some systems do not use them.)"
+fi
+
 local java_output=$(java -version 2>&1)
 local java_exit_status=$?
 
