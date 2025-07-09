@@ -45,7 +45,7 @@ check_dependencies() {
 print_version() {
   check_dependencies "print_version" "printf" "exit"
   printf "\n${CYAN}           ################${NC}\n"
-  printf "${CYAN}           ## Ver: 1.1.6 ##${NC}\n"
+  printf "${CYAN}           ## Ver: 1.1.5 ##${NC}\n"
   printf "${CYAN}           ################${NC}\n"
   printf "${CYAN}=====================================${NC}\n"
   printf "${CYAN} __   __   ____     _____    _____ ${NC}\n"
@@ -72,11 +72,10 @@ print_version() {
   printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Check for commands before running script to make sure necessary script dependencies are installed was built ${NC}\n"
   printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Adjusted dependency function to be function specific to make more compatible with various systems ${NC}\n"
   printf "${MAGENTA} 1.1.1 | 06/12/2025 | - Adjusted root access check to be specific to the option selected and only used if needed ${NC}\n"
-  printf "${MAGENTA} 1.1.2 | 06/16/2025 | - Created system info function ${NC}\n"
-  printf "${MAGENTA} 1.1.3 | 06/17/2025 | - Created meminfo function building out system checks ${NC}\n"
-  printf "${MAGENTA} 1.1.4 | 06/17/2025 | - Created devconsolefix function building out system checks ${NC}\n"
-  printf "${MAGENTA} 1.1.5 | 06/17/2025 | - Begin OS update check for system ${NC}\n"
-  printf "${MAGENTA} 1.1.6 | 06/24/2025 | - Build hardware platform detection functions ${NC}\n"
+  printf "${MAGENTA} 1.1.2 | 06/17/2025 | - Created meminfo function building out system checks ${NC}\n"
+  printf "${MAGENTA} 1.1.3 | 06/17/2025 | - Created devconsolefix function building out system checks ${NC}\n"
+  printf "${MAGENTA} 1.1.4 | 06/17/2025 | - Begin OS check for system ${NC}\n"
+  printf "${MAGENTA} 1.1.5 | 06/24/2025 | - Build hardware platform detection functions ${NC}\n"
   exit 0
 }
 
@@ -95,11 +94,9 @@ print_help() {
   printf "${YELLOW}--smtpconfig${NC}        # Allows you to setup and configure a non-SASL relayhost in postfix\n\n"
   printf "${YELLOW}--smtpsaslconfig${NC}        # Allows you to setup and configure a SASL relayhost in postfix\n\n"
   printf "${YELLOW}--smtpsaslremove${NC}        # Allows you to remove a SASL relayhost and configuration in postfix\n\n"
-  printf "\n${MAGENTA}Linux Update Based Options:${NC}\n"
-  printf "${YELLOW}--osupdatecheck${NC}       # Gives you a general system information overview\n\n"
   printf "\n${MAGENTA}General System Information Options:${NC}\n"
-  printf "${YELLOW}--systeminfo${NC}        # Gives you a general system information overview\n\n"
   printf "${YELLOW}--meminfo${NC}         # Gives you information in regards to memory on the system\n\n"
+  printf "${YELLOW}--oscheck${NC}       # Gives you a general system information overview\n\n"
   printf "${YELLOW}--harddetect${NC}         # Detects the hardware platform a Linux host is running on\n\n"
   printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
   printf "${YELLOW}--devconsolefix${NC}       # Checks and corrects the /dev/console rules on system\n\n"
@@ -404,34 +401,6 @@ print_saslremove() {
     printf "${GREEN}!!!SASL Configuration Has Been Removed!!!${NC}\n"
 }
 
-print_systeminfo() {
-    check_root
-    check_dependencies "printf" "hostnamectl" "awk" "grep" "uname" "who" "dnf" "uptime"
-    local hostname=$(hostnamectl | grep -i hostname | awk '{print $3}')
-    local os=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7, $8}')
-    local virt=$(hostnamectl | grep -i virtualization | awk '{print $2}')
-    local kern=$(uname -r)
-    local kerndate=$(uname -v)
-    local lastbootdate=$(who -b | awk -F " " '{print $3}')
-    local daysup=$(uptime | awk '{sub(/,$/, "", $4); print $3, $4}')
-    local updatetime=$(dnf history | grep -i update | head -1 | awk -F '|' '{print $3}')
-    termtype=$(echo $TERM)
-    shelltype=$(echo $SHELL)
-
-    printf "${CYAN}|---------------|${NC}\n"
-    printf "${CYAN}|System Overview|${NC}\n"
-    printf "${CYAN}|---------------|${NC}\n"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hostname" "${hostname}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "OS" "${os}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Virtualization" "${virt}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Current Kernel" "${kern}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel Compile Date" "${kerndate}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Last Reboot Date" "${lastbootdate}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "System Uptime" "${daysup}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Last Update Date & Time" "${updatetime}"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Terminal Type" "${termtype} (Run: '/usr/share/terminfo -type f | xargs -n1 basename | sort' for available options)"
-    printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Shell Type" "${shelltype} (Run: 'cat /etc/shells' for available options)"
-}
 
 get_raw_mem_percentages() {
     local totalmem_kb=$(free -k | awk 'NR==2{print $2}')
@@ -636,7 +605,7 @@ print_harddetect() {
 
 
 
-print_osupdatecheck() {
+print_oscheck() {
     check_root
     check_dependencies "print_osupdatecheck" "printf" "grep" "awk" "hostnamectl" "free" "vmstat"
 
@@ -1136,10 +1105,9 @@ case "$1" in
   --smtpconfig) print_smtpconfig ;;
   --smtpsaslconfig) print_saslconfig ;;
   --smtpsaslremove) print_saslremove ;;
-  --systeminfo) print_systeminfo ;;
   --meminfo) print_meminfo ;;
   --devconsolefix) print_devconsolefix ;;
-  --osupdatecheck) print_osupdatecheck ;;
+  --oscheck) print_oscheck ;;
   --harddetect) print_harddetect ;;
   *)
     printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
