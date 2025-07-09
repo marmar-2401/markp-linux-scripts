@@ -74,6 +74,7 @@ printf "${MAGENTA} 1.1.2 | 06/17/2025 | - Created meminfo function building out 
 printf "${MAGENTA} 1.1.3 | 06/17/2025 | - Created devconsolefix function building out system checks ${NC}\n"
 printf "${MAGENTA} 1.1.4 | 06/17/2025 | - Begin OS check for system ${NC}\n"
 printf "${MAGENTA} 1.1.5 | 06/24/2025 | - Build hardware platform detection functions ${NC}\n"
+printf "${MAGENTA} 1.1.6 | 07/09/2025 | - Built mqfix to correct message queue limits ${NC}\n"
 }
 
 print_help() {
@@ -97,6 +98,7 @@ printf "${YELLOW}--oscheck${NC}       # Gives you a general system information o
 printf "${YELLOW}--harddetect${NC}         # Detects the hardware platform a Linux host is running on\n\n"
 printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
 printf "${YELLOW}--devconsolefix${NC}       # Checks and corrects the /dev/console rules on system\n\n"
+printf "${YELLOW}--mqfix${NC}       # Checks and corrects the message queue limits on system\n\n"
 printf "\n"
 exit 0
 }
@@ -287,7 +289,7 @@ else
 fi
 local virtual_db="/etc/postfix/virtual.db"
 if [ -r "${virtual_db}" ]; then
-	: # Do nothing, already exists
+	:
 else
         echo "@softcomputer.com          seauto@mail.softcomputer.com" >>/etc/postfix/virtual
         echo "@isd.dp.ua        seauto@mail.softcomputer.com" >>/etc/postfix/virtual
@@ -339,7 +341,7 @@ fi
 
 local virtual_db="/etc/postfix/virtual.db"
 if [ -r "${virtual_db}" ]; then
-	: # Do nothing, already exists
+	: 
 else
 	echo "@softcomputer.com          seauto@mail.softcomputer.com" >>/etc/postfix/virtual
 	echo "@isd.dp.ua        seauto@mail.softcomputer.com" >>/etc/postfix/virtual
@@ -455,6 +457,33 @@ fi
 if [ "${current_perm}" != "${PERM}" ]; then
         chmod "${PERM}" "${DEVICE}"
 fi
+}
+
+print_mqfix() {
+check_root
+check_dependencies "print_devconsolefix" "printf" "echo" "grep" "stat" "chmod"
+
+local SYSCTL_FILE="/etc/sysctl.d/99-sysctl.conf"
+local MSGMAX_VALUE="4194304"
+local MSGMNB_VALUE="4194304"
+
+if ! grep -q "^kernel.msgmax=$MSGMAX_VALUE$" "$SYSCTL_FILE"; then
+    if grep -q "^kernel.msgmax=" "$SYSCTL_FILE"; then
+        sudo sed -i "s/^kernel.msgmax=.*/kernel.msgmax=$MSGMAX_VALUE/" "$SYSCTL_FILE"
+    else
+        echo "kernel.msgmax=$MSGMAX_VALUE" | sudo tee -a "$SYSCTL_FILE" > /dev/null
+    fi
+fi
+
+if ! grep -q "^kernel.msgmnb=$MSGMNB_VALUE$" "$SYSCTL_FILE"; then
+    if grep -q "^kernel.msgmnb=" "$SYSCTL_FILE"; then
+        sudo sed -i "s/^kernel.msgmnb=.*/kernel.msgmnb=$MSGMNB_VALUE/" "$SYSCTL_FILE"
+    else
+        echo "kernel.msgmnb=$MSGMNB_VALUE" | sudo tee -a "$SYSCTL_FILE" > /dev/null
+    fi
+fi
+
+sudo sysctl -p "$SYSCTL_FILE"
 }
 
 print_harddetect() {
@@ -1057,6 +1086,17 @@ else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SSL HTTPS" "!!GOOD!!" "HTTPS certificates do not appear to be in use"
 fi
 
+local EXPECTED_VALUE=4194304
+local IPCS_OUTPUT=$(ipcs -l)
+local MAX_MSG_SIZE=$(echo "$IPCS_OUTPUT" | grep "max size of message (bytes)" | awk '{print $NF}')
+local DEFAULT_MAX_QUEUE_SIZE=$(echo "$IPCS_OUTPUT" | grep "default max size of queue (bytes)" | awk '{print $NF}')
+
+if [ "$MAX_MSG_SIZE" -eq "$EXPECTED_VALUE" ] && [ "$DEFAULT_MAX_QUEUE_SIZE" -eq "$EXPECTED_VALUE" ]; then
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "MQ Limits" "!!GOOD!!" "The message queue limits are correct"
+else
+	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${YELLOW}%s${NC}\n" "MQ Limits" "!!BAD!!" "The message queue limits are incorrect (Run 'bash mrpz.sh --mqfix' to correct issue)"
+fi
+
 local java_output=$(java -version 2>&1)
 local java_exit_status=$?
 
@@ -1092,6 +1132,7 @@ case "$1" in
 	--devconsolefix) print_devconsolefix ;;
 	--oscheck) print_oscheck ;;
 	--harddetect) print_harddetect ;;
+	--mqfix) print_mqfix ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
