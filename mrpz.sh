@@ -607,6 +607,8 @@ local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7}
 local hardtype=$(print_harddetect | tail -n 1 | sed -E 's/^[^:]*:[[:space:]]*(.*)[[:space:]]*$/\1/')
 local hostname=$(hostname)
 local kernelver=$(uname -r)
+local systemtime=$(date | awk '{print $4}')
+local timezone=$(date | awk '{print $5}')
 
 printf "${CYAN}|-----------------|${NC}\n"
 printf "${CYAN}|     LINUX       |${NC}\n"
@@ -616,6 +618,8 @@ printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hostname" "${hostname}"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Operating System" "${ostype}"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Type" "${hardtype}"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel Version" "${kernelver}"
+printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Current Time" "${systemtime}"
+printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Time Zone" "${timezone}"
 
 local mempercent swappercent
 read -r mempercent swappercent <<< "$(get_raw_mem_percentages)"
