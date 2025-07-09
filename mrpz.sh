@@ -1037,6 +1037,14 @@ else
 fi
 fi
 
+vfxstat > /dev/null 2>&1
+
+if [ $? -eq 0 ]; then
+	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "VSIFAX" "!!ATTN!!" "VSIFAX is likely in use on this system (Run 'vfxstat' for additional details)"
+else
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "VSIFAX" "!!GOOD!!" "VSIFAX does not appear to be in use"
+fi
+
 local java_output=$(java -version 2>&1)
 local java_exit_status=$?
 
