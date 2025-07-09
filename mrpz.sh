@@ -8,7 +8,7 @@ BLUE='\033[0;34m'
 MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'
 WHITE='\033[0;37m'
-NC='\033[0m' 
+NC='\033[0m'
 
 check_root() {
 if [ "${EUID}" -ne 0 ]; then
@@ -341,7 +341,7 @@ fi
 
 local virtual_db="/etc/postfix/virtual.db"
 if [ -r "${virtual_db}" ]; then
-	: 
+	:
 else
 	echo "@softcomputer.com          seauto@mail.softcomputer.com" >>/etc/postfix/virtual
 	echo "@isd.dp.ua        seauto@mail.softcomputer.com" >>/etc/postfix/virtual
@@ -374,7 +374,7 @@ local totalmem_kb=$(free -k | awk 'NR==2{print $2}')
 local usedmem_kb=$(free -k | awk 'NR==2{print $3}')
 local totalswap_kb=$(free -k | awk 'NR==3{print $2}')
 local usedswap_kb=$(free -k | awk 'NR==3{print $3}')
-local memusepercent="0" 
+local memusepercent="0"
 
 if (( totalmem_kb > 0 )); then
 	memusepercent=$(awk "BEGIN {printf \"%.0f\", (${usedmem_kb} / ${totalmem_kb}) * 100}" < /dev/null)
@@ -417,7 +417,7 @@ printf "${MAGENTA}%-25s:${NC}${CYAN}%s%% Usage${NC}\n" "Memory Use Percentage" "
 printf "${MAGENTA}%-25s:${NC}${CYAN}%s%% Usage${NC}\n" "Swap Use Percentage" "${swapusepercent}"
 printf "${MAGENTA}%-25s:${NC}${CYAN}%sKB/s${NC}\n" "Swap In" "${si}"
 printf "${MAGENTA}%-25s:${NC}${CYAN}%sKB/s${NC}\n" "Swap Out" "${so}"
-    
+
 if (( memusepercent > 80 )); then
 	printf "\n${MAGENTA}%-25s:${NC}${RED}%s${NC}\n" "Memory Status" "Memory Usage Is High"
 else
@@ -443,12 +443,12 @@ print_devconsolefix() {
 check_root
 check_dependencies "print_devconsolefix" "printf" "echo" "grep" "stat" "chmod"
 
-local RULE_FILE="/etc/udev/rules.d/50-console.rules" 
-local RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"' 
+local RULE_FILE="/etc/udev/rules.d/50-console.rules"
+local RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"'
 local DEVICE="/dev/console"
 local PERM="622"
 
-if [ ! -f "${RULE_FILE}" ] || ! grep -Fxq "${RULE_CONTENT}" "${RULE_FILE}"; then 
+if [ ! -f "${RULE_FILE}" ] || ! grep -Fxq "${RULE_CONTENT}" "${RULE_FILE}"; then
         echo "${RULE_CONTENT}" > "${RULE_FILE}"
 else
     	local current_perm=$(stat -c "%a" "${DEVICE}")
@@ -488,19 +488,19 @@ sudo sysctl -p "$SYSCTL_FILE"
 
 print_harddetect() {
 check_root
-check_dependencies "print_harddetect" "printf" "lsscsi" 
-local detected_hardware="" 
+check_dependencies "print_harddetect" "printf" "lsscsi"
+local detected_hardware=""
 
 # VMware Checker
 check_vmware() {
 local vendor
 while read -r _ _ vendor _; do
 	if [[ "${vendor}" == "VMware" ]]; then
-        	echo "VMware" 
-                return 0 
+        	echo "VMware"
+                return 0
         fi
 done < <(lsscsi)
-return 1 
+return 1
 }
 
 # HPE Checker
@@ -540,7 +540,7 @@ return 1
 check_azure() {
 local vendor
 while read -r _ _ vendor _; do
-	if [[ "$(echo "${vendor}" | tr -d ' ')" == "Msft" ]]; then 
+	if [[ "$(echo "${vendor}" | tr -d ' ')" == "Msft" ]]; then
         	echo "Azure"
         	return 0
         fi
@@ -594,7 +594,7 @@ elif detected_hardware=$(check_dell); then
         echo "${detected_hardware}"
         return 0
 else
-        echo "Unknown Hardware Platform" 
+        echo "Unknown Hardware Platform"
         return 1
 fi
 }
@@ -607,7 +607,7 @@ local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7}
 local hardtype=$(print_harddetect | tail -n 1 | sed -E 's/^[^:]*:[[:space:]]*(.*)[[:space:]]*$/\1/')
 local hostname=$(hostname)
 local kernelver=$(uname -r)
-    
+
 printf "${CYAN}|-----------------|${NC}\n"
 printf "${CYAN}|     LINUX       |${NC}\n"
 printf "${CYAN}|   OS CHECKER    |${NC}\n"
@@ -616,7 +616,7 @@ printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hostname" "${hostname}"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Operating System" "${ostype}"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Type" "${hardtype}"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel Version" "${kernelver}"
-    
+
 local mempercent swappercent
 read -r mempercent swappercent <<< "$(get_raw_mem_percentages)"
 
@@ -632,14 +632,40 @@ else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Swap Usage" "!!GOOD!!" "${swappercent} %"
 fi
 
-local days_up=$(uptime | awk '{print $3}')
-    
-if ((${days_up} > 90)); then
+local uptime_output=$(uptime)
+local days_up=$(echo "${uptime_output}" | awk '{
+    for (i=1; i<=NF; i++) {
+        if ($i == "days,") {
+            print $(i-1);
+            exit;
+        } else if ($i == "days") { # Handle "X days" without a comma
+            print $(i-1);
+            exit;
+        }
+    }
+    # Handle cases like "up 1 day" or "up 2 hours"
+    if ($3 ~ /^[0-9]+$/ && ($4 == "days," || $4 == "days" || $4 == "day," || $4 == "day")) {
+        print $3;
+        exit;
+    }
+    if ($3 ~ /^[0-9]+(\.[0-9]+)?$/ && ($4 == "min," || $4 == "mins," || $4 == "hour," || $4 == "hours,")) {
+        print "0"; # Less than a day
+        exit;
+    }
+    print "0"; # Default to 0 if days not found (e.g., up for minutes/hours)
+}')
+
+# Check if days_up is empty or non-numeric before comparison
+if [[ -z "${days_up}" || ! "${days_up}" =~ ^[0-9]+$ ]]; then
+    days_up=0 # Default to 0 if parsing fails
+fi
+
+if ((days_up > 90)); then
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Uptime" "!!BAD!!" "${days_up} days" "(Longer than 90 days uptime!)"
 else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Uptime" "!!GOOD!!" "${days_up} days"
 fi
-    
+
 local termtype="$TERM"
 
 if [[ "${termtype}" != "vt220scc" ]]; then
@@ -655,7 +681,7 @@ if [[ "${current_shell}" != "/bin/bash" ]]; then
 else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "SHELL" "!!GOOD!!" "${current_shell}"
 fi
-    
+
 if needs-restarting -r &> /dev/null; then
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Reboot Hint" "!!GOOD!!" "System has been rebooted since last update"
 else
@@ -730,7 +756,7 @@ if [[ "${selinux_status}" == "Enforcing" ]]; then
     	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!GOOD!!" "${selinux_status}"
 elif [[ "${selinux_status}" == "Permissive" ]]; then
     	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!BAD!!" "${selinux_status} (To persistently enforce adjust '/etc/selinux/config' and reboot)"
-else 
+else
     	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!BAD!!" "${selinux_status} (To persistently enforce adjust '/etc/selinux/config' and reboot)"
 fi
 
@@ -755,7 +781,7 @@ else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Failed Units" "!!BAD!!" "Failed units have been detected (Run 'systemctl --failed' for additional details)"
 fi
 
-local THRESHOLD_PERCENT=5.0  
+local THRESHOLD_PERCENT=5.0
 local cpu_usage=$(ps aux | grep setroubleshootd | grep -v grep | awk '{print $3}')
 local total_cpu=0
 
@@ -764,25 +790,25 @@ for cpu in ${cpu_usage}; do
 done
 
 if (( $(awk "BEGIN {print (${total_cpu} >= ${THRESHOLD_PERCENT})}") )); then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!BAD!!" "${total_cpu}% Usage (Run 'top' or 'journalctl -p err' for additional details)"        
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!BAD!!" "${total_cpu}% Usage (Run 'top' or 'journalctl -p err' for additional details)"
 else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!GOOD!!" "${total_cpu}% Usage"       
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!GOOD!!" "${total_cpu}% Usage"
 fi
 
 yum repolist > /dev/null 2>&1
 
 if [ $? -eq 0 ]; then
-    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Repolist" "!!GOOD!!" "Repolist configuration is correct"   
+    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Repolist" "!!GOOD!!" "Repolist configuration is correct"
 else
-    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Repolist" "!!BAD!!" "Repolist Configuration Is Incorrect (Check '/etc/yum.repos.d' for additional details and syntax)" 
+    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Repolist" "!!BAD!!" "Repolist Configuration Is Incorrect (Check '/etc/yum.repos.d' for additional details and syntax)"
 fi
 
 local UNLABELED_FILES=$(find / -xdev -type f -context '*:unlabeled_t:*' -printf "%Z %p\n" 2>/dev/null)
 
 if [ -z "${UNLABELED_FILES}" ]; then
-    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SELinux Unlabled" "!!GOOD!!" "No unlabeled context" 
+    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SELinux Unlabled" "!!GOOD!!" "No unlabeled context"
 else
-    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Unlabled" "!!BAD!!" "Unlabeled context detectect (Run 'restorecon -Rv /' to relabel / or 'journalctl -t setroubleshoot' for additional details and syntax)" 
+    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Unlabled" "!!BAD!!" "Unlabeled context detectect (Run 'restorecon -Rv /' to relabel / or 'journalctl -t setroubleshoot' for additional details and syntax)"
 fi
 
 if systemctl is-active --quiet postfix.service; then
@@ -794,7 +820,7 @@ fi
 local ntpsync=$(timedatectl | head -5 | tail -1 | awk '{ print $NF }')
 
 if [[ "${ntpsync}" == "yes" ]]; then
-    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}\n" "NTP Syncronization" "!!GOOD!!" 
+    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}\n" "NTP Syncronization" "!!GOOD!!"
 else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NTP Syncronization" "!!BAD!!" "NTP time is not synced (Run 'bash mrpz.sh --ntpcheck' for additional details)"
 fi
@@ -825,7 +851,7 @@ if (( KERNEL_TIMESTAMP < SIX_MONTHS_AGO_TIMESTAMP )); then
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!GOOD!!" "Kernel has been updated within 6 months"
 fi
-  
+
 if systemctl is-active --quiet sccmain.service 2>/dev/null; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Sccmain Status" "!!GOOD!!" "Running"
 else
@@ -957,7 +983,7 @@ local podver=$(podman --version)
 if command -v podman &> /dev/null; then
 	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Podman" "!!ATTN!!" "Podman is installed and is ${podver}"
 else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Podman" "!!GOOD!!" "Podman is not installed"    
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Podman" "!!GOOD!!" "Podman is not installed"
 fi
 
 local RULE_FILE="/etc/udev/rules.d/50-console.rules"
