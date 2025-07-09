@@ -1075,7 +1075,7 @@ if [ $EXIT_STATUS -eq 0 ]; then
 else
   printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!GOOD!!" "A SAN does not appear to be in use"
 fi
-
+package_verlock() {
 DNF_PLUGIN="python3-dnf-plugin-versionlock"
 YUM_PLUGIN="yum-plugin-versionlock"
 
@@ -1092,6 +1092,7 @@ fi
 
 if [ -z "$VERSIONLOCK_PLUGIN_FOUND" ]; then
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!GOOD!!" "Plugins do not exist for version locking to work"
+    exit 
 fi
 
 LOCK_OUTPUT=$(${PACKAGE_MANAGER} versionlock list 2>&1)
@@ -1107,6 +1108,9 @@ if [ -z "$FILTERED_LOCKS" ]; then
 else
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!ATTN!!" "Version lock is likely in use (Run 'yum versionlock list' for additional details)"
 fi
+}
+
+package_verlock
 
 java_output=$(java -version 2>&1)
 java_exit_status=$?
