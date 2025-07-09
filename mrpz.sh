@@ -1130,7 +1130,7 @@ else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "MQ Limits" "!!BAD!!" "The message queue limits are incorrect (Run 'bash mrpz.sh --mqfix' to correct issue)"
 fi
 
-ps -ef 2>/dev/null | egrep "_pmon_|tnslsnr" | grep -V "grep -E _pmon_|tnslsnr"
+ps -ef 2>/dev/null | egrep "_pmon_|tnslsnr" | grep -v "grep -E _pmon_|tnslsnr"
 local LAST_COMMAND_EXIT_CODE=$?
 
 if [ $LAST_COMMAND_EXIT_CODE -eq 0 ]; then
