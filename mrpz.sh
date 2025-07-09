@@ -45,7 +45,7 @@ check_dependencies() {
 print_version() {
   check_dependencies "print_version" "printf" "exit"
   printf "\n${CYAN}           ################${NC}\n"
-  printf "${CYAN}           ## Ver: 1.1.7 ##${NC}\n"
+  printf "${CYAN}           ## Ver: 1.1.6 ##${NC}\n"
   printf "${CYAN}           ################${NC}\n"
   printf "${CYAN}=====================================${NC}\n"
   printf "${CYAN} __   __   ____     _____    _____ ${NC}\n"
@@ -73,11 +73,10 @@ print_version() {
   printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Adjusted dependency function to be function specific to make more compatible with various systems ${NC}\n"
   printf "${MAGENTA} 1.1.1 | 06/12/2025 | - Adjusted root access check to be specific to the option selected and only used if needed ${NC}\n"
   printf "${MAGENTA} 1.1.2 | 06/16/2025 | - Created system info function ${NC}\n"
-  printf "${MAGENTA} 1.1.3 | 06/17/2025 | - Created javainfo function building out system checks ${NC}\n"
-  printf "${MAGENTA} 1.1.4 | 06/17/2025 | - Created meminfo function building out system checks ${NC}\n"
-  printf "${MAGENTA} 1.1.5 | 06/17/2025 | - Created devconsolefix function building out system checks ${NC}\n"
-  printf "${MAGENTA} 1.1.6 | 06/17/2025 | - Begin OS update check for system ${NC}\n"
-  printf "${MAGENTA} 1.1.7 | 06/24/2025 | - Build hardware platform detection functions ${NC}\n"
+  printf "${MAGENTA} 1.1.3 | 06/17/2025 | - Created meminfo function building out system checks ${NC}\n"
+  printf "${MAGENTA} 1.1.4 | 06/17/2025 | - Created devconsolefix function building out system checks ${NC}\n"
+  printf "${MAGENTA} 1.1.5 | 06/17/2025 | - Begin OS update check for system ${NC}\n"
+  printf "${MAGENTA} 1.1.6 | 06/24/2025 | - Build hardware platform detection functions ${NC}\n"
   exit 0
 }
 
@@ -100,7 +99,6 @@ print_help() {
   printf "${YELLOW}--osupdatecheck${NC}       # Gives you a general system information overview\n\n"
   printf "\n${MAGENTA}General System Information Options:${NC}\n"
   printf "${YELLOW}--systeminfo${NC}        # Gives you a general system information overview\n\n"
-  printf "${YELLOW}--javainfo${NC}        # Gives you information in regards to java on the system\n\n"
   printf "${YELLOW}--meminfo${NC}         # Gives you information in regards to memory on the system\n\n"
   printf "${YELLOW}--harddetect${NC}         # Detects the hardware platform a Linux host is running on\n\n"
   printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
@@ -1067,6 +1065,14 @@ if [ -n "$multiple_ip_interfaces" ]; then
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!ATTN!!" "Service IP is likely in use (Run 'ip -br a' & reference the /etc/hosts files for additional details)"
 else
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!GOOD!!" "Service IP does not appear to be in use on this system"
+fi
+
+MULTIPATH_OUTPUT=$(multipath -ll 2>&1)
+
+if [ -n "$MULTIPATH_OUTPUT" ]; then
+  printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!ATTN!!" "SAN is likely in use (Run 'lsscsi' & 'multipath -ll' for additional details)"
+else
+  printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!GOOD!!" "A SAN does not appear to be in use"
 fi
 
 java_output=$(java -version 2>&1)
