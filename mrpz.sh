@@ -767,12 +767,6 @@ else
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Firewalld" "!!BAD!!" "Not Running"
 fi
 
-if systemctl is-active --quiet setroubleshootd.service; then
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Setroubleshootd" "!!GOOD!!" "Running"
-else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Setroubleshootd" "!!BAD!!" "Not Running or Installed (Run 'yum install setroubleshoot -y' to install & 'systemctl enable --now setroubleshootd' to enable it)"
-fi
-
 local failed_units_output=$(systemctl --failed)
 
 if echo "${failed_units_output}" | grep -q "0 loaded units listed."; then
