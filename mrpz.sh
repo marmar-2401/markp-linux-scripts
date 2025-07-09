@@ -1,32 +1,32 @@
 #!/usr/bin/env bash
 
-local BLACK='\033[0;30m'
-local RED='\033[0;31m'
-local GREEN='\033[0;32m'
-local YELLOW='\033[0;33m'
-local BLUE='\033[0;34m'
-local MAGENTA='\033[0;35m'
-local CYAN='\033[0;36m'
-local WHITE='\033[0;37m'
-local NC='\033[0m' 
+BLACK='\033[0;30m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[0;37m'
+NC='\033[0m' 
 
 check_root() {
-if [ "$EUID" -ne 0 ]; then
+if [ "${EUID}" -ne 0 ]; then
 	printf "${RED}Error: This script must be run as root.${NC}\n"
 exit 1
 fi
 }
 
 check_dependencies() {
-local function_name=$1
+local function_name="$1"
 shift
 local commands_to_check=("$@")
 local missing_commands=()
 
 for cmd in "${commands_to_check[@]}"; do
-	if ! command -v "$cmd" &>/dev/null; then
- 	missing_commands+=("$cmd")
-        printf "  - Missing: %s\n" "$cmd"
+	if ! command -v "${cmd}" &>/dev/null; then
+ 	missing_commands+=("${cmd}")
+        printf "  - Missing: %s\n" "${cmd}"
 fi
 done
 
@@ -110,19 +110,19 @@ local ntpstatus=$(systemctl status chronyd | grep running | awk '{print $3}')
 printf "\n${MAGENTA}NTP Status${NC}\n"
 printf "${MAGENTA}===========${NC}\n"
 
-if [[ ${ntpsync} == "yes" ]]; then
+if [[ "${ntpsync}" == "yes" ]]; then
 	printf "NTP Syncronization: ${GREEN}Synchronized${NC}\n"
 else
 	printf "NTP Syncronization: ${RED}Not Synchronized${NC}\n"
 fi
 
-if [[ ${ntppersistence} == "enabled;" ]]; then
+if [[ "${ntppersistence}" == "enabled;" ]]; then
 	printf "Survives Reboot: ${GREEN}Yes${NC}\n"
 else
 	printf "Survives Reboot: ${RED}No${NC}\n"
 fi
 
-if [[ ${ntpstatus} == "(running)" ]]; then
+if [[ "${ntpstatus}" == "(running)" ]]; then
         printf "NTP Status: ${GREEN}Running${NC}\n"
 else
         printf "NTP Status: ${RED}Not Running${NC}\n"
@@ -133,7 +133,7 @@ local timediff=$(chronyc tracking | grep -i system | awk '{print $4}')
 local fastorslow=$(chronyc tracking | grep -i system | awk '{print $6}')
 local stratum=$(chronyc tracking | grep Stratum | awk '{print $3}')
 
-if [[ ${leapstatus} == "Normal" ]]; then
+if [[ "${leapstatus}" == "Normal" ]]; then
         printf "Leap Status: ${GREEN}Normal${NC}\n"
 else
         printf "Leap Status: ${RED}Insane${NC}\n"
@@ -147,7 +147,7 @@ for server in $(grep -E "^(server|pool)" /etc/chrony.conf | awk '{print $2}'); d
 	printf "${MAGENTA}============================================= ${NC} \n"
 	printf "NTP source: ${YELLOW}${server} ${NC} \n"
 	local count=5
-	if ping -c ${count} ${server} > /dev/null 2>&1; then
+	if ping -c "${count}" "${server}" > /dev/null 2>&1; then
         	printf "${GREEN}!!!Server is Reachable!!! ${NC}\n"
 	else
         	printf "${RED}!!!Server is NOT Reachable!!! ${NC}\n"
@@ -170,13 +170,13 @@ local maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | s
 local sasl_passwd_db="/etc/postfix/sasl_passwd.db"
 local virtual_db="/etc/postfix/virtual.db"
 
-if [[ ${exitpostconf} == "0" ]]; then
+if [[ "${exitpostconf}" == "0" ]]; then
 	printf "Postfix Installation Status: ${GREEN}Installed${NC}\n"
 else
         printf "Postfix Installation Status: ${RED}!!!Not Installed!!!${NC}\n"
 fi
 
-if [[ ${smtppersistence} == "enabled;" ]]; then
+if [[ "${smtppersistence}" == "enabled;" ]]; then
         printf "Survives Reboot: ${GREEN}Yes${NC}\n"
 else
         printf "Survives Reboot: ${RED}No${NC}\n"
@@ -190,12 +190,12 @@ fi
 
 
 if [ -n "${relayhost}" ]; then
-	printf "Configured Relayhost: ${GREEN}$relayhost${NC}\n"
+	printf "Configured Relayhost: ${GREEN}${relayhost}${NC}\n"
 else
 	printf "Configured Relayhost: ${RED}There Is None${NC}\n"
 fi
 
-printf "Path To Configured Maillog: ${GREEN}$maildir${NC}\n"
+printf "Path To Configured Maillog: ${GREEN}${maildir}${NC}\n"
 
 if [ -r "${sasl_passwd_db}" ]; then
 	printf "Configuration Type: ${GREEN}SASL Based Configuration${NC}\n"
@@ -215,28 +215,28 @@ else
         printf "Virtual Table: ${RED}Not Configured${NC}\n"
 fi
 
-ping -c 3 ${relayhost} > /dev/null 2>&1
+ping -c 3 "${relayhost}" > /dev/null 2>&1
 local relayreach=$(echo $?)
 
-if [[ ${relayreach} == "0" ]]; then
+if [[ "${relayreach}" == "0" ]]; then
 	printf "Is The Relayhost Online?: ${GREEN}Yes${NC}\n"
 else
 	printf "Is The Relayhost Online?: ${RED}No${NC}\n"
 fi
 
-timeout 5 nc -zv -w 3 ${relayhost} 25 &>/dev/null
+timeout 5 nc -zv -w 3 "${relayhost}" 25 &>/dev/null
 local smtp25=$(echo $?)
 
-if [[ ${smtp25} == "0" ]]; then
+if [[ "${smtp25}" == "0" ]]; then
 	printf "Is Relayhost Reachable On Port 25?: ${GREEN}Yes${NC}\n"
 else
 	printf "Is Relayhost Reachable On Port 25?: ${RED}No${NC}\n"
 fi
 
-timeout 5 nc -zv -w 3 ${relayhost} 587 &>/dev/null
+timeout 5 nc -zv -w 3 "${relayhost}" 587 &>/dev/null
 local smtp587=$(echo $?)
 
-if [[ ${smtp587} == "0" ]]; then
+if [[ "${smtp587}" == "0" ]]; then
 	printf "Is Relayhost Reachable On Port 587?: ${GREEN}Yes${NC}\n"
 else
 	printf "Is Relayhost Reachable On Port 587?: ${RED}No${NC}\n"
@@ -249,22 +249,22 @@ check_root
 check_dependencies "print_testemail" "cat" "grep" "awk" "sed" "cp" "echo" "read" "mail" "sleep" "tail" "printf"
 local maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
 local tmpfile="/tmp/testsmtpfile.txt"
-cp ${maildir} ${maildir}.bak
-> ${maildir}
-echo "This is a test email" > "$tmpfile"
+cp "${maildir}" "${maildir}".bak
+> "${maildir}"
+echo "This is a test email" > "${tmpfile}"
 read -p "Enter sender: " sender
 read -p "Enter recipient: " recipient
-mail -r "${sender}" -s "SMTP Test Email From $(hostname)" "${recipient}" < "$tmpfile"
-rm "$tmpfile"
+mail -r "${sender}" -s "SMTP Test Email From $(hostname)" "${recipient}" < "${tmpfile}"
+rm "${tmpfile}"
 sleep 5
-local relay=$(tail ${maildir} | grep -i ${recipient} | awk '{print $8}' | sed 's/^relay=//;s/,$//')
-local dsn=$(tail ${maildir} | grep -i ${recipient} | awk '{print $11}' | sed 's/,$//')
+local relay=$(tail "${maildir}" | grep -i "${recipient}" | awk '{print $8}' | sed 's/^relay=//;s/,$//')
+local dsn=$(tail "${maildir}" | grep -i "${recipient}" | awk '{print $11}' | sed 's/,$//')
 printf "DSN Number Of Test Email: \n${YELLOW}${dsn}${NC}\n"
 printf "Relayed To: \n${YELLOW}${relay}${NC}\n"
-local messageid=$(tail ${maildir} | grep -i ${recipient} | awk '{print $6}' | sed 's/^relay=//;s/:$//')
+local messageid=$(tail "${maildir}" | grep -i "${recipient}" | awk '{print $6}' | sed 's/^relay=//;s/:$//')
 printf "Email MessageID: \n${YELLOW}${messageid}${NC}\n"
-cat ${maildir} >> ${maildir}.bak
-cat ${maildir}.bak > ${maildir}
+cat "${maildir}" >> "${maildir}".bak
+cat "${maildir}".bak > "${maildir}"
 }
 
 print_smtpconfig() {
@@ -284,11 +284,10 @@ else
         systemctl enable --now postfix &>/dev/null
         postconf -e "relayhost = [${relayhost}]:${port}"
         systemctl restart postfix
-        local virtual_db="/etc/postfix/virtual.db"
 fi
-
+local virtual_db="/etc/postfix/virtual.db"
 if [ -r "${virtual_db}" ]; then
-	exit 0
+	: # Do nothing, already exists
 else
         echo "@softcomputer.com          seauto@mail.softcomputer.com" >>/etc/postfix/virtual
         echo "@isd.dp.ua        seauto@mail.softcomputer.com" >>/etc/postfix/virtual
@@ -319,19 +318,6 @@ if command -v postfix &>/dev/null; then
         postmap /etc/postfix/sasl_passwd
         chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
         systemctl restart postfix
-        local virtual_db="/etc/postfix/virtual.db"
-fi
-
-if [ -r "${virtual_db}" ]; then
-	exit 0
-else
-	echo "@softcomputer.com          seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-	echo "@isd.dp.ua        seauto@mail.softcomputer.com" >>/etc/postfix/virtual
- 	echo "@softsystem.pl seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-	postmap /etc/postfix/virtual
-	systemctl restart postfix
-fi
-printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
 else
         read -p "Enter Relay Host's IP Or FQDN: " relayhost
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
@@ -349,20 +335,19 @@ else
         postmap /etc/postfix/sasl_passwd
         chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
         systemctl restart postfix
-	local virtual_db="/etc/postfix/virtual.db"
-
-        if [ -r "${virtual_db}" ]; then
-        	exit 0
-        else
-        	echo "@softcomputer.com          seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-        	echo "@isd.dp.ua        seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-        	echo "@softsystem.pl seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-        	postmap /etc/postfix/virtual
-        	systemctl restart postfix
-        fi
-        printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
-
 fi
+
+local virtual_db="/etc/postfix/virtual.db"
+if [ -r "${virtual_db}" ]; then
+	: # Do nothing, already exists
+else
+	echo "@softcomputer.com          seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+	echo "@isd.dp.ua        seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+ 	echo "@softsystem.pl seauto@mail.softcomputer.com" >>/etc/postfix/virtual
+	postmap /etc/postfix/virtual
+	systemctl restart postfix
+fi
+printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
 }
 
 print_saslremove() {
@@ -390,12 +375,12 @@ local usedswap_kb=$(free -k | awk 'NR==3{print $3}')
 local memusepercent="0" 
 
 if (( totalmem_kb > 0 )); then
-	memusepercent=$(awk "BEGIN {printf \"%.0f\", ($usedmem_kb / $totalmem_kb) * 100}" < /dev/null)
+	memusepercent=$(awk "BEGIN {printf \"%.0f\", (${usedmem_kb} / ${totalmem_kb}) * 100}" < /dev/null)
 fi
 
 local swapusepercent="0"
 if (( totalswap_kb > 0 )); then
-	swapusepercent=$(awk "BEGIN {printf \"%.0f\", ($usedswap_kb / $totalswap_kb) * 100}" < /dev/null)
+	swapusepercent=$(awk "BEGIN {printf \"%.0f\", (${usedswap_kb} / ${totalswap_kb}) * 100}" < /dev/null)
 fi
 	echo "${memusepercent} ${swapusepercent}"
 }
@@ -403,7 +388,7 @@ fi
 
 print_meminfo() {
 check_root
-check_dependencies "printf" "free" "head" "awk" "tail" "ps" "vmstat"
+check_dependencies "print_meminfo" "printf" "free" "head" "awk" "tail" "ps" "vmstat"
 
 local totalmem_h=$(free -h | head -2 | tail -1 | awk '{print $2}')
 local totalswap_h=$(free -h | head -3 | tail -1 | awk '{print $2}')
@@ -461,27 +446,27 @@ local RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"'
 local DEVICE="/dev/console"
 local PERM="622"
 
-if [ ! -f "$RULE_FILE" ] || ! grep -Fxq "$RULE_CONTENT" "$RULE_FILE"; then 
-        echo "$RULE_CONTENT" > "$RULE_FILE"
+if [ ! -f "${RULE_FILE}" ] || ! grep -Fxq "${RULE_CONTENT}" "${RULE_FILE}"; then 
+        echo "${RULE_CONTENT}" > "${RULE_FILE}"
 else
-    	current_perm=$(stat -c "%a" "$DEVICE")
+    	local current_perm=$(stat -c "%a" "${DEVICE}")
 fi
 
-if [ "$current_perm" != "$PERM" ]; then
+if [ "${current_perm}" != "${PERM}" ]; then
         chmod "${PERM}" "${DEVICE}"
 fi
 }
 
 print_harddetect() {
 check_root
-check_dependencies "printf" "break" "lsscsi" 
+check_dependencies "print_harddetect" "printf" "lsscsi" 
 local detected_hardware="" 
 
 # VMware Checker
 check_vmware() {
 local vendor
 while read -r _ _ vendor _; do
-	if [[ "$vendor" == "VMware" ]]; then
+	if [[ "${vendor}" == "VMware" ]]; then
         	echo "VMware" 
                 return 0 
         fi
@@ -493,7 +478,7 @@ return 1
 check_hpe() {
 local vendor
 while read -r _ _ vendor _; do
-	if [[ "$vendor" == "HPE" ]]; then
+	if [[ "${vendor}" == "HPE" ]]; then
         	echo "HPE"
                 return 0
         fi
@@ -505,7 +490,7 @@ return 1
 check_oracle() {
 local vendor
 while read -r _ _ vendor _; do
-	if [[ "$vendor" == "ORACLE" ]]; then
+	if [[ "${vendor}" == "ORACLE" ]]; then
         	echo "Oracle"
                 return 0
         fi
@@ -526,7 +511,7 @@ return 1
 check_azure() {
 local vendor
 while read -r _ _ vendor _; do
-	if [[ "$(echo "$vendor" | tr -d ' ')" == "Msft" ]]; then 
+	if [[ "$(echo "${vendor}" | tr -d ' ')" == "Msft" ]]; then 
         	echo "Azure"
         	return 0
         fi
@@ -538,7 +523,7 @@ return 1
 check_kvm() {
 local vendor
 while read -r _ _ vendor _; do
-	if [[ "$(echo "$vendor" | tr -d ' ')" == "QEMU" ]]; then
+	if [[ "$(echo "${vendor}" | tr -d ' ')" == "QEMU" ]]; then
         	echo "KVM"
                 return 0
 	fi
@@ -550,7 +535,7 @@ return 1
 check_dell() {
 local vendor
 while read -r _ _ vendor _; do
-        if [[ "$(echo "$vendor" | tr -d ' ')" == "DELL" ]]; then
+        if [[ "$(echo "${vendor}" | tr -d ' ')" == "DELL" ]]; then
                 echo "Dell"
                 return 0
 	fi
@@ -559,25 +544,25 @@ return 1
 }
 
 if detected_hardware=$(check_vmware); then
-        echo "$detected_hardware"
+        echo "${detected_hardware}"
         return 0
 elif detected_hardware=$(check_hpe); then
-	echo "$detected_hardware"
+	echo "${detected_hardware}"
         return 0
 elif detected_hardware=$(check_oracle); then
-        echo "$detected_hardware"
+        echo "${detected_hardware}"
         return 0
 elif detected_hardware=$(check_aws); then
-        echo "$detected_hardware"
+        echo "${detected_hardware}"
         return 0
 elif detected_hardware=$(check_kvm); then
-        echo "$detected_hardware"
+        echo "${detected_hardware}"
         return 0
 elif detected_hardware=$(check_azure); then
-        echo "$detected_hardware"
+        echo "${detected_hardware}"
         return 0
 elif detected_hardware=$(check_dell); then
-        echo "$detected_hardware"
+        echo "${detected_hardware}"
         return 0
 else
         echo "Unknown Hardware Platform" 
@@ -587,7 +572,7 @@ fi
 
 print_oscheck() {
 check_root
-check_dependencies "print_osupdatecheck" "printf" "grep" "awk" "hostnamectl" "free" "vmstat"
+check_dependencies "print_oscheck" "printf" "grep" "awk" "hostnamectl" "free" "vmstat" "uname" "uptime" "needs-restarting" "yum" "df" "findmnt" "mount" "getenforce" "systemctl" "ps" "find" "mokutil" "nslookup" "ip" "multipath" "rpm" "java" "cut" "sed"
 
 local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7}')
 local hardtype=$(print_harddetect | tail -n 1 | sed -E 's/^[^:]*:[[:space:]]*(.*)[[:space:]]*$/\1/')
@@ -628,7 +613,7 @@ fi
     
 local termtype="$TERM"
 
-if [[ "$termtype" != "vt220scc" ]]; then
+if [[ "${termtype}" != "vt220scc" ]]; then
       printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "TERM Of vt220scc" "!!BAD!!" "${termtype} (Run 'TERM=vt220scc' to correct term type)"
 else
       printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "TERM Of vt220scc" "!!GOOD!!" "${termtype}"
@@ -643,7 +628,7 @@ else
 fi
     
 if needs-restarting -r &> /dev/null; then
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Reboot Hint" "!!GOOD!!" "System has been rebooted since last update"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Reboot Hint" "!!GOOD!!" "System has been rebooted since last update"
 else
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Reboot Hint" "!!BAD!!" "System was not rebooted from previous update (Run 'needs-restarting -r' to see additional details)"
 fi
@@ -675,14 +660,14 @@ df -h | tail -n +2 | while read -r filesystem size used avail usage_percent moun
 	local numeric_usage=$(echo "${usage_percent}" | sed 's/%//')
 
 	if (( numeric_usage > USAGE_THRESHOLD )); then
-		local bad_disks_found=true
-        	local bad_filesystems="${mounted_on} (${usage_percent} used})\n"
+		bad_disks_found=true
+        	bad_filesystems+="${mounted_on} (${usage_percent} used})\n"
 	fi
 done
 
-if $bad_disks_found; then
+if ${bad_disks_found}; then
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!BAD!!" "File systems below are over ${USAGE_THRESHOLD} percent usage (Run 'df -h' for additional details)"
-        printf "%b" "$bad_filesystems"
+        printf "%b" "${bad_filesystems}"
 else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!GOOD!!" "No filesystem is over ${USAGE_THRESHOLD} percent usage"
 fi
@@ -691,20 +676,20 @@ local OVERALL_STATUS=0
 local FINDMNT_VERIFY_OUTPUT=$(findmnt --verify --fstab 2>&1)
 local FINDMNT_VERIFY_STATUS=$?
 
-if [ ${FINDMNT_VERIFY_STATUS} -ne 0 ]; then
+if [ "${FINDMNT_VERIFY_STATUS}" -ne 0 ]; then
 	echo "findmnt --verify --fstab failed with status: ${FINDMNT_VERIFY_STATUS}"
 	echo "Output: ${FINDMNT_VERIFY_OUTPUT}"
-	local OVERALL_STATUS=1
+	OVERALL_STATUS=1
 fi
 
-if [ $OVERALL_STATUS -eq 0 ]; then
+if [ "${OVERALL_STATUS}" -eq 0 ]; then
 	if ! mount -a >/dev/null 2>&1; then
 		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "Problematic mount points or fstab issues detected (Run 'journalctl -xe' or '/var/log/messages' for additional details)"
-        	local OVERALL_STATUS=1
+        	OVERALL_STATUS=1
 	fi
 fi
 
-if [ $OVERALL_STATUS -eq 0 ]; then
+if [ "${OVERALL_STATUS}" -eq 0 ]; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!GOOD!!" "All fstab entries are valid and 'mount -a' completed successfully"
 else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "Problematic mount points or fstab issues detected (Run 'journalctl -xe' or '/var/log/messages' for additional details)"
@@ -727,7 +712,7 @@ else
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Firewalld" "!!BAD!!" "Not Running"
 fi
 
-if systemctl is-active --quiet firewalld.service; then
+if systemctl is-active --quiet setroubleshootd.service; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Setroubleshootd" "!!GOOD!!" "Running"
 else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Setroubleshootd" "!!BAD!!" "Not Running or Installed (Run 'yum install setroubleshoot -y' to install & 'systemctl enable --now setroubleshootd' to enable it)"
@@ -745,11 +730,11 @@ local THRESHOLD_PERCENT=5.0
 local cpu_usage=$(ps aux | grep setroubleshootd | grep -v grep | awk '{print $3}')
 local total_cpu=0
 
-for cpu in $cpu_usage; do
-	total_cpu=$(awk "BEGIN {print $total_cpu + $cpu}")
+for cpu in ${cpu_usage}; do
+	total_cpu=$(awk "BEGIN {print ${total_cpu} + ${cpu}}")
 done
 
-if (( $(awk "BEGIN {print ($total_cpu >= $THRESHOLD_PERCENT)}") )); then
+if (( $(awk "BEGIN {print (${total_cpu} >= ${THRESHOLD_PERCENT})}") )); then
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!BAD!!" "${total_cpu}% Usage (Run 'top' or 'journalctl -p err' for additional details)"        
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!GOOD!!" "${total_cpu}% Usage"       
@@ -765,7 +750,7 @@ fi
 
 local UNLABELED_FILES=$(find / -xdev -type f -context '*:unlabeled_t:*' -printf "%Z %p\n" 2>/dev/null)
 
-if [ -z "$UNLABELED_FILES" ]; then
+if [ -z "${UNLABELED_FILES}" ]; then
     	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SELinux Unlabled" "!!GOOD!!" "No unlabeled context" 
 else
     	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Unlabled" "!!BAD!!" "Unlabeled context detectect (Run 'restorecon -Rv /' to relabel / or 'journalctl -t setroubleshoot' for additional details and syntax)" 
@@ -779,7 +764,7 @@ fi
 
 local ntpsync=$(timedatectl | head -5 | tail -1 | awk '{ print $NF }')
 
-if [[ ${ntpsync} == "yes" ]]; then
+if [[ "${ntpsync}" == "yes" ]]; then
     	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}\n" "NTP Syncronization" "!!GOOD!!" 
 else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NTP Syncronization" "!!BAD!!" "NTP time is not synced (Run 'bash mrpz.sh --ntpcheck' for additional details)"
@@ -787,7 +772,7 @@ fi
 
 for server in $(grep -E "^(server|pool)" /etc/chrony.conf | awk '{print $2}'); do
   	count=5
-  	if ping -c ${count} ${server} > /dev/null 2>&1; then
+  	if ping -c "${count}" "${server}" > /dev/null 2>&1; then
 		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "NTP Reachability" "!!GOOD!!" "${server}"
   	else
 		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NTP Reachability" "!!BAD!!" "Cannot ping ${server}"
@@ -798,12 +783,13 @@ local GOOD_KERNEL_MONTHS=6
 
 get_kernel_build_date() {
 	local kernel_version_string=$(uname -v)
-	local build_date_str=$(echo "$kernel_version_string" | grep -oP '\w{3} \w{3} \s*\d{1,2} \d{2}:\d{2}:\d{2} \w{3,4} \d{4}')
+	local build_date_str=$(echo "${kernel_version_string}" | grep -oP '\w{3} \w{3} \s*\d{1,2} \d{2}:\d{2}:\d{2} \w{3,4} \d{4}')
+    echo "${build_date_str}"
 }
 
 local KERNEL_BUILD_DATE_STR=$(get_kernel_build_date)
-local KERNEL_TIMESTAMP=$(date -d "$KERNEL_BUILD_DATE_STR" +%s 2>/dev/null)
-local SIX_MONTHS_AGO_TIMESTAMP=$(date -d "-$GOOD_KERNEL_MONTHS months" +%s)
+local KERNEL_TIMESTAMP=$(date -d "${KERNEL_BUILD_DATE_STR}" +%s 2>/dev/null)
+local SIX_MONTHS_AGO_TIMESTAMP=$(date -d "-${GOOD_KERNEL_MONTHS} months" +%s)
 
 if (( KERNEL_TIMESTAMP < SIX_MONTHS_AGO_TIMESTAMP )); then
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!BAD!!" "Kernel was updated longer than 6 months ago"
@@ -839,10 +825,10 @@ local backup_exists=false
 
 
 if find /SCCbackup -maxdepth 1 -type f -name "SCC_OS_UEFI_*.tar" -o -name "rear*.iso" 2>/dev/null | grep -q .; then
-	local backup_exists=true
+	backup_exists=true
 fi
 
-if "$backup_exists"; then
+if "${backup_exists}"; then
 	if find /SCCbackup -maxdepth 1 -type f -name "SCC_OS_UEFI_*.tar" -o -name "rear*.iso" -newermt "$(date -d '1 month ago' +%Y-%m-%d)" 2>/dev/null | grep -q .; then
         	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "/SCCbackup" "!!GOOD!!" "There is a backup newer than a month"
 	else
@@ -864,7 +850,7 @@ fi
 
 local FULL_UPDATE_OUTPUT=$(yum list updates 2>/dev/null)
 
-if echo "$FULL_UPDATE_OUTPUT" | grep -q "Available Upgrades"; then
+if echo "${FULL_UPDATE_OUTPUT}" | grep -q "Available Upgrades"; then
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Updates Available" "!!BAD!!" "System has available updates (Run 'yum updateinfo' or 'yum list updates' to inspect further)"
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Updates Available" "!!GOOD!!" "System has no available updates"
@@ -901,7 +887,7 @@ fi
 local SSHD_CONFIG_FILE="/etc/ssh/sshd_config"
 local PROBLEM_LINE_PATTERN="^[^#]*Include /etc/ssh/sshd_config.d/\*\.conf"
 
-if grep -Pq "$PROBLEM_LINE_PATTERN" "$SSHD_CONFIG_FILE"; then
+if grep -Pq "${PROBLEM_LINE_PATTERN}" "${SSHD_CONFIG_FILE}"; then
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "sshd_config Check" "!!BAD!!" "Include /etc/ssh/sshd_config.d/*.conf needs commented out"
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "sshd_config Check" "!!GOOD!!" "Include /etc/ssh/sshd_config.d/*.conf is commented out"
@@ -911,27 +897,27 @@ local EXPECTED_ENABLED=1
 local EXPECTED_FAILURE=1
 local EXPECTED_BACKLOG_LIMIT=8192
 local AUDIT_SETTINGS=$(auditctl -s 2>/dev/null)
-local CURRENT_ENABLED=$(echo "$AUDIT_SETTINGS" | grep -oP 'enabled \K\d+' || echo "0")
-local CURRENT_FAILURE=$(echo "$AUDIT_SETTINGS" | grep -oP 'failure \K\d+' || echo "0")
-local CURRENT_BACKLOG_LIMIT=$(echo "$AUDIT_SETTINGS" | grep -oP 'backlog_limit \K\d+' || echo "0")
+local CURRENT_ENABLED=$(echo "${AUDIT_SETTINGS}" | grep -oP 'enabled \K\d+' || echo "0")
+local CURRENT_FAILURE=$(echo "${AUDIT_SETTINGS}" | grep -oP 'failure \K\d+' || echo "0")
+local CURRENT_BACKLOG_LIMIT=$(echo "${AUDIT_SETTINGS}" | grep -oP 'backlog_limit \K\d+' || echo "0")
 local IS_GOOD="true"
 local REASON=""
 
 if ! systemctl is-active --quiet "auditd.service"; then
-	local IS_GOOD="false"
-	local REASON="auditd is not running"
-elif [ "$CURRENT_ENABLED" -ne "$EXPECTED_ENABLED" ]; then
-	local IS_GOOD="false"
-	local REASON="enabled should be $EXPECTED_ENABLED (found $CURRENT_ENABLED)"
-elif [ "$CURRENT_FAILURE" -ne "$EXPECTED_FAILURE" ]; then
-	local IS_GOOD="false"
-	local REASON="failure should be $EXPECTED_FAILURE (found $CURRENT_FAILURE)"
-elif [ "$CURRENT_BACKLOG_LIMIT" -ne "$EXPECTED_BACKLOG_LIMIT" ]; then
-	local IS_GOOD="false"
-	local REASON="backlog_limit should be $EXPECTED_BACKLOG_LIMIT (found $CURRENT_BACKLOG_LIMIT)"
+	IS_GOOD="false"
+	REASON="auditd is not running"
+elif [ "${CURRENT_ENABLED}" -ne "${EXPECTED_ENABLED}" ]; then
+	IS_GOOD="false"
+	REASON="enabled should be ${EXPECTED_ENABLED} (found ${CURRENT_ENABLED})"
+elif [ "${CURRENT_FAILURE}" -ne "${EXPECTED_FAILURE}" ]; then
+	IS_GOOD="false"
+	REASON="failure should be ${EXPECTED_FAILURE} (found ${CURRENT_FAILURE})"
+elif [ "${CURRENT_BACKLOG_LIMIT}" -ne "${EXPECTED_BACKLOG_LIMIT}" ]; then
+	IS_GOOD="false"
+	REASON="backlog_limit should be ${EXPECTED_BACKLOG_LIMIT} (found ${CURRENT_BACKLOG_LIMIT})"
 fi
 
-if [ "$IS_GOOD" = "true" ]; then
+if [ "${IS_GOOD}" = "true" ]; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Audit Rules Check" "!!GOOD!!" "All configurations are correct"
 else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Audit Rules Check" "!!BAD!!" "${REASON} (Change audit configuration in '/etc/audit/rules.d/audit.rules' make sure its restarted 'systemctl restart auditd')"
@@ -954,36 +940,36 @@ local RULE_FIX_NEEDED=0
 local PERM_FIX_NEEDED=0
 local UDEV_RELOAD_NEEDED=0
 
-if [ ! -f "$RULE_FILE" ]; then
-	echo "$RULE_CONTENT" | sudo tee "$RULE_FILE" > /dev/null
+if [ ! -f "${RULE_FILE}" ]; then
+	echo "${RULE_CONTENT}" | sudo tee "${RULE_FILE}" > /dev/null
 	if [ $? -eq 0 ]; then
-        	local RULE_FIX_NEEDED=1
-        	local UDEV_RELOAD_NEEDED=1
+        	RULE_FIX_NEEDED=1
+        	UDEV_RELOAD_NEEDED=1
 	fi
-elif ! grep -Fxq "$RULE_CONTENT" "$RULE_FILE"; then
-	echo "$RULE_CONTENT" | sudo tee -a "$RULE_FILE" > /dev/null
+elif ! grep -Fxq "${RULE_CONTENT}" "${RULE_FILE}"; then
+	echo "${RULE_CONTENT}" | sudo tee -a "${RULE_FILE}" > /dev/null
 	if [ $? -eq 0 ]; then
-        	local RULE_FIX_NEEDED=1
-        	local UDEV_RELOAD_NEEDED=1
+        	RULE_FIX_NEEDED=1
+        	UDEV_RELOAD_NEEDED=1
 	fi
 fi
 
-local current_perm=$(stat -c "%a" "$DEVICE" 2>/dev/null)
+local current_perm=$(stat -c "%a" "${DEVICE}" 2>/dev/null)
 
-if [ -z "$current_perm" ]; then
-	local PERM_FIX_NEEDED=1
-elif [ "$current_perm" != "$PERM" ]; then
+if [ -z "${current_perm}" ]; then
+	PERM_FIX_NEEDED=1
+elif [ "${current_perm}" != "${PERM}" ]; then
 	chmod "${PERM}" "${DEVICE}"
 	if [ $? -eq 0 ]; then
-        	local PERM_FIX_NEEDED=1
+        	PERM_FIX_NEEDED=1
 	fi
 fi
 
-if [ "$UDEV_RELOAD_NEEDED" -eq 1 ]; then
+if [ "${UDEV_RELOAD_NEEDED}" -eq 1 ]; then
 	udevadm control --reload-rules
 fi
 
-if [ "$RULE_FIX_NEEDED" -eq 0 ] && [ "$PERM_FIX_NEEDED" -eq 0 ]; then
+if [ "${RULE_FIX_NEEDED}" -eq 0 ] && [ "${PERM_FIX_NEEDED}" -eq 0 ]; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "/dev/console" "!!GOOD!!" "Optimal"
 else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "/dev/console" "!!BAD!!" "Issues exist (Run 'bash mrpz.sh --devconsolefix' to address issues)"
@@ -1009,7 +995,7 @@ sort | \
 uniq -c | \
 awk '$1 > 1 {print $2}')
 
-if [ -n "$multiple_ip_interfaces" ]; then
+if [ -n "${multiple_ip_interfaces}" ]; then
 	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!ATTN!!" "Service IP is likely in use (Run 'ip -br a' & reference the /etc/hosts files for additional details)"
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!GOOD!!" "Service IP does not appear to be in use on this system"
@@ -1018,7 +1004,7 @@ fi
 multipath -ll >/dev/null 2>&1
 local EXIT_STATUS=$?
 
-if [ $EXIT_STATUS -eq 0 ]; then
+if [ "${EXIT_STATUS}" -eq 0 ]; then
   printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!ATTN!!" "SAN is likely in use (Run 'lsscsi' & 'multipath -ll' for additional details)"
 else
   printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!GOOD!!" "A SAN does not appear to be in use"
@@ -1028,23 +1014,23 @@ local yum_PLUGIN="python3-yum-plugin-versionlock"
 local YUM_PLUGIN="yum-plugin-versionlock"
 local PACKAGE_MANAGER=""
 
-if rpm -q "$yum_PLUGIN" &> /dev/null; then
-	local PACKAGE_MANAGER="yum"
-elif rpm -q "$YUM_PLUGIN" &> /dev/null; then
-	local PACKAGE_MANAGER="yum"
+if rpm -q "${yum_PLUGIN}" &> /dev/null; then
+	PACKAGE_MANAGER="yum"
+elif rpm -q "${YUM_PLUGIN}" &> /dev/null; then
+	PACKAGE_MANAGER="yum"
 fi
 
-if [ -z "$PACKAGE_MANAGER" ]; then
+if [ -z "${PACKAGE_MANAGER}" ]; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!GOOD!!" "Plugins do not exist for version locking to work"
 else
-	local LOCK_OUTPUT=$(sudo "$PACKAGE_MANAGER" versionlock list 2>&1)
-	local FILTERED_LOCKS=$(echo "$LOCK_OUTPUT" | \
+	local LOCK_OUTPUT=$(sudo "${PACKAGE_MANAGER}" versionlock list 2>&1)
+	local FILTERED_LOCKS=$(echo "${LOCK_OUTPUT}" | \
         grep -v "Loaded plugins:" | \
         grep -v "versionlock list" | \
         grep -v "0 loaded" | \
         grep -v "^$")
 
-if [ -z "$FILTERED_LOCKS" ]; then
+if [ -z "${FILTERED_LOCKS}" ]; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!GOOD!!" "Version lock does not appear to be in use"
 else
         printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!ATTN!!" "Version lock is likely in use (Run 'yum versionlock list' for additional details)"
@@ -1054,7 +1040,7 @@ fi
 local java_output=$(java -version 2>&1)
 local java_exit_status=$?
 
-if [ $java_exit_status -eq 0 ]; then
+if [ "${java_exit_status}" -eq 0 ]; then
 	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n${CYAN}%s${NC}\n" "Java" "!!ATTN!!" "Java appears to be installed see below:" "${java_output}"
 else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Java" "!!Bad!!" "Java does not appear to be installed on the system"
@@ -1062,8 +1048,8 @@ fi
 
 local FILE="/etc/scc/Run.ascenv"
 
-if [ -f "$FILE" ]; then
-	local FILE_CONTENT="$(cat "$FILE")"
+if [ -f "${FILE}" ]; then
+	local FILE_CONTENT="$(cat "${FILE}")"
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n${CYAN}%s${NC}\n" "ascenv Startup" "!!Good!!" "There appear to be entries in /etc/scc/Run.ascenv see below:" "${FILE_CONTENT}"
 else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "ascenv Startup" "!!Bad!!" "There does not appear to be any entries in /etc/scc/Run.ascenv"
