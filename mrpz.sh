@@ -1075,42 +1075,34 @@ if [ $EXIT_STATUS -eq 0 ]; then
 else
   printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!GOOD!!" "A SAN does not appear to be in use"
 fi
-package_verlock() {
 DNF_PLUGIN="python3-dnf-plugin-versionlock"
 YUM_PLUGIN="yum-plugin-versionlock"
 
 PACKAGE_MANAGER=""
-VERSIONLOCK_PLUGIN_FOUND=""
 
 if rpm -q "$DNF_PLUGIN" &> /dev/null; then
-    VERSIONLOCK_PLUGIN_FOUND="$DNF_PLUGIN"
     PACKAGE_MANAGER="dnf"
 elif rpm -q "$YUM_PLUGIN" &> /dev/null; then
-    VERSIONLOCK_PLUGIN_FOUND="$YUM_PLUGIN"
     PACKAGE_MANAGER="yum"
 fi
 
-if [ -z "$VERSIONLOCK_PLUGIN_FOUND" ]; then
+if [ -z "$PACKAGE_MANAGER" ]; then
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!GOOD!!" "Plugins do not exist for version locking to work"
-    exit 
-fi
-
-LOCK_OUTPUT=$(${PACKAGE_MANAGER} versionlock list 2>&1)
-
-FILTERED_LOCKS=$(echo "$LOCK_OUTPUT" | \
-    grep -v "Loaded plugins:" | \
-    grep -v "versionlock list" | \
-    grep -v "0 loaded" | \
-    grep -v "^$")
-
-if [ -z "$FILTERED_LOCKS" ]; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!GOOD!!" "Version lock does not appear to be in use"
 else
-    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!ATTN!!" "Version lock is likely in use (Run 'yum versionlock list' for additional details)"
-fi
-}
+    LOCK_OUTPUT=$(sudo "$PACKAGE_MANAGER" versionlock list 2>&1)
 
-package_verlock
+    FILTERED_LOCKS=$(echo "$LOCK_OUTPUT" | \
+        grep -v "Loaded plugins:" | \
+        grep -v "versionlock list" | \
+        grep -v "0 loaded" | \
+        grep -v "^$")
+
+    if [ -z "$FILTERED_LOCKS" ]; then
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!GOOD!!" "Version lock does not appear to be in use"
+    else
+        printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!ATTN!!" "Version lock is likely in use (Run 'yum versionlock list' for additional details)"
+    fi
+fi
 
 java_output=$(java -version 2>&1)
 java_exit_status=$?
