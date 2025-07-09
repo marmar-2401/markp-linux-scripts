@@ -1136,7 +1136,7 @@ local LAST_COMMAND_EXIT_CODE=$?
 if [ $LAST_COMMAND_EXIT_CODE -eq 0 ]; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Oracle Listener" "!!GOOD!!" "The oracle listner appears to be running"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle Listener" "!!BAD!!" "Oracle listener is missing (Run 'ps -ef | egrep '_pmon_|tnslsnr' | grep -q -v "grep -E _pmon_|tnslsnr"' for additional details)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle Listener" "!!BAD!!" "Oracle listener is missing (Run 'ps -ef | egrep '_pmon_|tnslsnr' | grep -q -v 'grep -E _pmon_|tnslsnr' for additional details)"
 fi
 
 local java_output=$(java -version 2>&1)
