@@ -18,7 +18,7 @@ fi
 }
 
 check_sccadm() {
-local sccadmid=$(grep sccadm /etc/passwd | awk -F : '{print $3}'
+local sccadmid=$(grep sccadm /etc/passwd | awk -F : '{print $3}')
 
 if [ "${EUID}" -ne ${sccadmid} ]; then
 	printf "${RED}Error: This script must be run as root.${NC}\n"
