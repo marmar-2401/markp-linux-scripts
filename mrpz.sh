@@ -381,6 +381,24 @@ systemctl restart postfix &>/dev/null
 printf "${GREEN}!!!SASL Configuration Has Been Removed!!!${NC}\n"
 }
 
+get_raw_mem_percentages() {
+    local totalmem_kb=$(free -k | awk 'NR==2{print $2}' | tr -d '\r' || echo 0)
+    local usedmem_kb=$(free -k | awk 'NR==2{print $3}' | tr -d '\r' || echo 0)
+    local totalswap_kb=$(free -k | awk 'NR==3{print $2}' | tr -d '\r' || echo 0)
+    local usedswap_kb=$(free -k | awk 'NR==3{print $3}' | tr -d '\r' || echo 0)
+    local memusepercent="0"
+
+    if (( totalmem_kb > 0 )); then
+        memusepercent=$(awk "BEGIN {printf \"%.0f\", (${usedmem_kb} / ${totalmem_kb}) * 100}" < /dev/null)
+    fi
+
+    local swapusepercent="0"
+    if (( totalswap_kb > 0 )); then
+        swapusepercent=$(awk "BEGIN {printf \"%.0f\", (${usedswap_kb} / ${totalswap_kb}) * 100}" < /dev/null)
+    fi
+    echo "${memusepercent} ${swapusepercent}"
+}
+
 print_devconsolefix() {
 check_root
 check_dependencies "print_devconsolefix" "printf" "echo" "grep" "stat" "chmod"
