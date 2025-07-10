@@ -52,7 +52,7 @@ fi
 print_version() {
 check_dependencies "print_version" "printf" "exit"
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.1.8 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.1.7 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -77,14 +77,13 @@ printf "${MAGENTA} 1.0.7 | 05/15/2025 | - SMTP SASL config function was built ${
 printf "${MAGENTA} 1.0.8 | 05/16/2025 | - SMTP SASL config remove function was built ${NC}\n"
 printf "${MAGENTA} 1.0.9 | 06/10/2025 | - Built a function to check for sccadm user ${NC}\n"
 printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Built a function to check for function dependencies before running  ${NC}\n"
-printf "${MAGENTA} 1.1.1 | 06/17/2025 | - Created meminfo function building out system checks ${NC}\n"
-printf "${MAGENTA} 1.1.2 | 06/17/2025 | - Created devconsolefix function building out system checks ${NC}\n"
-printf "${MAGENTA} 1.1.3 | 06/17/2025 | - Built oscheck function ${NC}\n"
-printf "${MAGENTA} 1.1.4 | 06/24/2025 | - Build hardware platform detection functions ${NC}\n"
-printf "${MAGENTA} 1.1.5 | 07/09/2025 | - Built mqfix to correct message queue limits ${NC}\n"
-printf "${MAGENTA} 1.1.6 | 07/10/2025 | - Built description section for problems ${NC}\n"
-printf "${MAGENTA} 1.1.7 | 07/10/2025 | - Built a function to check for sccadm user ${NC}\n"
-printf "${MAGENTA} 1.1.8 | 07/10/2025 | - Built a boot report function ${NC}\n"
+printf "${MAGENTA} 1.1.1 | 06/17/2025 | - Created devconsolefix function building out system checks ${NC}\n"
+printf "${MAGENTA} 1.1.2 | 06/17/2025 | - Built oscheck function ${NC}\n"
+printf "${MAGENTA} 1.1.3 | 06/24/2025 | - Build hardware platform detection functions ${NC}\n"
+printf "${MAGENTA} 1.1.4 | 07/09/2025 | - Built mqfix to correct message queue limits ${NC}\n"
+printf "${MAGENTA} 1.1.5 | 07/10/2025 | - Built description section for problems ${NC}\n"
+printf "${MAGENTA} 1.1.6 | 07/10/2025 | - Built a function to check for sccadm user ${NC}\n"
+printf "${MAGENTA} 1.1.7 | 07/10/2025 | - Built a boot report function ${NC}\n"
 }
 
 print_help() {
@@ -103,7 +102,6 @@ printf "${YELLOW}--smtpconfig${NC}	# Allows you to setup and configure a non-SAS
 printf "${YELLOW}--smtpsaslconfig${NC}	# Allows you to setup and configure a SASL relayhost in postfix\n\n"
 printf "${YELLOW}--smtpsaslremove${NC}	# Allows you to remove a SASL relayhost and configuration in postfix\n\n"
 printf "\n${MAGENTA}General System Information Options:${NC}\n"
-printf "${YELLOW}--meminfo${NC}	# Gives you information in regards to memory on the system\n\n"
 printf "${YELLOW}--oscheck${NC}	# Gives you a general system information overview\n\n"
 printf "${YELLOW}--harddetect${NC}	# Detects the hardware platform a Linux host is running on\n\n"
 printf "${YELLOW}--bootreport <envuser>${NC}	# Creates a report on commonly viewed startup checks\n\n"
@@ -382,108 +380,6 @@ rm -rf /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
 systemctl restart postfix &>/dev/null
 printf "${GREEN}!!!SASL Configuration Has Been Removed!!!${NC}\n"
 }
-
-get_raw_mem_percentages() {
-    local totalmem_kb=$(free -k | awk 'NR==2{print $2}' || echo 0)
-    local usedmem_kb=$(free -k | awk 'NR==2{print $3}' || echo 0)
-    local totalswap_kb=$(free -k | awk 'NR==3{print $2}' || echo 0)
-    local usedswap_kb=$(free -k | awk 'NR==3{print $3}' || echo 0)
-    local memusepercent="0"
-
-    if (( totalmem_kb > 0 )); then
-        memusepercent=$(awk "BEGIN {printf \"%.0f\", (${usedmem_kb} / ${totalmem_kb}) * 100}" < /dev/null)
-    fi
-
-    local swapusepercent="0"
-    if (( totalswap_kb > 0 )); then
-        swapusepercent=$(awk "BEGIN {printf \"%.0f\", (${usedswap_kb} / ${totalswap_kb}) * 100}" < /dev/null)
-    fi
-    echo "${memusepercent} ${swapusepercent}"
-}
-
-print_meminfo() {
-    printf "${MAGENTA}|---------------|${NC}\\n"
-    printf "${MAGENTA}|  Memory Info  |${NC}\\n"
-    printf "${MAGENTA}|---------------|${NC}\\n\\n"
-
-   
-    local memtotal_kb=$(awk '/MemTotal/ {print $2}' /proc/meminfo || echo 0)
-    local memfree_kb=$(awk '/MemFree/ {print $2}' /proc/meminfo || echo 0)
-    local buffers_kb=$(awk '/Buffers/ {print $2}' /proc/meminfo || echo 0)
-    local cached_kb=$(awk '/Cached/ {print $2}' /proc/meminfo || echo 0)
-    local swaptotal_kb=$(awk '/SwapTotal/ {print $2}' /proc/meminfo || echo 0)
-    local swapfree_kb=$(awk '/SwapFree/ {print $2}' /proc/meminfo || echo 0)
-
-   
-    local memtotal_gib=$(awk "BEGIN {printf \"%.1f\", ${memtotal_kb}/(1024*1024)}")
-    local swaptotal_gib=$(awk "BEGIN {printf \"%.1f\", ${swaptotal_kb}/(1024*1024)}")
-
-    local memused_kb=$((memtotal_kb - memfree_kb - buffers_kb - cached_kb))
-    local memused_mib=$(awk "BEGIN {printf \"%.1f\", ${memused_kb}/1024}")
-
-    local swapused_kb=$((swaptotal_kb - swapfree_kb))
-    local swapused_mib=$(awk "BEGIN {printf \"%.1f\", ${swapused_kb}/1024}")
-
-    
-    local mem_usage_percent=0
-    if (( memtotal_kb > 0 )); then
-        mem_usage_percent=$(awk "BEGIN {printf \"%.0f\", (${memused_kb} / ${memtotal_kb})*100}")
-    fi
-
-    local swap_usage_percent=0
-    if (( swaptotal_kb > 0 )); then
-        swap_usage_percent=$(awk "BEGIN {printf \"%.0f\", (${swapused_kb} / ${swaptotal_kb})*100}")
-    fi
-
-   
-    local si=0 so=0
-    local vmstat_output=$(vmstat 1 2 | tail -n 1 | awk '{print $7, $8}' || echo "0 0") # Add default for vmstat
-    read -r si so <<< "$vmstat_output"
-
-    
-    local mem_status="Normal"
-    if (( mem_usage_percent > 80 )); then
-        mem_status="High"
-    elif (( mem_usage_percent > 50 )); then
-        mem_status="Moderate"
-    fi
-
-    
-    local swap_status="Normal"
-    if (( swap_usage_percent > 80 )); then
-        swap_status="High"
-    elif (( swap_usage_percent > 50 )); then
-        swap_status="Moderate"
-    fi
-
-    
-    local actively_swapping="No"
-    if (( si > 0 || so > 0 )); then
-        actively_swapping="Yes"
-    fi
-
-   
-    printf "${CYAN}%-25s:%sGi${NC}\\n" "Total Memory" "${memtotal_gib}"
-    printf "${CYAN}%-25s:%sGi${NC}\\n" "Total Swap Space" "${swaptotal_gib}"
-    printf "${CYAN}%-25s:%sMi${NC}\\n" "Memory Usage" "${memused_mib}"
-    printf "${CYAN}%-25s:%sMi${NC}\\n" "Swap Usage" "${swapused_mib}"
-    printf "${CYAN}%-25s:%s%% Usage${NC}\\n" "Memory Use Percentage" "${mem_usage_percent}"
-    printf "${CYAN}%-25s:%s%% Usage${NC}\\n" "Swap Use Percentage" "${swap_usage_percent}"
-    printf "${CYAN}%-25s:%sKB/s${NC}\\n" "Swap In" "${si}"
-    printf "${CYAN}%-25s:%sKB/s${NC}\\n" "Swap Out" "${so}"
-    printf "\\n"
-
-    printf "${CYAN}%-25s:%s${NC}\\n" "Memory Status" "${mem_status} Memory Usage Is ${mem_status}"
-    printf "${CYAN}%-25s:%s${NC}\\n" "Swap Status" "${swap_status} Swap Usage Is ${swap_status}"
-    printf "${CYAN}%-25s:%s${NC}\\n" "Is The System Actively Swapping?" "${actively_swapping}"
-    printf "\\n"
-
-    printf "${GREEN}Top 5 Memory Consuming Processes:${NC}\\n"
-    printf "${YELLOW}%-8s %-10s %-5s %-5s %-s${NC}\\n" "PID" "USER" "%CPU" "%MEM" "CMD"
-    ps aux --sort=-%mem | awk 'NR>1 {cmd = substr($0, index($0,$11)); printf "%-8s %-10s %-5s %-5s %s\n", $2, $1, $3, $4, cmd}' | head -n 5
-    printf "\\n"
-}
-
 
 print_devconsolefix() {
 check_root
@@ -1287,7 +1183,6 @@ case "$1" in
 	--smtpconfig) print_smtpconfig ;;
 	--smtpsaslconfig) print_saslconfig ;;
 	--smtpsaslremove) print_saslremove ;;
-	--meminfo) print_meminfo ;;
 	--devconsolefix) print_devconsolefix ;;
 	--oscheck) print_oscheck ;;
 	--harddetect) print_harddetect ;;
