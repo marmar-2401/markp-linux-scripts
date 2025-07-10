@@ -1197,7 +1197,7 @@ else
 fi
 
 if journalctl -rp err | grep -q .; then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Journal" "!!BAD!!" "The journal contains errors (Run 'journalctl -rp err' for additional details)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Journal" "!!BAD!!" "The journal contains errors 'journalctl -rp err' for more"
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Journal" "!!GOOD!!" "The journal does not have any errors"
 fi
@@ -1205,7 +1205,7 @@ fi
 if firewall-cmd --list-rich-rules | grep -q 'rule'; then
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!GOOD!!" "Firewall rich rules exist "
 else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!BAD!!" "No firewall rich rules 'firewall-cmd --list-rich-rules' for more NOTE:Some systems don't use them"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!BAD!!" "No firewall rich rules 'firewall-cmd --list-rich-rules'"
 fi
 
 local java_output=$(java -version 2>&1)
