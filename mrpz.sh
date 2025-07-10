@@ -17,6 +17,15 @@ exit 1
 fi
 }
 
+check_sccadm() {
+local sccadmid=$(grep sccadm /etc/passwd | awk -F : '{print $3}'
+
+if [ "${EUID}" -ne ${sccadmid} ]; then
+	printf "${RED}Error: This script must be run as root.${NC}\n"
+exit 1
+fi
+}
+
 check_dependencies() {
 local function_name="$1"
 shift
@@ -43,21 +52,21 @@ fi
 print_version() {
 check_dependencies "print_version" "printf" "exit"
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.1.5 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.1.8 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
-printf "${CYAN} __   __   ____     _____    _____ ${NC}\n"
-printf "${CYAN}|  \_/  | |  _ \   |  __ \  |__  /     ${NC}\n"
-printf "${CYAN}| |\_/| | | |_) |  | |__) |   / /   ${NC}\n"
-printf "${CYAN}| |   | | |  _ <   |  __ /   / /__   ${NC}\n"
-printf "${CYAN}|_|   |_| |_| \_\  |_|      /_____|    ${NC}"
+printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
+printf "${CYAN}|  \_/  | |  _ \  |  __ \  |__  /     ${NC}\n"
+printf "${CYAN}| |\_/| | | |_) | | |__) |   / /   ${NC}\n"
+printf "${CYAN}| |   | | |  _ <  |  __ /   / /__   ${NC}\n"
+printf "${CYAN}|_|   |_| |_| \_\ |_|      /_____|    ${NC}"
 printf "${CYAN}                                 ${NC}\n"
 printf "${CYAN}          m r p z . s h          ${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN}\nAuthor: Mark Pierce-Zellfrow ${NC}\n"
 printf "${YELLOW}\n  Ver  |    Date   |                         Changes                                ${NC}\n"
 printf "${YELLOW}===============================================================================${NC}\n"
-printf "${MAGENTA} 1.0.0 | 05/05/2025 | - Initial release colors were defined ${NC}\n"
+printf "${MAGENTA} 1.0.0 | 05/05/2025 | - Initial release ${NC}\n"
 printf "${MAGENTA} 1.0.1 | 05/05/2025 | - Version function was built ${NC}\n"
 printf "${MAGENTA} 1.0.2 | 05/05/2025 | - Help function was built ${NC}\n"
 printf "${MAGENTA} 1.0.3 | 05/05/2025 | - NTP check function was built ${NC}\n"
@@ -66,16 +75,16 @@ printf "${MAGENTA} 1.0.5 | 05/07/2025 | - SMTP test function was built ${NC}\n"
 printf "${MAGENTA} 1.0.6 | 05/15/2025 | - SMTP config function was built ${NC}\n"
 printf "${MAGENTA} 1.0.7 | 05/15/2025 | - SMTP SASL config function was built ${NC}\n"
 printf "${MAGENTA} 1.0.8 | 05/16/2025 | - SMTP SASL config remove function was built ${NC}\n"
-printf "${MAGENTA} 1.0.9 | 06/10/2025 | - Check for root access before allowing script to run was built ${NC}\n"
-printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Check for commands before running script to make sure necessary script dependencies are installed was built ${NC}\n"
-printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Adjusted dependency function to be function specific to make more compatible with various systems ${NC}\n"
-printf "${MAGENTA} 1.1.1 | 06/12/2025 | - Adjusted root access check to be specific to the option selected and only used if needed ${NC}\n"
-printf "${MAGENTA} 1.1.2 | 06/17/2025 | - Created meminfo function building out system checks ${NC}\n"
-printf "${MAGENTA} 1.1.3 | 06/17/2025 | - Created devconsolefix function building out system checks ${NC}\n"
-printf "${MAGENTA} 1.1.4 | 06/17/2025 | - Begin OS check for system ${NC}\n"
-printf "${MAGENTA} 1.1.5 | 06/24/2025 | - Build hardware platform detection functions ${NC}\n"
-printf "${MAGENTA} 1.1.6 | 07/09/2025 | - Built mqfix to correct message queue limits ${NC}\n"
-printf "${MAGENTA} 1.1.7 | 07/10/2025 | - Building description section & options ${NC}\n"
+printf "${MAGENTA} 1.0.9 | 06/10/2025 | - Built a function to check for sccadm user ${NC}\n"
+printf "${MAGENTA} 1.1.0 | 06/10/2025 | - Built a function to check for function dependencies before running  ${NC}\n"
+printf "${MAGENTA} 1.1.1 | 06/17/2025 | - Created meminfo function building out system checks ${NC}\n"
+printf "${MAGENTA} 1.1.2 | 06/17/2025 | - Created devconsolefix function building out system checks ${NC}\n"
+printf "${MAGENTA} 1.1.3 | 06/17/2025 | - Built oscheck function ${NC}\n"
+printf "${MAGENTA} 1.1.4 | 06/24/2025 | - Build hardware platform detection functions ${NC}\n"
+printf "${MAGENTA} 1.1.5 | 07/09/2025 | - Built mqfix to correct message queue limits ${NC}\n"
+printf "${MAGENTA} 1.1.6 | 07/10/2025 | - Built description section for problems ${NC}\n"
+printf "${MAGENTA} 1.1.7 | 07/10/2025 | - Built a function to check for sccadm user ${NC}\n"
+printf "${MAGENTA} 1.1.8 | 07/10/2025 | - Built a boot report function ${NC}\n"
 }
 
 print_help() {
@@ -83,27 +92,28 @@ check_dependencies "print_help" "printf" "exit"
 printf "\n${MAGENTA}Basic syntax:${NC}\n"
 printf "${YELLOW}bash mrpz.sh <OPTION>${NC}\n"
 printf "\n${MAGENTA}mrpz.sh Based Options:${NC}\n"
-printf "${YELLOW}--help${NC}        # Gives script overview information\n\n"
-printf "${YELLOW}--ver${NC}         # Gives script versioning related information\n\n"
+printf "${YELLOW}--help${NC}	# Gives script overview information\n\n"
+printf "${YELLOW}--ver${NC} 	# Gives script versioning related information\n\n"
 printf "\n${MAGENTA}NTP Based Options:${NC}\n"
-printf "${YELLOW}--ntpcheck${NC}        # Gives you system NTP related information\n\n"
+printf "${YELLOW}--ntpcheck${NC}	# Gives you system NTP related information\n\n"
 printf "\n${MAGENTA}SMTP Based Options:${NC}\n"
-printf "${YELLOW}--smtpcheck${NC}       # Gives you system SMTP related information\n\n"
-printf "${YELLOW}--smtptest${NC}        # Allows you to send a test email and retrieve the status from the mail log\n\n"
-printf "${YELLOW}--smtpconfig${NC}        # Allows you to setup and configure a non-SASL relayhost in postfix\n\n"
-printf "${YELLOW}--smtpsaslconfig${NC}        # Allows you to setup and configure a SASL relayhost in postfix\n\n"
-printf "${YELLOW}--smtpsaslremove${NC}        # Allows you to remove a SASL relayhost and configuration in postfix\n\n"
+printf "${YELLOW}--smtpcheck${NC}	# Gives you system SMTP related information\n\n"
+printf "${YELLOW}--smtptest${NC}	# Allows you to send a test email and retrieve the status from the mail log\n\n"
+printf "${YELLOW}--smtpconfig${NC}	# Allows you to setup and configure a non-SASL relayhost in postfix\n\n"
+printf "${YELLOW}--smtpsaslconfig${NC}	# Allows you to setup and configure a SASL relayhost in postfix\n\n"
+printf "${YELLOW}--smtpsaslremove${NC}	# Allows you to remove a SASL relayhost and configuration in postfix\n\n"
 printf "\n${MAGENTA}General System Information Options:${NC}\n"
-printf "${YELLOW}--meminfo${NC}         # Gives you information in regards to memory on the system\n\n"
-printf "${YELLOW}--oscheck${NC}       # Gives you a general system information overview\n\n"
-printf "${YELLOW}--harddetect${NC}         # Detects the hardware platform a Linux host is running on\n\n"
+printf "${YELLOW}--meminfo${NC}	# Gives you information in regards to memory on the system\n\n"
+printf "${YELLOW}--oscheck${NC}	# Gives you a general system information overview\n\n"
+printf "${YELLOW}--harddetect${NC}	# Detects the hardware platform a Linux host is running on\n\n"
+printf "${YELLOW}--bootreport <envuser>${NC}	# Creates a report on commonly viewed startup checks\n\n"
 printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
-printf "${YELLOW}--devconsolefix${NC}       # Checks and corrects the /dev/console rules on system\n\n"
-printf "${YELLOW}--mqfix${NC}       # Checks and corrects the message queue limits on system\n\n"
+printf "${YELLOW}--devconsolefix${NC}	# Checks and corrects the /dev/console rules on system\n\n"
+printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on system\n\n"
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
-printf "${YELLOW}--backupdisc${NC}       # Description for mklinb missing\n\n"
-printf "${YELLOW}--auditdisc${NC}       # Description for misconfigured audit rules\n\n"
-printf "${YELLOW}--listndisc${NC}       # Description for oracle listener issues\n\n"
+printf "${YELLOW}--backupdisc${NC}	# Description for mklinb missing\n\n"
+printf "${YELLOW}--auditdisc${NC}	# Description for misconfigured audit rules\n\n"
+printf "${YELLOW}--listndisc${NC}	# Description for oracle listener issues\n\n"
 printf "\n"
 exit 0
 }
@@ -604,6 +614,33 @@ else
 fi
 }
 
+print_bootreport() {
+
+check_sccadm
+local sccadmhome=$(grep sccadm /etc/passwd | awk -F : '{print $6}')
+envuser="$2"
+
+shortbootreport() {
+	printf "Oracle Listener Processes\n\n">> ${sccadmhome}/bootreport.${envuser}
+	ps -ef | egrep '_pmon_|tnslsnr' | grep -v 'grep -E _pmon_|tnslsnr' >> ${sccadmhome}/bootreport.${envuser}
+	printf '\nSoft Update\n\n'>> ${sccadmhome}/bootreport.${envuser}
+	sudo -i -u sccupd rc.softupdate view >> ${sccadmhome}/bootreport.${envuser}
+	printf '\nWeblogic & Springboot\n\n'>> ${sccadmhome}/bootreport.${envuser}
+	/SCC/bin/Run! -L ${envuser} as.pl view_domain >> ${sccadmhome}/bootreport.${envuser}
+	printf '\nVer2!\n\n'>> ${sccadmhome}/bootreport.${envuser}
+	/SCC/bin/Run! -L ${envuser} Ver2! >> ${sccadmhome}/bootreport.${envuser}
+}
+
+if [ -f "${sccadmhome}/.nocheck" ]; then
+	shortbootreport
+else
+	touch ${sccadmhome}/.nocheck
+	chmod 640 ${sccadmhome}/.nocheck	
+	shortbootreport
+	rm -f ${sccadmhome}/.nocheck
+fi
+}
+
 #Problem Decription Section
 
 print_backupdisc() {
@@ -632,27 +669,6 @@ printf "${CYAN}Oracle Listener Issues${NC}\n"
 printf "${CYAN}--------------------------${NC}\n\n"
 printf "${YELLOW} Run 'ps -ef | egrep '_pmon_|tnslsnr' | grep -v 'grep -E _pmon_|tnslsnr'' to check to see if listeners are present!${NC}\n"
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 #End of problem Description Section
@@ -1248,6 +1264,7 @@ case "$1" in
  	--backupdisc) print_backupdisc ;;
   	--auditdisc) print_auditdisc ;;
 	--listndisc) print_listndisc ;;
+ 	--bootreport) print_bootreport ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
