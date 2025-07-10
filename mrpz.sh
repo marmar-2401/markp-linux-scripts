@@ -1168,12 +1168,13 @@ else
 fi
 
 local CPU_THRESHOLD=70
-local high_cpu_output=$(ps aux | tail -n +2 | awk -v threshold="${CPU_THRESHOLD}" '{if ($3 >= threshold) {print $3 "% " substr($0, index($0, $11));}}')
+local cpu_idle=$(top -bn2 | grep "Cpu(s)" | tail -n1 | awk '{print $8}' | cut -d'%' -f1)
+local total_cpu_usage=$(echo "100 - ${cpu_idle}" | bc)
 
-if [ -n "${high_cpu_output}" ]; then
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "High CPU Usage" "!!BAD!!" "The CPU usage is over 70 percent usage 'top' for more"
+if (( $(echo "${total_cpu_usage} >= ${CPU_THRESHOLD}" | bc -l) )); then
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Total CPU Usage" "!!BAD!!" "The total CPU usage is over ${CPU_THRESHOLD}% (${total_cpu_usage}%) - consider checking 'top' or 'htop' for more details"
 else
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "High CPU Usage" "!!GOOD!!" "The CPU usage is under 70 percent usage"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "Total CPU Usage" "!!GOOD!!" "The total CPU usage is under ${CPU_THRESHOLD}% (${total_cpu_usage}%)"
 fi
 
 local EXPECTED_VALUE=4194304
