@@ -630,7 +630,7 @@ check_dependencies "printf"
 
 printf "${CYAN}Oracle Listener Issues${NC}\n"
 printf "${CYAN}--------------------------${NC}\n\n"
-printf "${YELLOW} Run 'ps -ef | egrep '_pmon_|tnslsnr' | grep -q -v 'grep -E _pmon_|tnslsnr' to check to see if listeners are present!${NC}\n"
+printf "${YELLOW} Run 'ps -ef | egrep '_pmon_|tnslsnr' | grep -v 'grep -E _pmon_|tnslsnr'' to check to see if listeners are present!${NC}\n"
 }
 
 
