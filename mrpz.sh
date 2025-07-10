@@ -417,6 +417,8 @@ fi
 if [ "${current_perm}" != "${PERM}" ]; then
         chmod "${PERM}" "${DEVICE}"
 fi
+
+printf "${GREEN}Fix is complete!!!${NC}\n"
 }
 
 print_mqfix() {
@@ -444,6 +446,7 @@ if ! grep -q "^kernel.msgmnb=$MSGMNB_VALUE$" "$SYSCTL_FILE"; then
 fi
 
 sudo sysctl -p "$SYSCTL_FILE"
+printf "${GREEN}Fix is complete!!!${NC}\n"
 }
 
 print_harddetect() {
