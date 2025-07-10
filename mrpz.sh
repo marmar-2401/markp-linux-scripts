@@ -406,14 +406,15 @@ print_meminfo() {
     printf "${MAGENTA}|  Memory Info  |${NC}\\n"
     printf "${MAGENTA}|---------------|${NC}\\n\\n"
 
-    local memtotal_kb=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
-    local memfree_kb=$(awk '/MemFree/ {print $2}' /proc/meminfo)
-    local buffers_kb=$(awk '/Buffers/ {print $2}' /proc/meminfo)
-    local cached_kb=$(awk '/Cached/ {print $2}' /proc/meminfo)
-    local swaptotal_kb=$(awk '/SwapTotal/ {print $2}' /proc/meminfo)
-    local swapfree_kb=$(awk '/SwapFree/ {print $2}' /proc/meminfo)
+   
+    local memtotal_kb=$(awk '/MemTotal/ {print $2}' /proc/meminfo || echo 0)
+    local memfree_kb=$(awk '/MemFree/ {print $2}' /proc/meminfo || echo 0)
+    local buffers_kb=$(awk '/Buffers/ {print $2}' /proc/meminfo || echo 0)
+    local cached_kb=$(awk '/Cached/ {print $2}' /proc/meminfo || echo 0)
+    local swaptotal_kb=$(awk '/SwapTotal/ {print $2}' /proc/meminfo || echo 0)
+    local swapfree_kb=$(awk '/SwapFree/ {print $2}' /proc/meminfo || echo 0)
 
- 
+   
     local memtotal_gib=$(awk "BEGIN {printf \"%.1f\", ${memtotal_kb}/(1024*1024)}")
     local swaptotal_gib=$(awk "BEGIN {printf \"%.1f\", ${swaptotal_kb}/(1024*1024)}")
 
@@ -426,19 +427,19 @@ print_meminfo() {
     
     local mem_usage_percent=0
     if (( memtotal_kb > 0 )); then
-        mem_usage_percent=$(awk "BEGIN {printf \"%.0f\", (${memused_kb}/${memtotal_kb})*100}")
+        mem_usage_percent=$(awk "BEGIN {printf \"%.0f\", (${memused_kb} / ${memtotal_kb})*100}")
     fi
 
     local swap_usage_percent=0
     if (( swaptotal_kb > 0 )); then
-        swap_usage_percent=$(awk "BEGIN {printf \"%.0f\", (${swapused_kb}/${swaptotal_kb})*100}")
+        swap_usage_percent=$(awk "BEGIN {printf \"%.0f\", (${swapused_kb} / ${swaptotal_kb})*100}")
     fi
 
-    
+   
     local si=0 so=0
-    
-    local vmstat_output=$(vmstat 1 2 | tail -n 1 | awk '{print $7, $8}')
+    local vmstat_output=$(vmstat 1 2 | tail -n 1 | awk '{print $7, $8}' || echo "0 0") # Add default for vmstat
     read -r si so <<< "$vmstat_output"
+
     
     local mem_status="Normal"
     if (( mem_usage_percent > 80 )); then
@@ -447,6 +448,7 @@ print_meminfo() {
         mem_status="Moderate"
     fi
 
+    
     local swap_status="Normal"
     if (( swap_usage_percent > 80 )); then
         swap_status="High"
@@ -454,11 +456,13 @@ print_meminfo() {
         swap_status="Moderate"
     fi
 
+    
     local actively_swapping="No"
     if (( si > 0 || so > 0 )); then
         actively_swapping="Yes"
     fi
 
+   
     printf "${CYAN}%-25s:%sGi${NC}\\n" "Total Memory" "${memtotal_gib}"
     printf "${CYAN}%-25s:%sGi${NC}\\n" "Total Swap Space" "${swaptotal_gib}"
     printf "${CYAN}%-25s:%sMi${NC}\\n" "Memory Usage" "${memused_mib}"
@@ -476,7 +480,6 @@ print_meminfo() {
 
     printf "${GREEN}Top 5 Memory Consuming Processes:${NC}\\n"
     printf "${YELLOW}%-8s %-10s %-5s %-5s %-s${NC}\\n" "PID" "USER" "%CPU" "%MEM" "CMD"
-   
     ps aux --sort=-%mem | awk 'NR>1 {cmd = substr($0, index($0,$11)); printf "%-8s %-10s %-5s %-5s %s\n", $2, $1, $3, $4, cmd}' | head -n 5
     printf "\\n"
 }
