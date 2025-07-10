@@ -383,76 +383,86 @@ systemctl restart postfix &>/dev/null
 printf "${GREEN}!!!SASL Configuration Has Been Removed!!!${NC}\n"
 }
 
-
-get_raw_mem_percentages() {
-local totalmem_kb=$(free -k | awk 'NR==2{print $2}')
-local usedmem_kb=$(free -k | awk 'NR==2{print $3}')
-local totalswap_kb=$(free -k | awk 'NR==3{print $2}')
-local usedswap_kb=$(free -k | awk 'NR==3{print $3}')
-local memusepercent="0"
-
-if (( totalmem_kb > 0 )); then
-	memusepercent=$(awk "BEGIN {printf \"%.0f\", (${usedmem_kb} / ${totalmem_kb}) * 100}" < /dev/null)
-fi
-
-local swapusepercent="0"
-if (( totalswap_kb > 0 )); then
-	swapusepercent=$(awk "BEGIN {printf \"%.0f\", (${usedswap_kb} / ${totalswap_kb}) * 100}" < /dev/null)
-fi
-	echo "${memusepercent} ${swapusepercent}"
-}
-
-
 print_meminfo() {
-check_root
-check_dependencies "print_meminfo" "printf" "free" "head" "awk" "tail" "ps" "vmstat"
+    printf "${MAGENTA}|---------------|${NC}\\n"
+    printf "${MAGENTA}|  Memory Info  |${NC}\\n"
+    printf "${MAGENTA}|---------------|${NC}\\n\\n"
 
-local totalmem_h=$(free -h | head -2 | tail -1 | awk '{print $2}')
-local totalswap_h=$(free -h | head -3 | tail -1 | awk '{print $2}')
-local memusage_h=$(free -h | head -2 | tail -1 | awk '{print $3}')
-local swapusage_h=$(free -h | head -3 | tail -1 | awk '{print $3}')
-local totalmem_kb=$(free -k | head -2 | tail -1 | awk '{print $2}')
-local usedmem_kb=$(free -k | head -2 | tail -1 | awk '{print $3}')
-local totalswap_kb=$(free -k | head -3 | tail -1 | awk '{print $2}')
-local usedswap_kb=$(free -k | head -3 | tail -1 | awk '{print $3}')
-local memprocesses=$(ps -eo pid,user,%cpu,%mem,cmd --sort=-%cpu | head -n 6)
-local memusepercent swapusepercent
-read -r memusepercent swapusepercent <<< "$(get_raw_mem_percentages)"
-local si so
-read si so < <(vmstat 1 2 | tail -n 1 | awk '{print $7, $8}')
+    local memtotal_kb=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+    local memfree_kb=$(awk '/MemFree/ {print $2}' /proc/meminfo)
+    local buffers_kb=$(awk '/Buffers/ {print $2}' /proc/meminfo)
+    local cached_kb=$(awk '/Cached/ {print $2}' /proc/meminfo)
+    local swaptotal_kb=$(awk '/SwapTotal/ {print $2}' /proc/meminfo)
+    local swapfree_kb=$(awk '/SwapFree/ {print $2}' /proc/meminfo)
 
-printf "${CYAN}|---------------|${NC}\n"
-printf "${CYAN}|  Memory Info  |${NC}\n"
-printf "${CYAN}|---------------|${NC}\n"
-printf "\n${MAGENTA}%-25s:${NC}${CYAN}%s${NC}\n" "Total Memory" "${totalmem_h}"
-printf "${MAGENTA}%-25s:${NC}${CYAN}%s${NC}\n" "Total Swap Space" "${totalswap_h}"
-printf "${MAGENTA}%-25s:${NC}${CYAN}%s${NC}\n" "Memory Usage" "${memusage_h}"
-printf "${MAGENTA}%-25s:${NC}${CYAN}%s${NC}\n" "Swap Usage" "${swapusage_h}"
-printf "${MAGENTA}%-25s:${NC}${CYAN}%s%% Usage${NC}\n" "Memory Use Percentage" "${memusepercent}"
-printf "${MAGENTA}%-25s:${NC}${CYAN}%s%% Usage${NC}\n" "Swap Use Percentage" "${swapusepercent}"
-printf "${MAGENTA}%-25s:${NC}${CYAN}%sKB/s${NC}\n" "Swap In" "${si}"
-printf "${MAGENTA}%-25s:${NC}${CYAN}%sKB/s${NC}\n" "Swap Out" "${so}"
+ 
+    local memtotal_gib=$(awk "BEGIN {printf \"%.1f\", ${memtotal_kb}/(1024*1024)}")
+    local swaptotal_gib=$(awk "BEGIN {printf \"%.1f\", ${swaptotal_kb}/(1024*1024)}")
 
-if (( memusepercent > 80 )); then
-	printf "\n${MAGENTA}%-25s:${NC}${RED}%s${NC}\n" "Memory Status" "Memory Usage Is High"
-else
-        printf "\n${MAGENTA}%-25s:${NC}${GREEN}%s${NC}\n" "Memory Status" "Memory Usage Is Normal"
-fi
+    local memused_kb=$((memtotal_kb - memfree_kb - buffers_kb - cached_kb))
+    local memused_mib=$(awk "BEGIN {printf \"%.1f\", ${memused_kb}/1024}")
 
-if (( swapusepercent > 15 )); then
-        printf "${MAGENTA}%-25s:${NC}${RED}%s${NC}\n" "Swap Status" "Swap Usage Is High"
-else
-        printf "${MAGENTA}%-25s:${NC}${GREEN}%s${NC}\n" "Swap Status" "Swap Usage Is Normal"
-fi
+    local swapused_kb=$((swaptotal_kb - swapfree_kb))
+    local swapused_mib=$(awk "BEGIN {printf \"%.1f\", ${swapused_kb}/1024}")
 
-if (( si > 1 || so > 1 )); then
-        printf "${MAGENTA}%-25s:${NC}${RED}%s${NC}\n" "Is The System Actively Swapping?" "Yes"
-else
-        printf "${MAGENTA}%-25s:${NC}${GREEN}%s${NC}\n\n" "Is The System Actively Swapping?" "No"
-fi
-printf "${MAGENTA}%-25s:${NC}\n" "Top 5 Memory Consuming Processes"
-printf "${CYAN}%s${NC}\n" "${memprocesses}"
+    
+    local mem_usage_percent=0
+    if (( memtotal_kb > 0 )); then
+        mem_usage_percent=$(awk "BEGIN {printf \"%.0f\", (${memused_kb}/${memtotal_kb})*100}")
+    fi
+
+    local swap_usage_percent=0
+    if (( swaptotal_kb > 0 )); then
+        swap_usage_percent=$(awk "BEGIN {printf \"%.0f\", (${swapused_kb}/${swaptotal_kb})*100}")
+    fi
+
+    
+    local si=0 so=0
+    
+    local vmstat_output=$(vmstat 1 2 | tail -n 1 | awk '{print $7, $8}')
+    read -r si so <<< "$vmstat_output"
+    
+    local mem_status="Normal"
+    if (( mem_usage_percent > 80 )); then
+        mem_status="High"
+    elif (( mem_usage_percent > 50 )); then
+        mem_status="Moderate"
+    fi
+
+    local swap_status="Normal"
+    if (( swap_usage_percent > 80 )); then
+        swap_status="High"
+    elif (( swap_usage_percent > 50 )); then
+        swap_status="Moderate"
+    fi
+
+    local actively_swapping="No"
+    if (( si > 0 || so > 0 )); then
+        actively_swapping="Yes"
+    fi
+
+    printf "${CYAN}%-25s:%sGi${NC}\\n" "Total Memory" "${memtotal_gib}"
+    printf "${CYAN}%-25s:%sGi${NC}\\n" "Total Swap Space" "${swaptotal_gib}"
+    printf "${CYAN}%-25s:%sMi${NC}\\n" "Memory Usage" "${memused_mib}"
+    printf "${CYAN}%-25s:%sMi${NC}\\n" "Swap Usage" "${swapused_mib}"
+    printf "${CYAN}%-25s:%s%% Usage${NC}\\n" "Memory Use Percentage" "${mem_usage_percent}"
+    printf "${CYAN}%-25s:%s%% Usage${NC}\\n" "Swap Use Percentage" "${swap_usage_percent}"
+    printf "${CYAN}%-25s:%sKB/s${NC}\\n" "Swap In" "${si}"
+    printf "${CYAN}%-25s:%sKB/s${NC}\\n" "Swap Out" "${so}"
+    printf "\\n"
+
+    printf "${CYAN}%-25s:%s${NC}\\n" "Memory Status" "${mem_status} Memory Usage Is ${mem_status}"
+    printf "${CYAN}%-25s:%s${NC}\\n" "Swap Status" "${swap_status} Swap Usage Is ${swap_status}"
+    printf "${CYAN}%-25s:%s${NC}\\n" "Is The System Actively Swapping?" "${actively_swapping}"
+    printf "\\n"
+
+    printf "${GREEN}Top 5 Memory Consuming Processes:${NC}\\n"
+    printf "${YELLOW}%-8s %-10s %-5s %-5s %-s${NC}\\n" "PID" "USER" "%CPU" "%MEM" "CMD"
+   
+    ps aux --sort=-%mem | awk 'NR>1 {cmd = substr($0, index($0,$11)); printf "%-8s %-10s %-5s %-5s %s\n", $2, $1, $3, $4, cmd}' | head -n 5
+    printf "\\n"
 }
+
 
 print_devconsolefix() {
 check_root
