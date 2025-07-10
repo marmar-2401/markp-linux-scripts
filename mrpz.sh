@@ -75,6 +75,7 @@ printf "${MAGENTA} 1.1.3 | 06/17/2025 | - Created devconsolefix function buildin
 printf "${MAGENTA} 1.1.4 | 06/17/2025 | - Begin OS check for system ${NC}\n"
 printf "${MAGENTA} 1.1.5 | 06/24/2025 | - Build hardware platform detection functions ${NC}\n"
 printf "${MAGENTA} 1.1.6 | 07/09/2025 | - Built mqfix to correct message queue limits ${NC}\n"
+printf "${MAGENTA} 1.1.7 | 07/10/2025 | - Building description section & options ${NC}\n"
 }
 
 print_help() {
@@ -99,6 +100,10 @@ printf "${YELLOW}--harddetect${NC}         # Detects the hardware platform a Lin
 printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
 printf "${YELLOW}--devconsolefix${NC}       # Checks and corrects the /dev/console rules on system\n\n"
 printf "${YELLOW}--mqfix${NC}       # Checks and corrects the message queue limits on system\n\n"
+printf "\n${MAGENTA}Problem Description Section:${NC}\n"
+printf "${YELLOW}--backupdisc${NC}       # Description for mklinb missing\n\n"
+printf "${YELLOW}--auditdisc${NC}       # Description for misconfigured audit rules\n\n"
+printf "${YELLOW}--listndisc${NC}       # Description for oracle listener issues\n\n"
 printf "\n"
 exit 0
 }
@@ -599,6 +604,59 @@ else
 fi
 }
 
+#Problem Decription Section
+
+print_backupdisc() {
+check_root
+check_dependencies "printf"
+
+printf "${CYAN}Backup Missing Issues${NC}\n"
+printf "${CYAN}--------------------------${NC}\n\n"
+printf "${YELLOW}Run 'Problem with backup run '/SCCbackup/mklinb --compress --backup --lvsize=50 --path=/SCCbackup --force > /SCCbackup/up.out 2>&1 &' to create new mklinb backup!${NC}\n"
+}
+
+print_auditdisc() {
+check_root
+check_dependencies "printf"
+
+printf "${CYAN}Audit Rule Issues${NC}\n"
+printf "${CYAN}--------------------------${NC}\n\n"
+printf "${YELLOW}Change audit configuration in '/etc/audit/rules.d/audit.rules' make sure its restarted 'systemctl restart auditd'!${NC}\n"
+}
+
+print_listndisc() {
+check_root
+check_dependencies "printf"
+
+printf "${CYAN}Oracle Listener Issues${NC}\n"
+printf "${CYAN}--------------------------${NC}\n\n"
+printf "${YELLOW} Run 'ps -ef | egrep '_pmon_|tnslsnr' | grep -q -v 'grep -E _pmon_|tnslsnr' to check to see if listeners are present!${NC}\n"
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#End of problem Description Section
+
 print_oscheck() {
 check_root
 check_dependencies "print_oscheck" "printf" "grep" "awk" "hostnamectl" "free" "vmstat" "uname" "uptime" "needs-restarting" "yum" "df" "findmnt" "mount" "getenforce" "systemctl" "ps" "find" "mokutil" "nslookup" "ip" "multipath" "rpm" "java" "cut" "sed"
@@ -625,13 +683,13 @@ local mempercent swappercent
 read -r mempercent swappercent <<< "$(get_raw_mem_percentages)"
 
 if ((mempercent > 80)); then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Memory Usage" "!!BAD!!" "${mempercent} % (Run 'bash mrpz.sh --meminfo' for more detailed information)"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Memory Usage" "!!BAD!!" "${mempercent} %  Run 'bash mrpz.sh --meminfo'"
 else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Memory Usage" "!!GOOD!!" "${mempercent} %"
 fi
 
 if ((swappercent > 15)); then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Swap Usage" "!!BAD!!" "(${swappercent} % Run 'bash mrpz.sh --meminfo' for more detailed information)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Swap Usage" "!!BAD!!" "${swappercent} % Run 'bash mrpz.sh --meminfo'"
 else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Swap Usage" "!!GOOD!!" "${swappercent} %"
 fi
@@ -659,9 +717,8 @@ local days_up=$(echo "${uptime_output}" | awk '{
     print "0"; # Default to 0 if days not found (e.g., up for minutes/hours)
 }')
 
-# Check if days_up is empty or non-numeric before comparison
 if [[ -z "${days_up}" || ! "${days_up}" =~ ^[0-9]+$ ]]; then
-    days_up=0 # Default to 0 if parsing fails
+    days_up=0 
 fi
 
 if ((days_up > 90)); then
@@ -673,7 +730,7 @@ fi
 local termtype="$TERM"
 
 if [[ "${termtype}" != "vt220scc" ]]; then
-      printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "TERM Of vt220scc" "!!BAD!!" "${termtype} (Run 'TERM=vt220scc' to correct term type)"
+      printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "TERM Of vt220scc" "!!BAD!!" "${termtype}"
 else
       printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "TERM Of vt220scc" "!!GOOD!!" "${termtype}"
 fi
@@ -681,15 +738,15 @@ fi
 local current_shell="$SHELL"
 
 if [[ "${current_shell}" != "/bin/bash" ]]; then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "SHELL" "!!BAD!!" "${current_shell} (Run 'chsh -s /bin/bash > /dev/null 2>&1' To Change Shell To Bash)"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "SHELL" "!!BAD!!" "${current_shell}"
 else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "SHELL" "!!GOOD!!" "${current_shell}"
 fi
 
 if needs-restarting -r &> /dev/null; then
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Reboot Hint" "!!GOOD!!" "System has been rebooted since last update"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Reboot Hint" "!!GOOD!!" "Rebooted since last update"
 else
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Reboot Hint" "!!BAD!!" "System was not rebooted from previous update (Run 'needs-restarting -r' to see additional details)"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Reboot Hint" "!!BAD!!" "Not rebooted since previous update"
 fi
 
 local current_date=$(date +%Y-%m-%d)
@@ -706,9 +763,9 @@ else
 fi
 
 if (( days_since_update > 183 )); then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "${update_date} System has not been updated in over 6 Months"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "${update_date} Not updated in over 6 months"
 else
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!GOOD!!" "${update_date} System has been updated under 6 Months"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!GOOD!!" "${update_date} Updated under 6 months ago"
 fi
 
 local USAGE_THRESHOLD=80
@@ -725,10 +782,10 @@ df -h | tail -n +2 | while read -r filesystem size used avail usage_percent moun
 done
 
 if ${bad_disks_found}; then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!BAD!!" "File systems below are over ${USAGE_THRESHOLD} percent usage (Run 'df -h' for additional details)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!BAD!!" "File systems over ${USAGE_THRESHOLD} percent usage"
         printf "%b" "${bad_filesystems}"
 else
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!GOOD!!" "No filesystem is over ${USAGE_THRESHOLD} percent usage"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!GOOD!!" "${USAGE_THRESHOLD} percent usage"
 fi
 
 local OVERALL_STATUS=0
@@ -743,15 +800,15 @@ fi
 
 if [ "${OVERALL_STATUS}" -eq 0 ]; then
 	if ! mount -a >/dev/null 2>&1; then
-		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "Problematic mount points or fstab issues detected (Run 'journalctl -xe' or '/var/log/messages' for additional details)"
+		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "/etc/fstab issues detected"
         	OVERALL_STATUS=1
 	fi
 fi
 
 if [ "${OVERALL_STATUS}" -eq 0 ]; then
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!GOOD!!" "All fstab entries are valid and 'mount -a' completed successfully"
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!GOOD!!" "All fstab entries are valid"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "Problematic mount points or fstab issues detected (Run 'journalctl -xe' or '/var/log/messages' for additional details)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "fstab Check" "!!BAD!!" "/etc/fstab issues detected"
 fi
 
 local selinux_status=$(getenforce)
@@ -759,9 +816,9 @@ local selinux_status=$(getenforce)
 if [[ "${selinux_status}" == "Enforcing" ]]; then
     	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!GOOD!!" "${selinux_status}"
 elif [[ "${selinux_status}" == "Permissive" ]]; then
-    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!BAD!!" "${selinux_status} (To persistently enforce adjust '/etc/selinux/config' and reboot)"
+    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!BAD!!" "${selinux_status} Adjust '/etc/selinux/config' and reboot"
 else
-    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!BAD!!" "${selinux_status} (To persistently enforce adjust '/etc/selinux/config' and reboot)"
+    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Status" "!!BAD!!" "${selinux_status} Adjust '/etc/selinux/config' and reboot"
 fi
 
 
@@ -776,7 +833,7 @@ local failed_units_output=$(systemctl --failed)
 if echo "${failed_units_output}" | grep -q "0 loaded units listed."; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Failed Units" "!!GOOD!!" "No failed units"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Failed Units" "!!BAD!!" "Failed units have been detected (Run 'systemctl --failed' for additional details)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Failed Units" "!!BAD!!" "Failed units 'systemctl --failed' to see more"
 fi
 
 local THRESHOLD_PERCENT=5.0
@@ -788,7 +845,7 @@ for cpu in ${cpu_usage}; do
 done
 
 if (( $(awk "BEGIN {print (${total_cpu} >= ${THRESHOLD_PERCENT})}") )); then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!BAD!!" "${total_cpu}% Usage (Run 'top' or 'journalctl -p err' for additional details)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!BAD!!" "${total_cpu}% Usage 'top' or 'journalctl -p err' to see more"
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!GOOD!!" "${total_cpu}% Usage"
 fi
@@ -798,7 +855,7 @@ yum repolist > /dev/null 2>&1
 if [ $? -eq 0 ]; then
     	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Repolist" "!!GOOD!!" "Repolist configuration is correct"
 else
-    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Repolist" "!!BAD!!" "Repolist Configuration Is Incorrect (Check '/etc/yum.repos.d' for additional details and syntax)"
+    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Repolist" "!!BAD!!" "Repolist configuration is incorrect see '/etc/yum.repos.d'"
 fi
 
 local UNLABELED_FILES=$(find / -xdev -type f -context '*:unlabeled_t:*' -printf "%Z %p\n" 2>/dev/null)
@@ -806,13 +863,13 @@ local UNLABELED_FILES=$(find / -xdev -type f -context '*:unlabeled_t:*' -printf 
 if [ -z "${UNLABELED_FILES}" ]; then
     	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SELinux Unlabled" "!!GOOD!!" "No unlabeled context"
 else
-    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Unlabled" "!!BAD!!" "Unlabeled context detectect (Run 'restorecon -Rv /' to relabel / or 'journalctl -t setroubleshoot' for additional details and syntax)"
+    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Unlabled" "!!BAD!!" "Unlabeled context 'restorecon -Rv /' or 'journalctl -t setroubleshoot'"
 fi
 
 if systemctl is-active --quiet postfix.service; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Postfix" "!!GOOD!!" "Running"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Postfix" "!!BAD!!" "Not Running or Installed (Run 'yum install postfix -y' to install & 'systemctl enable --now postfix' to enable it)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Postfix" "!!BAD!!" "Not Running or Installed"
 fi
 
 local ntpsync=$(timedatectl | head -5 | tail -1 | awk '{ print $NF }')
@@ -820,7 +877,7 @@ local ntpsync=$(timedatectl | head -5 | tail -1 | awk '{ print $NF }')
 if [[ "${ntpsync}" == "yes" ]]; then
     	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}\n" "NTP Syncronization" "!!GOOD!!"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NTP Syncronization" "!!BAD!!" "NTP time is not synced (Run 'bash mrpz.sh --ntpcheck' for additional details)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NTP Syncronization" "!!BAD!!" "NTP time is not synced 'bash mrpz.sh --ntpcheck'"
 fi
 
 for server in $(grep -E "^(server|pool)" /etc/chrony.conf | awk '{print $2}'); do
@@ -845,33 +902,33 @@ local KERNEL_TIMESTAMP=$(date -d "${KERNEL_BUILD_DATE_STR}" +%s 2>/dev/null)
 local SIX_MONTHS_AGO_TIMESTAMP=$(date -d "-${GOOD_KERNEL_MONTHS} months" +%s)
 
 if (( KERNEL_TIMESTAMP < SIX_MONTHS_AGO_TIMESTAMP )); then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!BAD!!" "Kernel was updated longer than 6 months ago"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!BAD!!" "Kernel updated longer than 6 months ago"
 else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!GOOD!!" "Kernel has been updated within 6 months"
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!GOOD!!" "Kernel updated within 6 months"
 fi
 
 if systemctl is-active --quiet sccmain.service 2>/dev/null; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Sccmain Status" "!!GOOD!!" "Running"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Sccmain Status" "!!BAD!!" "Not Running or installed (Run 'journalctl -u sccmain.service' for additional details reach out to SEs)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Sccmain Status" "!!BAD!!" "Not Running or installed"
 fi
 
 if systemctl is-active --quiet oracle.service 2>/dev/null; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Oracle Status" "!!GOOD!!" "Running"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle Status" "!!BAD!!" "Not Running or installed (Run 'journalctl -u oracle.service' for additional details reach out to DBAs)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle Status" "!!BAD!!" "Not Running or installed"
 fi
 
 if systemctl is-enabled --quiet sccmain.service 2>/dev/null; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Sccmain (Reboot)" "!!GOOD!!" "Enabled to survive reboot"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Sccmain (Reboot)" "!!BAD!!" "Not enabled to survive reboot (Run 'systemctl enable sccmain' to enable it)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Sccmain (Reboot)" "!!BAD!!" "Not enabled to survive reboot"
 fi
 
 if systemctl is-enabled --quiet oracle.service 2>/dev/null; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Oracle (Reboot)" "!!GOOD!!" "Enabled to survive reboot"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle (Reboot)" "!!BAD!!" "Not enabled to survive reboot (Run 'systemctl enable oracle' to enable it)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle (Reboot)" "!!BAD!!" "Not enabled to survive reboot"
 fi
 
 local backup_exists=false
@@ -885,18 +942,18 @@ if "${backup_exists}"; then
 	if find /SCCbackup -maxdepth 1 -type f -name "SCC_OS_UEFI_*.tar" -o -name "rear*.iso" -newermt "$(date -d '1 month ago' +%Y-%m-%d)" 2>/dev/null | grep -q .; then
         	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "/SCCbackup" "!!GOOD!!" "There is a backup newer than a month"
 	else
-        	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "/SCCbackup" "!!BAD!!" "Problem with backup (Run '/SCCbackup/mklinb --compress --backup --lvsize=50 --path=/SCCbackup --force > /SCCbackup/up.out 2>&1 &' to create a new one)"
+        	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "/SCCbackup" "!!BAD!!" "Problem with backup 'bash mrpz.sh --backupdisc'"
 	fi
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "/SCCbackup" "!!BAD!!" "Problem with backup (Run '/SCCbackup/mklinb --compress --backup --lvsize=50 --path=/SCCbackup --force > /SCCbackup/up.out 2>&1 &' to create a new one)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "/SCCbackup" "!!BAD!!" "Problem with backup 'bash mrpz.sh --backupdisc'"
 fi
 
 if ! yum list --installed rng-tools &>/dev/null; then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "RNGD" "!!BAD!!" "RNGD is not installed (Run 'yum install -y rng-tools' to install it"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "RNGD" "!!BAD!!" "RNGD is not installed 'yum install -y rng-tools'"
 elif ! systemctl is-enabled --quiet rngd; then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "RNGD" "!!BAD!!" "RNGD is not enabled to survive reboots (Run 'systemctl enable --now rngd' to start and enable it)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "RNGD" "!!BAD!!" "RNGD is not enabled to survive reboots"
 elif ! systemctl is-active --quiet rngd; then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "RNGD" "!!BAD!!" "RNGD is not started	(Run 'systemctl enable --now rngd' to start and enable it)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "RNGD" "!!BAD!!" "RNGD is not started"
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "RNGD" "!!GOOD!!" "Installed & enabled to survive reboot"
 fi
@@ -904,7 +961,7 @@ fi
 local FULL_UPDATE_OUTPUT=$(yum list updates 2>/dev/null)
 
 if echo "${FULL_UPDATE_OUTPUT}" | grep -q "Available Upgrades"; then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Updates Available" "!!BAD!!" "System has available updates (Run 'yum updateinfo' or 'yum list updates' to inspect further)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Updates Available" "!!BAD!!" "System has available updates"
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Updates Available" "!!GOOD!!" "System has no available updates"
 fi
@@ -912,7 +969,7 @@ fi
 if mokutil --sb-state >/dev/null; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!GOOD!!" "Secure boot is optimal"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!BAD!!" "Secure boot issues (Run 'rpm -qa grub2-efi-x64 shim-x64' & 'yum check-update grub2-efi-x64 shim-x64' to inspect further)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!BAD!!" "Secure boot issues"
 fi
 
 local fqdn_long=$(hostname -f)
@@ -973,7 +1030,7 @@ fi
 if [ "${IS_GOOD}" = "true" ]; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Audit Rules Check" "!!GOOD!!" "All configurations are correct"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Audit Rules Check" "!!BAD!!" "${REASON} (Change audit configuration in '/etc/audit/rules.d/audit.rules' make sure its restarted 'systemctl restart auditd')"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Audit Rules Check" "!!BAD!!" "${REASON} 'bash mrpz.sh --auditdisc'"
 fi
 
 local podver=$(podman --version)
@@ -1025,7 +1082,7 @@ fi
 if [ "${RULE_FIX_NEEDED}" -eq 0 ] && [ "${PERM_FIX_NEEDED}" -eq 0 ]; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "/dev/console" "!!GOOD!!" "Optimal"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "/dev/console" "!!BAD!!" "Issues exist (Run 'bash mrpz.sh --devconsolefix' to address issues)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "/dev/console" "!!BAD!!" "Issues exist 'bash mrpz.sh --devconsolefix' to fix"
 fi
 
 multiple_ip_interfaces=$(ip -br a | \
@@ -1049,18 +1106,18 @@ uniq -c | \
 awk '$1 > 1 {print $2}')
 
 if [ -n "${multiple_ip_interfaces}" ]; then
-	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!ATTN!!" "Service IP is likely in use (Run 'ip -br a' & reference the /etc/hosts files for additional details)"
+	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!ATTN!!" "Service IP is likely in use 'ip -br a'"
 else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!GOOD!!" "Service IP does not appear to be in use on this system"
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!GOOD!!" "Service IP not in use"
 fi
 
 multipath -ll >/dev/null 2>&1
 local EXIT_STATUS=$?
 
 if [ "${EXIT_STATUS}" -eq 0 ]; then
-  printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!ATTN!!" "SAN is likely in use (Run 'lsscsi' & 'multipath -ll' for additional details)"
+  printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!ATTN!!" "SAN in use 'lsscsi' & 'multipath -ll' for more"
 else
-  printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!GOOD!!" "A SAN does not appear to be in use"
+  printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!GOOD!!" "SAN not in use"
 fi
 
 local yum_PLUGIN="python3-yum-plugin-versionlock"
@@ -1086,35 +1143,35 @@ else
 if [ -z "${FILTERED_LOCKS}" ]; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!GOOD!!" "Version lock does not appear to be in use"
 else
-        printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!ATTN!!" "Version lock is likely in use (Run 'yum versionlock list' for additional details)"
+        printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Package Version Lock" "!!ATTN!!" "Version lock in use 'yum versionlock list' for more"
 fi
 fi
 
 vfxstat > /dev/null 2>&1
 
 if [ $? -eq 0 ]; then
-	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "VSIFAX" "!!ATTN!!" "VSIFAX is likely in use on this system (Run 'vfxstat' for additional details)"
+	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "VSIFAX" "!!ATTN!!" "VSIFAX in use 'vfxstat' for more"
 else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "VSIFAX" "!!GOOD!!" "VSIFAX does not appear to be in use"
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "VSIFAX" "!!GOOD!!" "VSIFAX not in use"
 fi
 
 if [ -e "/SCC/TPC/JavaTrust" ]; then
-	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SSL LDAP/JAVA" "!!ATTN!!" "LDAP Java certificates are likely in use (Run 'ls -l /SCC/TPC/JavaTrust ' for additional details)"
+	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SSL LDAP/JAVA" "!!ATTN!!" "LDAP Java certificates in use 'ls -l /SCC/TPC/JavaTrust ' for more"
 else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SSL LDAP/JAVA" "!!GOOD!!" "LDAP Jaca certificates do not appear to be in use"
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SSL LDAP/JAVA" "!!GOOD!!" "LDAP Jaca certificates not in use"
 fi
 
 if [ -e "ls -l /SCC/TPC/ssl" ]; then
-	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SSL HTTPS" "!!ATTN!!" "HTTPS certificates are likely in use (Run 'ls -l /SCC/TPC/ssl ' for additional details)"
+	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SSL HTTPS" "!!ATTN!!" "HTTPS certificates in use 'ls -l /SCC/TPC/ssl' for more"
 else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SSL HTTPS" "!!GOOD!!" "HTTPS certificates do not appear to be in use"
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SSL HTTPS" "!!GOOD!!" "HTTPS certificates not in use"
 fi
 
 local CPU_THRESHOLD=70
 local high_cpu_output=$(ps aux | tail -n +2 | awk -v threshold="${CPU_THRESHOLD}" '{if ($3 >= threshold) {print $3 "% " substr($0, index($0, $11));}}')
 
 if [ -n "${high_cpu_output}" ]; then
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "High CPU Usage" "!!BAD!!" "The CPU usage is over 70 percent usage (Run 'top' for additional details)"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "High CPU Usage" "!!BAD!!" "The CPU usage is over 70 percent usage 'top' for more"
 else
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "High CPU Usage" "!!GOOD!!" "The CPU usage is under 70 percent usage"
 fi
@@ -1127,28 +1184,28 @@ local DEFAULT_MAX_QUEUE_SIZE=$(echo "$IPCS_OUTPUT" | grep "default max size of q
 if [ "$MAX_MSG_SIZE" -eq "$EXPECTED_VALUE" ] && [ "$DEFAULT_MAX_QUEUE_SIZE" -eq "$EXPECTED_VALUE" ]; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "MQ Limits" "!!GOOD!!" "The message queue limits are correct"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "MQ Limits" "!!BAD!!" "The message queue limits are incorrect (Run 'bash mrpz.sh --mqfix' to correct issue)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "MQ Limits" "!!BAD!!" "The message queue limits are incorrect 'bash mrpz.sh --mqfix' to fix"
 fi
 
 ps -ef 2>/dev/null | egrep "_pmon_|tnslsnr" | grep -v "grep -E _pmon_|tnslsnr"
 local LAST_COMMAND_EXIT_CODE=$?
 
 if [ $LAST_COMMAND_EXIT_CODE -eq 0 ]; then
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Oracle Listener" "!!GOOD!!" "The oracle listner appears to be running"
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Oracle Listener" "!!GOOD!!" "The oracle listner is running"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle Listener" "!!BAD!!" "Oracle listener is missing (Run 'ps -ef | egrep '_pmon_|tnslsnr' | grep -q -v 'grep -E _pmon_|tnslsnr' for additional details)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle Listener" "!!BAD!!" "Oracle listener is missing 'bash mrpz.sh --listndisc' for more"
 fi
 
 if journalctl -rp err | grep -q .; then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Journal" "!!BAD!!" "The journal contains errors (Run 'journalctl -rp errr' for additional details)"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Journal" "!!BAD!!" "The journal contains errors (Run 'journalctl -rp err' for additional details)"
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Journal" "!!GOOD!!" "The journal does not have any errors"
 fi
 
 if firewall-cmd --list-rich-rules | grep -q 'rule'; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!GOOD!!" "Firewall rich rules are present"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!GOOD!!" "Firewall rich rules exist "
 else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!BAD!!" "No firewall rich rules present (Run 'firewall-cmd --list-rich-rules' for additional details NOTE: Some systems do not use them.)"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!BAD!!" "No firewall rich rules 'firewall-cmd --list-rich-rules' for more NOTE:Some systems don't use them"
 fi
 
 local java_output=$(java -version 2>&1)
@@ -1187,6 +1244,9 @@ case "$1" in
 	--oscheck) print_oscheck ;;
 	--harddetect) print_harddetect ;;
 	--mqfix) print_mqfix ;;
+ 	--backupdisc) print_backupdisc ;;
+  	--auditdisc) print_auditdisc ;;
+	--listndisc) print_listndisc ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
