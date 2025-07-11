@@ -1276,7 +1276,7 @@ print_shortoscheck() {
     print_oscheck >> /tmp/oscheck.txt
     sed -i '/!!GOOD!!/d' /tmp/oscheck.txt
     cat /tmp/oscheck.txt
-    rm -f /tmp/oscheck.txt
+    rm -rf /tmp/oscheck.txt
 }
 
 case "$1" in
