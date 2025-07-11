@@ -1273,25 +1273,10 @@ printf "${GREEN}Check Complete!${NC}\n"
 
 print_shortoscheck() {
     check_root
-    printf "--- Raw print_oscheck output ---\n"
-    print_oscheck # Print the raw output to see everything
-    printf "--- End raw print_oscheck output ---\n"
-
-    printf "--- Output after sed to remove colors ---\n"
-    print_oscheck | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g" # See output without colors
-    printf "--- End output after sed to remove colors ---\n"
-
-    printf "--- Output after grep -v '!!GOOD!!' ---\n"
-    print_oscheck | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g" | grep -v "!!GOOD!!" | tee /tmp/debug_oscheck.txt # Capture to a file and print to console
-    printf "--- End output after grep -v '!!GOOD!!' ---\n"
-
-    # Original lines
-    print_oscheck | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g" | grep -v "!!GOOD!!" > /tmp/oscheck.txt
-    # The next sed is redundant, but leaving it for now
+    print_oscheck | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g" | grep -v "!!GOOD!!\" > /tmp/oscheck.txt
     sed -i '/!!GOOD!!/d' /tmp/oscheck.txt
     cat /tmp/oscheck.txt
     rm -rf /tmp/oscheck.txt
-    rm -f /tmp/debug_oscheck.txt # Clean up debug file
 }
 
 case "$1" in
