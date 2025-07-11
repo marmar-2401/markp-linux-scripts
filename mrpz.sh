@@ -84,6 +84,7 @@ printf "${MAGENTA} 1.1.4 | 07/09/2025 | - Built mqfix to correct message queue l
 printf "${MAGENTA} 1.1.5 | 07/10/2025 | - Built description section for problems ${NC}\n"
 printf "${MAGENTA} 1.1.6 | 07/10/2025 | - Built a function to check for sccadm user ${NC}\n"
 printf "${MAGENTA} 1.1.7 | 07/10/2025 | - Built a boot report function ${NC}\n"
+printf "${MAGENTA} 1.1.8 | 07/10/2025 | - Built a short oscheck function${NC}\n"
 }
 
 print_help() {
@@ -103,6 +104,7 @@ printf "${YELLOW}--smtpsaslconfig${NC}	# Allows you to setup and configure a SAS
 printf "${YELLOW}--smtpsaslremove${NC}	# Allows you to remove a SASL relayhost and configuration in postfix\n\n"
 printf "\n${MAGENTA}General System Information Options:${NC}\n"
 printf "${YELLOW}--oscheck${NC}	# Gives you a general system information overview\n\n"
+printf "${YELLOW}--shortoscheck${NC}	# Gives you a general system information overview omitting good\n\n"
 printf "${YELLOW}--harddetect${NC}	# Detects the hardware platform a Linux host is running on\n\n"
 printf "${YELLOW}--bootreport <envuser>${NC}	# Creates a report on commonly viewed startup checks\n\n"
 printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
@@ -1270,6 +1272,14 @@ fi
 printf "${GREEN}Check Complete!${NC}\n"
 }
 
+print_shortoscheck() {
+    check_root
+    oscheck >> /tmp/oscheck.txt
+    echo "Full oscheck output appended to /tmp/oscheck.txt"
+    sed -i '/!!GOOD!!/d' /tmp/oscheck.txt
+    cat /tmp/oscheck.txt
+    rm -f
+}
 
 case "$1" in
 	--ver) print_version ;;
@@ -1288,6 +1298,7 @@ case "$1" in
   	--auditdisc) print_auditdisc ;;
 	--listndisc) print_listndisc ;;
  	--bootreport) print_bootreport "$2" ;;
+  	--shortoscheck) print_shortoscheck ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
