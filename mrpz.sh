@@ -1202,18 +1202,18 @@ elif [[ "${ostype}" == *"Red Hat Enterprise Linux"* ]]; then
 
 	if [ -z "$RELEASE_OUTPUT" ]; then
 		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "RHEL Hardset" "!!GOOD!!" "No version hardlock"
-    else
+    	else
 		printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "RHEL Hardset" "!!ATTN!!" "Run 'subscription-manager release --show' for more"
-    fi
+    	fi
 
-	if command -v subscription-manager &> /dev/null; then
-    		SUB_STATUS=$(subscription-manager status)
+	local CONSUMED_OUTPUT=$(subscription-manager list --consumed 2>/dev/null)
 
-    		if echo "$SUB_STATUS" | grep -q "Release not set"; then
-        		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Subscription Manager" "!!BAD!!" "Release not set"
-    		elif echo "$SUB_STATUS" | grep -q "Overall Status: Current"; then
-        		printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${YELLOW}%s${NC}\n" "Subscription Manager" "!!ATTN!!" "Release is set"
-    		fi
+	if echo "$CONSUMED_OUTPUT" | grep -q "No consumed subscription pools were found."; then
+    		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Subscription Manager" "!!BAD!!" "No consumed subscription pools"
+	elif echo "$SUB_STATUS" | grep -q "Overall Status: Current"; then
+    		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Subscription Manager" "!!GOOD!!" "There appears to be a subscription"
+	else
+    		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Subscription Manager" "!!BAD!!" "Subscription issues (e.g., expired/not registered)"
 	fi
 		
 fi
