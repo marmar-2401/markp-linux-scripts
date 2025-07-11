@@ -26,31 +26,7 @@ exit 1
 fi
 }
 
-check_dependencies() {
-local function_name="$1"
-shift
-local commands_to_check=("$@")
-local missing_commands=()
-
-for cmd in "${commands_to_check[@]}"; do
-	if ! command -v "${cmd}" &>/dev/null; then
- 	missing_commands+=("${cmd}")
-        printf "  - Missing: %s\n" "${cmd}"
-fi
-done
-
-if [ ${#missing_commands[@]} -gt 0 ]; then
-	printf "${YELLOW}Error: The following required commands are missing:${NC}\n"
-	for missing_cmd in "${missing_commands[@]}"; do
-        echo -e " - ${RED}${missing_cmd}${NC}"
-done
-        printf "${YELLOW}Please install them using yum and try again. For example: sudo yum install <package_name>${NC}\n"
-        exit 1
-fi
-}
-
 print_version() {
-check_dependencies "print_version" "printf" "exit"
 printf "\n${CYAN}         ################${NC}\n"
 printf "${CYAN}         ## Ver: 1.1.7 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
@@ -88,7 +64,6 @@ printf "${MAGENTA} 1.1.8 | 07/10/2025 | - Built a short oscheck function${NC}\n"
 }
 
 print_help() {
-check_dependencies "print_help" "printf" "exit"
 printf "\n${MAGENTA}Basic syntax:${NC}\n"
 printf "${YELLOW}bash mrpz.sh <OPTION>${NC}\n"
 printf "\n${MAGENTA}mrpz.sh Based Options:${NC}\n"
@@ -119,7 +94,6 @@ exit 0
 }
 
 print_ntpcheck() {
-check_dependencies "print_ntpcheck" "timedatectl" "head" "tail" "awk" "systemctl" "printf" "chronyc" "ping" "exit"
 local ntpsync=$(timedatectl | head -5 | tail -1 | awk '{ print $NF }')
 local ntppersistence=$(systemctl status chronyd | grep -i enabled | awk ' { print $4 } ')
 local ntpstatus=$(systemctl status chronyd | grep running | awk '{print $3}')
@@ -175,7 +149,6 @@ done
 
 print_smtpcheck() {
 check_root
-check_dependencies "print_smtpcheck" "printf" "echo" "postconf" "systemctl" "awk" "sed" "ping" "timeout" "nc"
 printf "\n${MAGENTA}SMTP Status${NC}\n"
 printf "${MAGENTA}===========${NC}\n"
 
@@ -263,7 +236,6 @@ fi
 
 print_testemail() {
 check_root
-check_dependencies "print_testemail" "cat" "grep" "awk" "sed" "cp" "echo" "read" "mail" "sleep" "tail" "printf"
 local maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
 local tmpfile="/tmp/testsmtpfile.txt"
 cp "${maildir}" "${maildir}".bak
@@ -286,7 +258,6 @@ cat "${maildir}".bak > "${maildir}"
 
 print_smtpconfig() {
 check_root
-check_dependencies "print_smtpconfig" "command" "read" "systemctl" "postconf" "printf" "yum" "echo" "postmap"
 if command -v postfix &>/dev/null; then
 	read -p "Enter Relay Host's IP Or FQDN: " relayhost
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
@@ -317,7 +288,6 @@ printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
 
 print_saslconfig() {
 check_root
-check_dependencies "print_saslconfig" "command" "read" "yum" "systemctl" "postconf" "echo" "postmap" "chmod" "exit" "printf"
 
 if command -v postfix &>/dev/null; then
 	read -p "Enter Relay Host's IP Or FQDN: " relayhost
@@ -369,7 +339,7 @@ printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
 
 print_saslremove() {
 check_root
-check_dependencies "print_saslremove" "printf" "postconf" "postmap" "rm" "systemctl"
+
 printf "${MAGENTA}SASL Configuration Is Being Removed.....${NC}\n"
 postconf -e "smtp_use_tls = no"
 postconf -e "smtp_sasl_auth_enable = no"
@@ -403,7 +373,6 @@ get_raw_mem_percentages() {
 
 print_devconsolefix() {
 check_root
-check_dependencies "print_devconsolefix" "printf" "echo" "grep" "stat" "chmod"
 
 local RULE_FILE="/etc/udev/rules.d/50-console.rules"
 local RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"'
@@ -425,7 +394,6 @@ printf "${GREEN}Fix is complete!!!${NC}\n"
 
 print_mqfix() {
 check_root
-check_dependencies "print_devconsolefix" "printf" "echo" "grep" "stat" "chmod"
 
 local SYSCTL_FILE="/etc/sysctl.d/99-sysctl.conf"
 local MSGMAX_VALUE="4194304"
@@ -453,7 +421,6 @@ printf "${GREEN}Fix is complete!!!${NC}\n"
 
 print_harddetect() {
 check_root
-check_dependencies "print_harddetect" "printf" "lsscsi"
 local detected_hardware=""
 
 # VMware Checker
@@ -597,7 +564,6 @@ fi
 
 print_backupdisc() {
 check_root
-check_dependencies "printf"
 
 printf "${CYAN}Backup Missing Issues${NC}\n"
 printf "${CYAN}--------------------------${NC}\n\n"
