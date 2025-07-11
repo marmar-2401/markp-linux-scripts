@@ -1130,7 +1130,7 @@ fi
 if [ -e "/SCC/TPC/JavaTrust" ]; then
 	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SSL LDAP/JAVA" "!!ATTN!!" "LDAP Java certificates in use 'ls -l /SCC/TPC/JavaTrust ' for more"
 else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SSL LDAP/JAVA" "!!GOOD!!" "LDAP Jaca certificates not in use"
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SSL LDAP/JAVA" "!!GOOD!!" "LDAP Java certificates not in use"
 fi
 
 if [ -e "ls -l /SCC/TPC/ssl" ]; then
