@@ -1230,7 +1230,7 @@ if [[ "${hardtype}" == "AWS" && "${ostype}" == *"Red Hat Enterprise Linux"* ]]; 
 			printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Subscription" "!!BAD!!" "Issues with subscription manager"
 		fi
 	fi	
-elseif [[ "${ostype}" == *"Red Hat Enterprise Linux"* ]]; then
+elif [[ "${ostype}" == *"Red Hat Enterprise Linux"* ]]; then
 
 	local RELEASE_OUTPUT=$(subscription-manager release --show 2>/dev/null)
 
