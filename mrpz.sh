@@ -1273,7 +1273,7 @@ printf "${GREEN}Check Complete!${NC}\n"
 
 print_shortoscheck() {
     check_root
-    print_oscheck | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g" | grep -v "!!GOOD!!" > /tmp/oscheck.txt
+    print_oscheck | grep -v "!!GOOD!!" > /tmp/oscheck.txt
     sed -i '/!!GOOD!!/d' /tmp/oscheck.txt
     cat /tmp/oscheck.txt
     rm -rf /tmp/oscheck.txt
