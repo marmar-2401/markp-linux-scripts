@@ -566,7 +566,7 @@ print_bootreport() {
 
 check_sccadm
 local sccadmhome=$(grep sccadm /etc/passwd | awk -F : '{print $6}')
-envuser="$2"
+read -p "What environment user? (login!)" envuser
 
 shortbootreport() {
 	printf "Oracle Listener Processes\n\n">> ${sccadmhome}/bootreport.${envuser}
