@@ -640,7 +640,12 @@ printf "${CYAN}|     LINUX       |${NC}\n"
 printf "${CYAN}|   OS CHECKER    |${NC}\n"
 printf "${CYAN}|-----------------|${NC}\n"
 printf "\n${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hostname" "${hostname}"
-printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Operating System" "${ostype}"
+if [[ "${hardtype}" == "AWS" && "${ostype}" == *"Red Hat Enterprise Linux"* ]]; then
+	local awsrhelrelease=$(cat /etc/os-release)
+	printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Operating System" "${awsrhelrelease}"
+else	
+	printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Operating System" "${ostype}"
+fi
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Type" "${hardtype}"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel Version" "${kernelver}"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Current Time" "${systemtime}"
@@ -1206,6 +1211,43 @@ if [[ "${hardtype}" == "Oracle" ]]; then
 	else
 		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Ocidomain" "!!GOOD!!" "${ocidomain}"
 	fi		
+fi
+
+if [[ "${hardtype}" == "AWS" && "${ostype}" == *"Red Hat Enterprise Linux"* ]]; then	
+	local RHEL_AWS_HARDSET="/etc/yum/vars/releasever"
+	local rhel_aws_hardset=$(cat "$RHEL_AWS_HARDSET" 2>/dev/null)
+
+	if [ -z "${rhel_aws_hardset}" ]; then
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "RHEL AWS Hardset" "!!GOOD!!" "No version hardlock"
+	else
+		printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "RHEL AWS Hardset" "!!ATTN!!" "${rhel_aws_hardset}"
+	fi
+
+	if command -v subscription-manager &> /dev/null; then
+		if subscription-manager status | grep -q "Overall Status: Current"; then
+			printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Subscription Manager" "!!GOOD!!" "No issues"
+		else
+			printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Subscription" "!!BAD!!" "Issues with subscription manager"
+		fi
+	fi	
+elseif [[ "${ostype}" == *"Red Hat Enterprise Linux"* ]]; then
+
+	local RELEASE_OUTPUT=$(subscription-manager release --show 2>/dev/null)
+
+	if [ -z "$RELEASE_OUTPUT" ]; then
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "RHEL Hardset" "!!GOOD!!" "No version hardlock"
+    else
+		printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "RHEL Hardset" "!!ATTN!!" "Run 'subscription-manager release --show' for more"
+    fi
+
+	if command -v subscription-manager &> /dev/null; then
+		if subscription-manager status | grep -q "Overall Status: Current"; then
+			printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Subscription Manager" "!!GOOD!!" "No issues"
+		else
+			printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Subscription" "!!BAD!!" "Issues with subscription manager"
+		fi
+	fi	
+		
 fi
 
 local java_output=$(java -version 2>&1)
