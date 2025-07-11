@@ -633,6 +633,7 @@ local hostname=$(hostname)
 local kernelver=$(uname -r)
 local systemtime=$(date | awk '{print $4}')
 local timezone=$(date | awk '{print $5}')
+l
 
 printf "${CYAN}|-----------------|${NC}\n"
 printf "${CYAN}|     LINUX       |${NC}\n"
@@ -1179,6 +1180,32 @@ if cat /sys/kernel/mm/transparent_hugepage/enabled | grep -q "\[never\]"; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Transparent Hugepage" "!!GOOD!!" "[never] is present"
 else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Transparent Hugepage" "!!BAD!!" "[never] is missing"
+fi
+
+if [[ "${hardtype}" == "Oracle" ]]; then
+    if systemctl is-active --quiet ociip.service 2>/dev/null; then
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Ociip Service" "!!GOOD!!" "Running"
+    else
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Ociip Service" "!!BAD!!" "Not Running or installed (Expected on Oracle Hardware)"
+    fi
+	
+	local OCIREGION_FILE="/etc/yum/vars/ociregion"
+	local ociregion=$(cat "$OCIREGION_FILE" 2>/dev/null)
+
+	if [ -z "$ociregion" ]; then
+		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Ociregion" "!!BAD!!" "Region is empty"
+	else
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Ociregion" "!!GOOD!!" "${ociregion}"
+	fi
+
+	local OCIDOMAIN_FILE="/etc/yum/vars/ocidomain"
+	local ocidomain=$(cat "$OCIDOMAIN_FILE" 2>/dev/null)
+
+	if [ -z "$ocidomain" ]; then
+		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Ocidomain" "!!BAD!!" "Domain is empty"
+	else
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Ocidomain" "!!GOOD!!" "${ocidomain}"
+	fi		
 fi
 
 local java_output=$(java -version 2>&1)
