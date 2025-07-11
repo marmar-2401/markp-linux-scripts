@@ -581,12 +581,12 @@ shortbootreport() {
 
 if [ -f "${sccadmhome}/.nocheck" ]; then
 	shortbootreport
- 	printf "${Green}Boot report finished!!!${NC}\n"
+ 	printf "${GREEN}Boot report finished!!!${NC}\n"
 else
 	touch ${sccadmhome}/.nocheck
 	chmod 640 ${sccadmhome}/.nocheck	
 	shortbootreport
- 	printf "${Green}Boot report finished!!!${NC}\n"
+ 	printf "${GREEN}Boot report finished!!!${NC}\n"
 	rm -f ${sccadmhome}/.nocheck
 fi
 }
