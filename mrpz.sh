@@ -1238,7 +1238,7 @@ printf "${GREEN}Check Complete!${NC}\n"
 
 print_shortoscheck() {
     check_root
-    print_oscheck | awk '{ stripped_line = $0; gsub(/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//, "", stripped_line); if (tolower(stripped_line) !~ /!!good!!/) print $0 }' > /tmp/oscheck.txt
+    print_oscheck | awk '{ stripped_line = $0; gsub(/\x1B\[[0-9;]*[a-zA-Z]/, "", stripped_line); if (tolower(stripped_line) !~ /!!good!!/) print $0 }' > /tmp/oscheck.txt
     cat /tmp/oscheck.txt
     rm -rf /tmp/oscheck.txt
 }
