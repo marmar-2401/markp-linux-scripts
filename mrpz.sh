@@ -1217,7 +1217,7 @@ if [[ "${hardtype}" == "AWS" && "${ostype}" == *"Red Hat Enterprise Linux"* ]]; 
 elif [[ "${ostype}" == *"Red Hat Enterprise Linux"* ]]; then
 
 	local RELEASE_OUTPUT=$(subscription-manager release --show 2>/dev/null)
-	if echo "$RELEASE_OUTPUT" | grep -q "No release set."; then
+	if echo "$RELEASE_OUTPUT" | grep -q "Release not set"; then
     		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "RHEL Hardset" "!!BAD!!" "No version hardlock"
 	else
  		printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "RHEL Hardset" "!!ATTN!!" "There may be a hardlock 'subscription-manager release --show' for more"
