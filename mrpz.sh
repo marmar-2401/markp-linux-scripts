@@ -566,7 +566,7 @@ print_bootreport() {
 
 check_sccadm
 local sccadmhome=$(grep sccadm /etc/passwd | awk -F : '{print $6}')
-read -p "What environment user? (login!): " envuser
+local envuser="$2"
 
 shortbootreport() {
 	printf "Oracle Listener Processes\n\n">> ${sccadmhome}/bootreport.${envuser}
@@ -1211,7 +1211,7 @@ case "$1" in
  	--backupdisc) print_backupdisc ;;
   	--auditdisc) print_auditdisc ;;
 	--listndisc) print_listndisc ;;
- 	--bootreport) print_bootreport ;;
+ 	--bootreport) print_bootreport "$2" ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
