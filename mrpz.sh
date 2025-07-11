@@ -1112,7 +1112,7 @@ local total_cpu_usage=$(echo "100 - ${cpu_idle}" | bc)
 if (( $(echo "${total_cpu_usage} >= ${CPU_THRESHOLD}" | bc -l) )); then
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Total CPU Usage" "!!BAD!!" "The total CPU usage is over ${CPU_THRESHOLD}% (${total_cpu_usage}%) - consider checking 'top' or 'htop' for more details"
 else
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "Total CPU Usage" "!!GOOD!!" "The total CPU usage is under ${CPU_THRESHOLD}% (${total_cpu_usage}%)"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Total CPU Usage" "!!GOOD!!" "The total CPU usage is under ${CPU_THRESHOLD}% (${total_cpu_usage}%)"
 fi
 
 local EXPECTED_VALUE=4194304
@@ -1207,12 +1207,14 @@ elif [[ "${ostype}" == *"Red Hat Enterprise Linux"* ]]; then
     fi
 
 	if command -v subscription-manager &> /dev/null; then
-		if subscription-manager status | grep -q "Overall Status: Current"; then
-			printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Subscription Manager" "!!GOOD!!" "No issues"
-		else
-			printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Subscription" "!!BAD!!" "Issues with subscription manager"
-		fi
-	fi	
+    		SUB_STATUS=$(subscription-manager status)
+
+    		if echo "$SUB_STATUS" | grep -q "Release not set"; then
+        		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Subscription Manager" "!!BAD!!" "Release not set"
+    		elif echo "$SUB_STATUS" | grep -q "Overall Status: Current"; then
+        		printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${YELLOW}%s${NC}\n" "Subscription Manager" "!!ATTN!!" "Release is set"
+    		fi
+	fi
 		
 fi
 
