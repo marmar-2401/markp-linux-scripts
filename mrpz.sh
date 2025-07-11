@@ -633,7 +633,6 @@ local hostname=$(hostname)
 local kernelver=$(uname -r)
 local systemtime=$(date | awk '{print $4}')
 local timezone=$(date | awk '{print $5}')
-l
 
 printf "${CYAN}|-----------------|${NC}\n"
 printf "${CYAN}|     LINUX       |${NC}\n"
