@@ -621,7 +621,7 @@ local java_output=$(java -version 2>&1 | sed -n 's/.*version "\(.*\)"/\1/p')
 local java_exit_status=$?
 
 if [ "${java_exit_status}" -eq 0 ]; then
-	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n${CYAN}%s${NC}\n" "Java" "!!ATTN!!" "Java appears to be installed:" "${java_output}"
+	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC} ${CYAN}%s${NC}\n" "Java" "!!ATTN!!" "Java appears to be installed:" "${java_output}"
 else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Java" "!!Bad!!" "Java does not appear to be installed on the system"
 fi
