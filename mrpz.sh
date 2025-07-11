@@ -617,7 +617,7 @@ printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel Version" "${kernelver}"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Current Time" "${systemtime}"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Time Zone" "${timezone}"
 
-local java_output=$(java -version | head -1 | awk '{print $3}' 2>&1)
+local java_output=$(java -version 2>&1 | sed -n 's/.*version "\(.*\)"/\1/p')
 local java_exit_status=$?
 
 if [ "${java_exit_status}" -eq 0 ]; then
