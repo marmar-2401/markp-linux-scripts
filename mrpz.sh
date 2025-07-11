@@ -566,10 +566,10 @@ print_bootreport() {
 
 check_sccadm
 local sccadmhome=$(grep sccadm /etc/passwd | awk -F : '{print $6}')
-local envuser="$2"
+local envuser="$1"
 
 shortbootreport() {
-	printf "Oracle Listener Processes\n\n">> ${sccadmhome}/bootreport.${envuser}
+	printf "Oracle Listener Processes\n\n"> ${sccadmhome}/bootreport.${envuser}
 	ps -ef | egrep '_pmon_|tnslsnr' | grep -v 'grep -E _pmon_|tnslsnr' >> ${sccadmhome}/bootreport.${envuser}
 	printf '\nSoft Update\n\n'>> ${sccadmhome}/bootreport.${envuser}
 	sudo -i -u sccupd rc.softupdate view >> ${sccadmhome}/bootreport.${envuser}
