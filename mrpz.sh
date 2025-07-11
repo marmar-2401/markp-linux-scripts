@@ -1275,7 +1275,6 @@ printf "${GREEN}Check Complete!${NC}\n"
 print_shortoscheck() {
     check_root
     oscheck >> /tmp/oscheck.txt
-    echo "Full oscheck output appended to /tmp/oscheck.txt"
     sed -i '/!!GOOD!!/d' /tmp/oscheck.txt
     cat /tmp/oscheck.txt
     rm -f
