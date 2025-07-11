@@ -627,7 +627,6 @@ printf "${YELLOW} Run 'ps -ef | egrep '_pmon_|tnslsnr' | grep -v 'grep -E _pmon_
 
 print_oscheck() {
 check_root
-check_dependencies "print_oscheck" "printf" "grep" "awk" "hostnamectl" "free" "vmstat" "uname" "uptime" "needs-restarting" "yum" "df" "findmnt" "mount" "getenforce" "systemctl" "ps" "find" "mokutil" "nslookup" "ip" "multipath" "rpm" "java" "cut" "sed"
 
 local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7}')
 local hardtype=$(print_harddetect | tail -n 1 | sed -E 's/^[^:]*:[[:space:]]*(.*)[[:space:]]*$/\1/')
@@ -1274,7 +1273,7 @@ printf "${GREEN}Check Complete!${NC}\n"
 
 print_shortoscheck() {
     check_root
-    oscheck >> /tmp/oscheck.txt
+    print_oscheck >> /tmp/oscheck.txt
     sed -i '/!!GOOD!!/d' /tmp/oscheck.txt
     cat /tmp/oscheck.txt
     rm -f
