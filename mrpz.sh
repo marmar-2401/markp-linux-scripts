@@ -617,6 +617,24 @@ printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel Version" "${kernelver}"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Current Time" "${systemtime}"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Time Zone" "${timezone}"
 
+local java_output=$(java -version 2>&1)
+local java_exit_status=$?
+
+if [ "${java_exit_status}" -eq 0 ]; then
+	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n${CYAN}%s${NC}\n" "Java" "!!ATTN!!" "Java appears to be installed see below:" "${java_output}"
+else
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Java" "!!Bad!!" "Java does not appear to be installed on the system"
+fi
+
+local FILE="/etc/scc/Run.ascenv"
+
+if [ -f "${FILE}" ]; then
+	local FILE_CONTENT="$(cat "${FILE}")"
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n${CYAN}%s${NC}\n" "ascenv Startup" "!!Good!!" "There appear to be entries in /etc/scc/Run.ascenv see below:" "${FILE_CONTENT}"
+else
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "ascenv Startup" "!!Bad!!" "There does not appear to be any entries in /etc/scc/Run.ascenv"
+fi
+
 local mempercent swappercent
 read -r mempercent swappercent <<< "$(get_raw_mem_percentages)"
 
@@ -1216,24 +1234,6 @@ elif [[ "${ostype}" == *"Red Hat Enterprise Linux"* ]]; then
     		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Subscription Manager" "!!BAD!!" "Subscription issues (e.g., expired/not registered)"
 	fi
 		
-fi
-
-local java_output=$(java -version 2>&1)
-local java_exit_status=$?
-
-if [ "${java_exit_status}" -eq 0 ]; then
-	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n${CYAN}%s${NC}\n" "Java" "!!ATTN!!" "Java appears to be installed see below:" "${java_output}"
-else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Java" "!!Bad!!" "Java does not appear to be installed on the system"
-fi
-
-local FILE="/etc/scc/Run.ascenv"
-
-if [ -f "${FILE}" ]; then
-	local FILE_CONTENT="$(cat "${FILE}")"
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n${CYAN}%s${NC}\n" "ascenv Startup" "!!Good!!" "There appear to be entries in /etc/scc/Run.ascenv see below:" "${FILE_CONTENT}"
-else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "ascenv Startup" "!!Bad!!" "There does not appear to be any entries in /etc/scc/Run.ascenv"
 fi
 
 printf "${GREEN}Check Complete!${NC}\n"
