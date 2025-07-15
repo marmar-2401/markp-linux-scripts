@@ -26,6 +26,18 @@ exit 1
 fi
 }
 
+confirm_action() {
+    read -p "Are you sure you want to continue? (y/n): " choice
+    if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
+        return 0
+    elif [[ "$choice" == "n" || "$choice" == "N" ]]; then
+        exit 1
+    else
+        echo "Invalid input. Please enter 'y' or 'n'."
+        confirm_action
+    fi
+}
+
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
 printf "${CYAN}         ## Ver: 1.1.7 ##${NC}\n"
@@ -60,6 +72,7 @@ printf "${MAGENTA} 1.1.4 | 07/10/2025 | - Built description section for problems
 printf "${MAGENTA} 1.1.5 | 07/10/2025 | - Built a function to check for sccadm user ${NC}\n"
 printf "${MAGENTA} 1.1.6 | 07/10/2025 | - Built a boot report function ${NC}\n"
 printf "${MAGENTA} 1.1.7 | 07/10/2025 | - Built a short oscheck function${NC}\n"
+printf "${MAGENTA} 1.1.7 | 07/15/2025 | - Built a confirm action function${NC}\n"
 }
 
 print_help() {
@@ -235,6 +248,7 @@ fi
 
 print_testemail() {
 check_root
+confirm_action
 local maildir=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
 local tmpfile="/tmp/testsmtpfile.txt"
 cp "${maildir}" "${maildir}".bak
@@ -257,6 +271,7 @@ cat "${maildir}".bak > "${maildir}"
 
 print_smtpconfig() {
 check_root
+confirm_action
 if command -v postfix &>/dev/null; then
 	read -p "Enter Relay Host's IP Or FQDN: " relayhost
         read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " port
@@ -338,7 +353,7 @@ printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
 
 print_saslremove() {
 check_root
-
+confirm_action
 printf "${MAGENTA}SASL Configuration Is Being Removed.....${NC}\n"
 postconf -e "smtp_use_tls = no"
 postconf -e "smtp_sasl_auth_enable = no"
@@ -372,7 +387,7 @@ get_raw_mem_percentages() {
 
 print_devconsolefix() {
 check_root
-
+confirm_action
 local RULE_FILE="/etc/udev/rules.d/50-console.rules"
 local RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"'
 local DEVICE="/dev/console"
@@ -393,7 +408,7 @@ printf "${GREEN}Fix is complete!!!${NC}\n"
 
 print_mqfix() {
 check_root
-
+confirm_action
 local SYSCTL_FILE="/etc/sysctl.d/99-sysctl.conf"
 local MSGMAX_VALUE="4194304"
 local MSGMNB_VALUE="4194304"
