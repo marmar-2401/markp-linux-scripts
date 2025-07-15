@@ -10,6 +10,8 @@ CYAN='\033[0;36m'
 WHITE='\033[0;37m'
 NC='\033[0m'
 
+# Start Error Handing Functions
+
 check_root() {
 if [ "${EUID}" -ne 0 ]; then
 	printf "${RED}Error: This script must be run as root.${NC}\n"
@@ -37,6 +39,8 @@ confirm_action() {
         confirm_action
     fi
 }
+
+# End Error Handing Functions
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
