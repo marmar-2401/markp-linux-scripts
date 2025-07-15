@@ -524,29 +524,31 @@ return 1
 
 if detected_hardware=$(check_vmware); then
         echo "${detected_hardware}"
+	local framework="Virtualized"
         return 0
 elif detected_hardware=$(check_hpe); then
 	echo "${detected_hardware}"
-        framework="Baremetal"
+        local framework="Baremetal"
         return 0
 elif detected_hardware=$(check_oracle); then
         echo "${detected_hardware}"
+	local framework="Cloud/Virtualization"
         return 0
 elif detected_hardware=$(check_aws); then
         echo "${detected_hardware}"
-        framework="Cloud"
+        local framework="Cloud"
 	return 0
 elif detected_hardware=$(check_kvm); then
         echo "${detected_hardware}"
-	framework="Virtualized"
+	local framework="Virtualized"
         return 0
 elif detected_hardware=$(check_azure); then
         echo "${detected_hardware}"
-	framework="Cloud/Virtualization"
+	local framework="Cloud/Virtualization"
         return 0
 elif detected_hardware=$(check_dell); then
         echo "${detected_hardware}"
-	framework="Baremetal"
+	local framework="Baremetal"
         return 0
 else
         echo "Unknown Hardware Platform"
@@ -555,7 +557,6 @@ fi
 }
 
 print_bootreport() {
-
 check_sccadm
 local sccadmhome=$(grep sccadm /etc/passwd | awk -F : '{print $6}')
 local envuser="$1"
