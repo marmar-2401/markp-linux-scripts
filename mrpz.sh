@@ -833,15 +833,6 @@ else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NTP Syncronization" "!!BAD!!" "NTP time is not synced 'bash mrpz.sh --ntpcheck'"
 fi
 
-for server in $(grep -E "^(server|pool)" /etc/chrony.conf | awk '{print $2}'); do
-  	count=5
-  	if ping -c "${count}" "${server}" > /dev/null 2>&1; then
-		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "NTP Reachability" "!!GOOD!!" "${server}"
-  	else
-		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NTP Reachability" "!!BAD!!" "Cannot ping ${server}"
-  	fi
-done
-
 local GOOD_KERNEL_MONTHS=6
 
 get_kernel_build_date() {
@@ -881,7 +872,7 @@ fi
 if systemctl is-enabled --quiet oracle.service 2>/dev/null; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Oracle (Reboot)" "!!GOOD!!" "Survives reboot"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle (Reboot)" "!!BAD!!" " Does not survive reboot"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle (Reboot)" "!!BAD!!" "Does not survive reboot"
 fi
 
 local backup_exists=false
@@ -988,7 +979,7 @@ fi
 
 if command -v podman &> /dev/null; then
     	local podver=$(podman --version 2>/dev/null) # Redirect stderr to /dev/null
-	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Podman" "!!ATTN!!" "Podman Version: ${podver}"
+	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Podman" "!!ATTN!!" "${podver}"
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Podman" "!!GOOD!!" "No Podman"
 fi
@@ -1149,10 +1140,10 @@ else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle Listener" "!!BAD!!" "Oracle listener missing 'bash mrpz.sh --listndisc'"
 fi
 
-if journalctl -rp err | grep -q .; then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Journal" "!!BAD!!" "Journal has errors 'journalctl -rp err'"
+if journalctl --since "7 days ago" -p err | grep -q .; then
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Journal" "!!BAD!!" "Errors within 7 days (Run 'journalctl -rp err')"
 else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Journal" "!!GOOD!!" "No journal errors"
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Journal" "!!GOOD!!" "No journal errors within 7 days"
 fi
 
 if firewall-cmd --list-rich-rules | grep -q 'rule'; then
