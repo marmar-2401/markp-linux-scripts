@@ -527,21 +527,26 @@ if detected_hardware=$(check_vmware); then
         return 0
 elif detected_hardware=$(check_hpe); then
 	echo "${detected_hardware}"
+        framework="Baremetal"
         return 0
 elif detected_hardware=$(check_oracle); then
         echo "${detected_hardware}"
         return 0
 elif detected_hardware=$(check_aws); then
         echo "${detected_hardware}"
-        return 0
+        framework="Cloud"
+	return 0
 elif detected_hardware=$(check_kvm); then
         echo "${detected_hardware}"
+	framework="Virtualized"
         return 0
 elif detected_hardware=$(check_azure); then
         echo "${detected_hardware}"
+	framework="Cloud/Virtualization"
         return 0
 elif detected_hardware=$(check_dell); then
         echo "${detected_hardware}"
+	framework="Baremetal"
         return 0
 else
         echo "Unknown Hardware Platform"
@@ -554,6 +559,11 @@ print_bootreport() {
 check_sccadm
 local sccadmhome=$(grep sccadm /etc/passwd | awk -F : '{print $6}')
 local envuser="$1"
+
+if [ -z "${envuser}" ]; then
+    printf "${RED}Error: An environment user must be provided for the boot report. Please specify one as an argument (e.g., 'bash mrpz.sh --bootreport <envuser>').${NC}\n"
+    exit 1
+fi
 
 shortbootreport() {
 	printf "Oracle Listener Processes\n\n"> ${sccadmhome}/bootreport.${envuser}
