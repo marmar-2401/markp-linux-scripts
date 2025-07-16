@@ -755,11 +755,15 @@ else
 fi
 
 local current_date=$(date +%Y-%m-%d)
-local update_date=$(dnf history | grep -i -E 'update|upgrade' | head -1 | awk '{print $3}')
+local update_date=$(dnf history | \
+  grep -i -E 'update|upgrade' | \
+  awk '{ if ($3 ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) print $3 }' | \
+  head -1)
+
 local days_since_update=-1
 
 if [[ -z "$update_date" ]]; then
-    local days_since_update=366
+    local days_since_update=366 
 else
     local current_timestamp=$(date -d "${current_date}" +%s)
     local update_timestamp=$(date -d "${update_date}" +%s)
