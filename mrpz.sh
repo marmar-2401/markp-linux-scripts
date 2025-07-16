@@ -727,7 +727,7 @@ if [[ -z "${days_up}" || ! "${days_up}" =~ ^[0-9]+$ ]]; then
 fi
 
 if ((days_up > 90)); then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Uptime" "!!BAD!!" "${days_up} days" "(Longer than 90 days uptime!)"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Uptime" "!!BAD!!" "${days_up} days (Longer than 90 days uptime!)"
 else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Uptime" "!!GOOD!!" "${days_up} days"
 fi
