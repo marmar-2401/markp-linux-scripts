@@ -523,27 +523,27 @@ return 1
 }
 
 if detected_hardware=$(check_vmware); then
-        echo "${detected_hardware}\n"
+        echo "${detected_hardware}"
 	echo "Virtualized"
         return 0
 elif detected_hardware=$(check_hpe); then
-	echo "${detected_hardware}\n"
+	echo "${detected_hardware}"
         echo "Baremetal"
         return 0
 elif detected_hardware=$(check_oracle); then
-        echo "${detected_hardware}\n"
+        echo "${detected_hardware}"
 	echo framework="Cloud"
         return 0
 elif detected_hardware=$(check_aws); then
-        echo "${detected_hardware}\n"
+        echo "${detected_hardware}"
         echo framework="Cloud"
 	return 0
 elif detected_hardware=$(check_kvm); then
-        echo "${detected_hardware}\n"
+        echo "${detected_hardware}"
 	echo "Virtualized"
         return 0
 elif detected_hardware=$(check_azure); then
-        echo "${detected_hardware}\n"
+        echo "${detected_hardware}"
 	if dmesg 2>&1 | grep -qi "hypervisor" && dmesg 2>&1 | grep -qi "hyper-v"; then
   		echo "Virtualized"
 	else
@@ -551,7 +551,7 @@ elif detected_hardware=$(check_azure); then
 	fi
         return 0
 elif detected_hardware=$(check_dell); then
-        echo "${detected_hardware}\n"
+        echo "${detected_hardware}"
 	echo "Baremetal"
         return 0
 else
