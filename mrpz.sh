@@ -755,22 +755,35 @@ else
 fi
 
 local current_date=$(date +%Y-%m-%d)
-local update_date=$(dnf history list | awk 'NR>1 && / U /{print $4; exit}')
-local days_since_update=-1 
+local update_date_raw=$(dnf history list | awk -F'|' 'NR>1 && $3 ~ /[0-9]{4}-[0-9]{2}-[0-9]{2}/ {print $3; exit}' | head -n 1)
+local days_since_update=-1
 
-if [[ -z "$update_date" ]]; then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "Updated >6 months"
+if [[ -z "$update_date_raw" ]]; then
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}%-10s${NC}\n" "Last Update" "!!BAD!!" "No valid update history found"
 else
-    local current_timestamp=$(date -d "${current_date}" +%s)
-    local update_timestamp=$(date -d "${update_date}" +%s)
-    local diff_seconds=$(( current_timestamp - update_timestamp ))
-    local days_since_update=$(( diff_seconds / 86400 ))
+    local extracted_date=$(echo "$update_date_raw" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | awk '{print $1}')
+
+    if [[ ! "$extracted_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}%-10s${NC}\n" "Last Update" "!!BAD!!" "Invalid date format after extraction"
+        days_since_update=9999 # Set to trigger BAD status
+    else
+        
+        local current_timestamp=$(date -d "${current_date}" +%s)
+        local update_timestamp=$(date -d "${extracted_date}" +%s)
+
+        if [[ $? -ne 0 ]]; then
+             days_since_update=9999
+        else
+            local diff_seconds=$(( current_timestamp - update_timestamp ))
+            local days_since_update=$(( diff_seconds / 86400 ))
+        fi
+    fi
 fi
 
 if (( days_since_update > 183 )); then
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "Updated >6 months"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}%-10s${NC}\n" "Last Update" "!!BAD!!" "Updated >6 months"
 else
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!GOOD!!" "Updated <6 months"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}%-10s${NC}\n" "Last Update" "!!GOOD!!" "Updated <6 months"
 fi
 
 local USAGE_THRESHOLD=80
