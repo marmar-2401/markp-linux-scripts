@@ -886,6 +886,7 @@ else
 fi
 
 local GOOD_KERNEL_MONTHS=6
+local kerneldate=${uname -v | sed -E 's/^.*SMP\s*([A-Z_]+\s*)*//' | awk '{$1=""; sub(/^ /, ""); print}'   }
 
 get_kernel_build_date() {
 	local kernel_version_string=$(uname -v)
@@ -899,9 +900,9 @@ local SIX_MONTHS_AGO_TIMESTAMP=$(date -d "-${GOOD_KERNEL_MONTHS} months" +%s)
 local kernelver=$(uname -r)
 
 if (( KERNEL_TIMESTAMP < SIX_MONTHS_AGO_TIMESTAMP )); then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!BAD!!" "Kernel > 6 months ${kernelver}"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!BAD!!" "Kernel > 6 months ${kerneldate}"
 else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!GOOD!!" "Kernel < 6 months ${kernelver}"
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!GOOD!!" "Kernel < 6 months ${kerneldate}"
 fi
 
 if systemctl is-active --quiet sccmain.service 2>/dev/null; then
