@@ -1196,8 +1196,6 @@ if appserver_check >/dev/null 2>&1; then
     else
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!BAD!!" "No firewall rich rules 'firewall-cmd --list-rich-rules'"
     fi
-else
-    return 
 fi
 
 if cat /sys/kernel/mm/transparent_hugepage/enabled | grep -q "\[never\]"; then
