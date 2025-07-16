@@ -864,7 +864,7 @@ fi
 local ntpsync=$(timedatectl | head -5 | tail -1 | awk '{ print $NF }')
 
 if [[ "${ntpsync}" == "yes" ]]; then
-    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}\n" "NTP Syncronization" "!!GOOD!!"
+    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "NTP Syncronization" "!!GOOD!!" "Optimal"
 else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NTP Syncronization" "!!BAD!!" "NTP time is not synced 'bash mrpz.sh --ntpcheck'"
 fi
