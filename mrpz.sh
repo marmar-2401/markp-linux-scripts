@@ -631,7 +631,6 @@ local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7}
 local hardtype=$(print_harddetect | head -1)
 local platform=$(print_harddetect | tail -1)
 local hostname=$(hostname)
-local kernelver=$(uname -r)
 local systemtime=$(date)
 
 printf "${CYAN}|--------------------------|${NC}\n"
@@ -645,8 +644,6 @@ else
 	printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Operating System" "${ostype}"
 fi
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Type" "${hardtype} (${platform})"
-
-printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel Version" "${kernelver}"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Date/Time" "${systemtime}"
 
 
@@ -880,11 +877,12 @@ get_kernel_build_date() {
 local KERNEL_BUILD_DATE_STR=$(get_kernel_build_date)
 local KERNEL_TIMESTAMP=$(date -d "${KERNEL_BUILD_DATE_STR}" +%s 2>/dev/null)
 local SIX_MONTHS_AGO_TIMESTAMP=$(date -d "-${GOOD_KERNEL_MONTHS} months" +%s)
+local kernelver=$(uname -r)
 
 if (( KERNEL_TIMESTAMP < SIX_MONTHS_AGO_TIMESTAMP )); then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!BAD!!" "Kernel > 6 months"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!BAD!!" "Kernel > 6 months ${kernelver}"
 else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!GOOD!!" "Kernel < 6 months"
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!GOOD!!" "Kernel < 6 months ${kernelver}"
 fi
 
 if systemctl is-active --quiet sccmain.service 2>/dev/null; then
