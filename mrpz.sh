@@ -757,7 +757,8 @@ fi
 local current_date=$(date +%Y-%m-%d)
 local update_date=$(dnf history | \
   grep -i -E 'update|upgrade' | \
-  awk '{ if ($3 ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) print $3 }' | \
+  awk '{ print $4 }' | \
+  cut -d' ' -f1 | \
   head -1)
 
 local days_since_update=-1
