@@ -1195,7 +1195,7 @@ else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Journal" "!!GOOD!!" "No journal errors within 7 days"
 fi
 
-if appserver_check >/dev/null 2>&1; then
+if ( appserver_check >/dev/null 2>&1 ); then 
     if firewall-cmd --list-rich-rules | grep -q 'rule'; then
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!GOOD!!" "Has rich rules"
     else
