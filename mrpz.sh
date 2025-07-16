@@ -759,13 +759,13 @@ local update_date_raw=$(dnf history list | awk -F'|' 'NR>1 && $3 ~ /[0-9]{4}-[0-
 local days_since_update=-1
 
 if [[ -z "$update_date_raw" ]]; then
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}%-10s${NC}\n" "Last Update" "!!BAD!!" "No valid update history found"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${RED}%-10s${NC}\n" "Last Update" "!!BAD!!" "No valid update history found"
 else
     local extracted_date=$(echo "$update_date_raw" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | awk '{print $1}')
 
     if [[ ! "$extracted_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}%-10s${NC}\n" "Last Update" "!!BAD!!" "Invalid date format after extraction"
-        days_since_update=9999 # Set to trigger BAD status
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${RED}%-10s${NC}\n" "Last Update" "!!BAD!!" "Invalid date format after extraction"
+        days_since_update=9999 
     else
         
         local current_timestamp=$(date -d "${current_date}" +%s)
@@ -781,9 +781,9 @@ else
 fi
 
 if (( days_since_update > 183 )); then
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}%-10s${NC}\n" "Last Update" "!!BAD!!" "Updated >6 months"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${RED}%-10s${NC}\n" "Last Update" "!!BAD!!" "Updated >6 months"
 else
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}%-10s${NC}\n" "Last Update" "!!GOOD!!" "Updated <6 months"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- $GREEN}%-10s${NC}\n" "Last Update" "!!GOOD!!" "Updated <6 months"
 fi
 
 local USAGE_THRESHOLD=80
