@@ -886,7 +886,7 @@ else
 fi
 
 local GOOD_KERNEL_MONTHS=6
-local kerneldate=${uname -v | sed -E 's/^.*SMP\s*([A-Z_]+\s*)*//' | awk '{$1=""; sub(/^ /, ""); print}'   }
+local kerneldate=$(uname -v | sed -E 's/^.*SMP\s*([A-Z_]+\s*)*//' | awk '{$1=""; sub(/^ /, ""); print}')
 
 get_kernel_build_date() {
 	local kernel_version_string=$(uname -v)
