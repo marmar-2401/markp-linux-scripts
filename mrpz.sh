@@ -755,22 +755,22 @@ else
 fi
 
 local current_date=$(date +%Y-%m-%d)
-local update_date=$(yum history | grep -i -E 'update|upgrade' | head -1 | awk -F '|' '{print $3}' | xargs | cut -d' ' -f1)
+local update_date=$(dnf history | grep -i -E 'update|upgrade' | head -1 | awk '{print $3}')
 local days_since_update=-1
 
 if [[ -z "$update_date" ]]; then
-	local days_since_update=366
+    local days_since_update=366
 else
-        local current_timestamp=$(date -d "${current_date}" +%s)
-        local update_timestamp=$(date -d "${update_date}" +%s)
-        local diff_seconds=$(( current_timestamp - update_timestamp ))
-        local days_since_update=$(( diff_seconds / 86400 ))
+    local current_timestamp=$(date -d "${current_date}" +%s)
+    local update_timestamp=$(date -d "${update_date}" +%s)
+    local diff_seconds=$(( current_timestamp - update_timestamp ))
+    local days_since_update=$(( diff_seconds / 86400 ))
 fi
 
 if (( days_since_update > 183 )); then
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "${update_date} Updated >6 months"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "${update_date} Updated >6 months"
 else
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!GOOD!!" "${update_date} Updated <6 months"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!GOOD!!" "${update_date} Updated <6 months"
 fi
 
 local USAGE_THRESHOLD=80
