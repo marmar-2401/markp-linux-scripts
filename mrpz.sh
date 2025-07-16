@@ -523,32 +523,36 @@ return 1
 }
 
 if detected_hardware=$(check_vmware); then
-        echo "${detected_hardware}"
-	local framework="Virtualized"
+        echo "${detected_hardware}\n"
+	echo "Virtualized"
         return 0
 elif detected_hardware=$(check_hpe); then
-	echo "${detected_hardware}"
-        local framework="Baremetal"
+	echo "${detected_hardware}\n"
+        echo "Baremetal"
         return 0
 elif detected_hardware=$(check_oracle); then
-        echo "${detected_hardware}"
-	local framework="Cloud/Virtualization"
+        echo "${detected_hardware}\n"
+	echo framework="Cloud"
         return 0
 elif detected_hardware=$(check_aws); then
-        echo "${detected_hardware}"
-        local framework="Cloud"
+        echo "${detected_hardware}\n"
+        echo framework="Cloud"
 	return 0
 elif detected_hardware=$(check_kvm); then
-        echo "${detected_hardware}"
-	local framework="Virtualized"
+        echo "${detected_hardware}\n"
+	echo "Virtualized"
         return 0
 elif detected_hardware=$(check_azure); then
-        echo "${detected_hardware}"
-	local framework="Cloud/Virtualization"
+        echo "${detected_hardware}\n"
+	if dmesg 2>&1 | grep -qi "hypervisor" && dmesg 2>&1 | grep -qi "hyper-v"; then
+  		echo "Virtualized"
+	else
+  		echo "Cloud"
+	fi
         return 0
 elif detected_hardware=$(check_dell); then
-        echo "${detected_hardware}"
-	local framework="Baremetal"
+        echo "${detected_hardware}\n"
+	echo "Baremetal"
         return 0
 else
         echo "Unknown Hardware Platform"
