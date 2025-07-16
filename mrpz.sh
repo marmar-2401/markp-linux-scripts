@@ -773,9 +773,9 @@ else
 fi
 
 if (( days_since_update > 183 )); then
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "${update_date} Updated >6 months"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "Updated >6 months"
 else
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!GOOD!!" "${update_date} Updated <6 months"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!GOOD!!" "Updated <6 months"
 fi
 
 local USAGE_THRESHOLD=80
