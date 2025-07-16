@@ -628,8 +628,8 @@ print_oscheck() {
 check_root
 
 local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7}')
-local hardtype=$(print_harddetect | tail -n 1 | sed -E 's/^[^:]*:[[:space:]]*(.*)[[:space:]]*$/\1/')
-local platform=$()
+local hardtype=$(print_harddetect | head -1)
+local platform=$(print_harddetect | tail -1)
 local hostname=$(hostname)
 local kernelver=$(uname -r)
 local systemtime=$(date)
@@ -644,7 +644,8 @@ if [[ "${hardtype}" == "AWS" && "${ostype}" == *"Red Hat Enterprise Linux"* ]]; 
 else	
 	printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Operating System" "${ostype}"
 fi
-printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Type" "${hardtype}"
+printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Type" "${hardtype} ${platform}"
+
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Kernel Version" "${kernelver}"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Date/Time" "${systemtime}"
 
