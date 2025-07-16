@@ -629,6 +629,7 @@ check_root
 
 local ostype=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7}')
 local hardtype=$(print_harddetect | tail -n 1 | sed -E 's/^[^:]*:[[:space:]]*(.*)[[:space:]]*$/\1/')
+local platform=$()
 local hostname=$(hostname)
 local kernelver=$(uname -r)
 local systemtime=$(date)
