@@ -755,16 +755,11 @@ else
 fi
 
 local current_date=$(date +%Y-%m-%d)
-local update_date=$(dnf history | \
-  grep -i -E 'update|upgrade' | \
-  awk '{ print $4 }' | \
-  cut -d' ' -f1 | \
-  head -1)
-
-local days_since_update=-1
+local update_date=$(dnf history list | awk 'NR>1 && / U /{print $4; exit}')
+local days_since_update=-1 
 
 if [[ -z "$update_date" ]]; then
-    local days_since_update=366 
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "Updated >6 months"
 else
     local current_timestamp=$(date -d "${current_date}" +%s)
     local update_timestamp=$(date -d "${update_date}" +%s)
