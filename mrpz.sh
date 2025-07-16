@@ -40,11 +40,28 @@ confirm_action() {
     fi
 }
 
+appserver_check() {
+  local filename="/tmp/appservercheck.txt"
+  > "$filename"
+  awk -F':' '($1 ~ /scc$/) {print $1}' /etc/passwd >> "$filename"
+
+  if [ -s "$filename" ]; then
+    rm -f "$filename" 
+    return 0          
+  else
+    printf "${RED}Error: This script can only be ran on the app server!!!${NC}\n" >&2 
+    rm -f "$filename" 
+    exit 1          
+  fi
+}
+
+
+
 # End Error Handing Functions
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.1.7 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.1.9 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -76,7 +93,8 @@ printf "${MAGENTA} 1.1.4 | 07/10/2025 | - Built description section for problems
 printf "${MAGENTA} 1.1.5 | 07/10/2025 | - Built a function to check for sccadm user ${NC}\n"
 printf "${MAGENTA} 1.1.6 | 07/10/2025 | - Built a boot report function ${NC}\n"
 printf "${MAGENTA} 1.1.7 | 07/10/2025 | - Built a short oscheck function${NC}\n"
-printf "${MAGENTA} 1.1.7 | 07/15/2025 | - Built a confirm action function${NC}\n"
+printf "${MAGENTA} 1.1.8 | 07/15/2025 | - Built a confirm action function${NC}\n"
+printf "${MAGENTA} 1.1.9 | 07/16/2025 | - Built a app server check function${NC}\n"
 }
 
 print_help() {
@@ -562,6 +580,7 @@ fi
 
 print_bootreport() {
 check_sccadm
+appserver_check
 local sccadmhome=$(grep sccadm /etc/passwd | awk -F : '{print $6}')
 local envuser="$1"
 
@@ -1171,10 +1190,14 @@ else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Journal" "!!GOOD!!" "No journal errors within 7 days"
 fi
 
-if firewall-cmd --list-rich-rules | grep -q 'rule'; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!GOOD!!" "Has rich rules"
+if appserver_check >/dev/null 2>&1; then
+    if firewall-cmd --list-rich-rules | grep -q 'rule'; then
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!GOOD!!" "Has rich rules"
+    else
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!BAD!!" "No firewall rich rules 'firewall-cmd --list-rich-rules'"
+    fi
 else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!BAD!!" "No firewall rich rules 'firewall-cmd --list-rich-rules'"
+    return 
 fi
 
 if cat /sys/kernel/mm/transparent_hugepage/enabled | grep -q "\[never\]"; then
