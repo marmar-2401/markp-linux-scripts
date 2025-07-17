@@ -55,6 +55,20 @@ appserver_check() {
   fi
 }
 
+richapp_check() {
+  local filename="/tmp/appservercheck.txt"
+  > "$filename"
+  awk -F':' '($1 ~ /scc$/) {print $1}' /etc/passwd >> "$filename"
+
+  if [ -s "$filename" ]; then
+    rm -f "$filename" 
+    return 0          
+  else
+    return 1       
+  fi
+}
+
+
 
 
 # End Error Handing Functions
