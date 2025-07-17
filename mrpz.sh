@@ -746,16 +746,16 @@ local PACKAGE_MANAGER_COMMAND=""
 
 if command -v dnf &>/dev/null; then
     PACKAGE_MANAGER_COMMAND="dnf"
-    UPDATE_DATE_RAW=$(dnf history list | awk -F'|' 'NR>1 && $5 ~ /U/ && $6+0 > 5 {print $3; exit}' | head -n 1)
+    UPDATE_DATE_RAW=$(dnf history list | awk -F'|' 'NR>1 && $4 ~ /U/ && $5+0 > 5 {print $3; exit}' | head -n 1)
 else
     PACKAGE_MANAGER_COMMAND="yum"
-    UPDATE_DATE_RAW=$(yum history list | awk -F'|' 'NR>1 && $5 ~ /U/ && $6+0 > 5 {print $3; exit}' | head -n 1)
+    UPDATE_DATE_RAW=$(yum history list | awk -F'|' 'NR>1 && $4 ~ /U/ && $5+0 > 5 {print $3; exit}' | head -n 1)
 fi
 
 local DAYS_SINCE_UPDATE=-1
 
 if [[ -z "$UPDATE_DATE_RAW" ]]; then
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "No valid system update (U with >5 packages) found"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "No valid system update (U action with >5 packages) found"
 else
     local EXTRACTED_DATE=$(echo "$UPDATE_DATE_RAW" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | cut -c 1-10)
 
