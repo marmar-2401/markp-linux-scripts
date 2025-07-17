@@ -1004,7 +1004,7 @@ if mokutil --sb-state &>/dev/null; then
     if mokutil --sb-state | grep -q "SecureBoot enabled"; then
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!GOOD!!" "Enabled"
     elif mokutil --sb-state | grep -q "SecureBoot disabled"; then
-        printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!INFO!!" "Disabled (but supported)"
+        printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!ATTN!!" "Disabled (but supported)"
     else
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!BAD!!" "Secure boot issues (unknown state)"
     fi
@@ -1225,10 +1225,10 @@ else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SSL LDAP/JAVA" "!!GOOD!!" "No LDAP Java certificates"
 fi
 
-if [ -e "ls -l /SCC/TPC/ssl" ]; then
-	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SSL HTTPS" "!!ATTN!!" "HTTPS certificates exist 'ls -l /SCC/TPC/ssl' for more"
+if [ -d "/SCC/TPC/ssl" ] && [ -n "$(ls -A /SCC/TPC/ssl 2>/dev/null)" ]; then
+    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SSL HTTPS" "!!ATTN!!" "HTTPS certificates exist 'ls -l /SCC/TPC/ssl' for more"
 else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SSL HTTPS" "!!GOOD!!" "No HTTPS certificates"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SSL HTTPS" "!!GOOD!!" "No HTTPS certificates"
 fi
 
 local CPU_THRESHOLD=70
