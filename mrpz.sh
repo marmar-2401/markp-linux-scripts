@@ -774,10 +774,10 @@ local package_manager_command=""
 
 if command -v dnf &>/dev/null; then
     package_manager_command="dnf"
-    update_date_raw=$(dnf history list | grep -E 'update|upgrade' | awk -F'|' 'NR>1 && $3 ~ /[0-9]{4}-[0-9]{2}-[0-9]{2}/ {print $3; exit}' | head -n 1)
+    update_date_raw=$(dnf history list | grep -E 'Update|Upgrade|U' | awk -F'|' 'NR>1 && $3 ~ /[0-9]{4}-[0-9]{2}-[0-9]{2}/ {print $3; exit}' | head -n 1)
 else
     package_manager_command="yum"
-    update_date_raw=$(yum history list | grep -E 'update|upgrade' | awk -F'|' 'NR>1 && $3 ~ /[0-9]{4}-[0-9]{2}-[0-9]{2}/ {print $3; exit}' | head -n 1)
+    update_date_raw=$(yum history list | grep -E 'Update|Upgrade|U' | awk -F'|' 'NR>1 && $3 ~ /[0-9]{4}-[0-9]{2}-[0-9]{2}/ {print $3; exit}' | head -n 1)
 fi
 
 local days_since_update=-1
