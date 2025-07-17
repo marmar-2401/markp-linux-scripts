@@ -755,7 +755,7 @@ fi
 local DAYS_SINCE_UPDATE=-1
 
 if [[ -z "$UPDATE_DATE_RAW" ]]; then
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "No valid system update (U action with >5 packages) found"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "No valid system update found (Run 'yum history list') "
 else
     local EXTRACTED_DATE=$(echo "$UPDATE_DATE_RAW" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | cut -c 1-10)
 
