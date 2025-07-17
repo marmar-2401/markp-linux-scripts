@@ -1252,7 +1252,7 @@ fi
 
 if command -v firewall-cmd &>/dev/null; then 
     if richapp_check >/dev/null 2>&1; then
-        if firewall-cmd --list-rich-rules | grep -q 'rule'; then
+        if firewall-cmd --list-rich-rules 2>/dev/null | grep -q 'rule'; then
             printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!GOOD!!" "Has rich rules"
         else
             printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!BAD!!" "No firewall rich rules 'firewall-cmd --list-rich-rules'"
