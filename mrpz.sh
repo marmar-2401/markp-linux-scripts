@@ -755,7 +755,7 @@ else
 fi
 
 local current_date=$(date +%Y-%m-%d)
-local update_date_raw=$(dnf history list | awk -F'|' 'NR>1 && $3 ~ /[0-9]{4}-[0-9]{2}-[0-9]{2}/ {print $3; exit}' | head -n 1)
+local update_date_raw=$(dnf history list | grep -E 'update|upgrade' | awk -F'|' 'NR>1 && $3 ~ /[0-9]{4}-[0-9]{2}-[0-9]{2}/ {print $3; exit}' | head -n 1)
 local days_since_update=-1
 
 if [[ -z "$update_date_raw" ]]; then
