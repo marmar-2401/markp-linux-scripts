@@ -746,17 +746,18 @@ local PACKAGE_MANAGER_COMMAND=""
 
 if command -v dnf &>/dev/null; then
     PACKAGE_MANAGER_COMMAND="dnf"
-    UPDATE_DATE_RAW=$(dnf history list | grep -E 'Update|Upgrade|U' | awk -F'|' 'NR>1 && $3 ~ /[0-9]{4}-[0-9]{2}-[0-9]{2}/ {print $3; exit}' | head -n 1)
+    UPDATE_DATE_RAW=$(dnf history list | awk -F'|' 'NR>1 && $5 ~ /U/ && $6+0 > 5 {print $3; exit}' | head -n 1)
 else
     PACKAGE_MANAGER_COMMAND="yum"
-    UPDATE_DATE_RAW=$(yum history list | grep -E 'Update|Upgrade|U' | awk -F'|' 'NR>1 && $3 ~ /[0-9]{4}-[0-9]{2}-[0-9]{2}/ {print $3; exit}' | head -n 1)
+    UPDATE_DATE_RAW=$(yum history list | awk -F'|' 'NR>1 && $5 ~ /U/ && $6+0 > 5 {print $3; exit}' | head -n 1)
 fi
 
 local DAYS_SINCE_UPDATE=-1
 
 if [[ -z "$UPDATE_DATE_RAW" ]]; then
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "No valid update history found"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "No valid system update (U with >5 packages) found"
 else
+    # Extract the date part, trimming whitespace
     local EXTRACTED_DATE=$(echo "$UPDATE_DATE_RAW" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | cut -c 1-10)
 
     if [[ ! "$EXTRACTED_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
@@ -767,7 +768,7 @@ else
         local UPDATE_TIMESTAMP=$(date -d "${EXTRACTED_DATE}" +%s)
 
         if [[ $? -ne 0 ]]; then
-             DAYS_SINCE_UPDATE=9999
+            DAYS_SINCE_UPDATE=9999
         else
             local DIFF_SECONDS=$(( CURRENT_TIMESTAMP - UPDATE_TIMESTAMP ))
             local DAYS_SINCE_UPDATE=$(( DIFF_SECONDS / 86400 ))
