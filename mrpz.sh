@@ -1115,30 +1115,64 @@ else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "/dev/console" "!!BAD!!" "Issues (Run 'bash mrpz.sh --devconsolefix')"
 fi
 
+#!/bin/bash
+
+MAGENTA='\033[0;35m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m'
+
+local iscsi_ips=()
+local ISCS_IP_RANGE_PATTERN="^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)"
+
+while IFS= read -r ip_address; do
+    if [[ -n "$ip_address" && "$ip_address" =~ $ISCS_IP_RANGE_PATTERN ]]; then
+        iscsi_ips+=("$ip_address")
+    fi
+done < <(ip -o -4 a | awk '{print $4}' | grep -vE '^(lo|idrac|nm-bond)' | cut -d'/' -f1)
+
+ISCS_IPS_FOR_AWK="$(IFS=$'\n'; echo "${iscsi_ips[*]}")"
+
 multiple_ip_interfaces=$(ip -br a | \
-grep -v "lo" | \
-awk '{
+    grep -v "lo" | \
+    awk -v iscsi_ips_str="${ISCS_IPS_FOR_AWK}" '
+    BEGIN {
+        split(iscsi_ips_str, iscsi_ips_array, "\n");
+        if (iscsi_ips_array[1] == "") delete iscsi_ips_array[1];
+    }
+    {
         interface_name = $1;
         ipv4_count = 0;
         for (i = 3; i <= NF; i++) {
             if ($i !~ /::/) {
-                ipv4_count++;
+                split($i, ip_parts, "/");
+                current_ip = ip_parts[1];
+                
+                is_iscsi="no";
+                for (j in iscsi_ips_array) {
+                    if (current_ip == iscsi_ips_array[j]) {
+                        is_iscsi="yes";
+                        break;
+                    }
+                }
+                
+                if (is_iscsi == "no") {
+                    ipv4_count++;
+                }
             }
         }
         if (ipv4_count > 0) {
-            for (j = 1; j <= ipv4_count; j++) {
-                print interface_name;
-            }
+            print interface_name;
         }
-}' | \
-sort | \
-uniq -c | \
-awk '$1 > 1 {print $2}')
+    }' | \
+    sort | \
+    uniq -c | \
+    awk '$1 > 1 {print $2}')
 
 if [ -n "${multiple_ip_interfaces}" ]; then
-	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!ATTN!!" "Service IP likely (Run 'ip -br a')"
+    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!ATTN!!" "Service IP likely (Run 'ip -br a')"
 else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!GOOD!!" "No Service IP"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!GOOD!!" "No Service IP"
 fi
 
 multipath -ll >/dev/null 2>&1
