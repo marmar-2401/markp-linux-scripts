@@ -550,11 +550,11 @@ elif detected_hardware=$(check_hpe); then
         return 0
 elif detected_hardware=$(check_oracle); then
         echo "${detected_hardware}"
-	echo framework="Cloud"
+	echo "Cloud"
         return 0
 elif detected_hardware=$(check_aws); then
         echo "${detected_hardware}"
-        echo framework="Cloud"
+        echo "Cloud"
 	return 0
 elif detected_hardware=$(check_kvm); then
         echo "${detected_hardware}"
@@ -890,12 +890,12 @@ else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Postfix" "!!BAD!!" "Not Running/installed"
 fi
 
-local ntpsync=$(timedatectl | head -5 | tail -1 | awk '{ print $NF }')
+local ntpsync=$(unset TZ; timedatectl | head -5 | tail -1 | awk '{ print $NF }')
 
 if [[ "${ntpsync}" == "yes" ]]; then
-    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "NTP Syncronization" "!!GOOD!!" "Optimal"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "NTP Syncronization" "!!GOOD!!" "Optimal"
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NTP Syncronization" "!!BAD!!" "NTP time is not synced 'bash mrpz.sh --ntpcheck'"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NTP Syncronization" "!!BAD!!" "NTP time is not synced 'bash mrpz.sh --ntpcheck'"
 fi
 
 local GOOD_KERNEL_MONTHS=6
@@ -977,10 +977,16 @@ else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Updates Available" "!!GOOD!!" "No available updates"
 fi
 
-if mokutil --sb-state >/dev/null; then
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!GOOD!!" "Optimal"
+if mokutil --sb-state &>/dev/null; then 
+    if mokutil --sb-state | grep -q "SecureBoot enabled"; then
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!GOOD!!" "Enabled"
+    elif mokutil --sb-state | grep -q "SecureBoot disabled"; then
+        printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!INFO!!" "Disabled (but supported)"
+    else
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!BAD!!" "Secure boot issues (unknown state)"
+    fi
 else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!BAD!!" "Secure boot issues"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!BAD!!" "Not supported or UEFI issues"
 fi
 
 local fqdn_long=$(hostname -f)
@@ -1198,18 +1204,29 @@ else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle Listener" "!!BAD!!" "Oracle listener missing 'bash mrpz.sh --listndisc'"
 fi
 
-if journalctl --since "7 days ago" -p err | grep -q .; then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Journal" "!!BAD!!" "Errors within 7 days (Run 'journalctl -rp err')"
+{ journalctl --since "7 days ago" -p err 2> /tmp/journalctl_truncation_check.log; } | grep -q .
+
+local JOURNAL_HAS_ACTUAL_ERRORS=$? 
+grep -q "is truncated, ignoring file" /tmp/journalctl_truncation_check.log
+local JOURNAL_IS_TRUNCATED=$? 
+rm -f /tmp/journalctl_truncation_check.log
+
+if [ $JOURNAL_HAS_ACTUAL_ERRORS -eq 0 ] || [ $JOURNAL_IS_TRUNCATED -eq 0 ]; then
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Journal" "!!BAD!!" "Errors within 7 days or journal file truncated (Run 'journalctl -rp err')"
 else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Journal" "!!GOOD!!" "No journal errors within 7 days"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Journal" "!!GOOD!!" "No journal errors within 7 days"
 fi
 
-if ( appserver_check >/dev/null 2>&1 ); then 
-    if firewall-cmd --list-rich-rules | grep -q 'rule'; then
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!GOOD!!" "Has rich rules"
-    else
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!BAD!!" "No firewall rich rules 'firewall-cmd --list-rich-rules'"
+if command -v firewall-cmd &>/dev/null; then 
+    if appserver_check >/dev/null 2>&1; then
+        if firewall-cmd --list-rich-rules | grep -q 'rule'; then
+            printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!GOOD!!" "Has rich rules"
+        else
+            printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!BAD!!" "No firewall rich rules 'firewall-cmd --list-rich-rules'"
+        fi
     fi
+else
+    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!ATTN!!" "Firewall-cmd does not exist"
 fi
 
 if cat /sys/kernel/mm/transparent_hugepage/enabled | grep -q "\[never\]"; then
