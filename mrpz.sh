@@ -785,7 +785,7 @@ local days_since_update=-1
 if [[ -z "$update_date_raw" ]]; then
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "No valid update history found"
 else
-    local extracted_date=$(echo "$update_date_raw" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | awk '{print $1}')
+    local extracted_date=$(echo "$update_date_raw" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | cut -c 1-10)
 
     if [[ ! "$extracted_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "Invalid date format after extraction"
