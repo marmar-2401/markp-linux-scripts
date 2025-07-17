@@ -757,7 +757,6 @@ local DAYS_SINCE_UPDATE=-1
 if [[ -z "$UPDATE_DATE_RAW" ]]; then
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "No valid system update (U with >5 packages) found"
 else
-    # Extract the date part, trimming whitespace
     local EXTRACTED_DATE=$(echo "$UPDATE_DATE_RAW" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | cut -c 1-10)
 
     if [[ ! "$EXTRACTED_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
@@ -778,7 +777,7 @@ fi
 
 if (( DAYS_SINCE_UPDATE > 183 )); then
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${YELLOW}%-10s${NC}\n" "Last Update" "!!BAD!!" "Updated >6 months"
-elif (( DAYS_SINCE_UPDATE != -1 )); then # Only print if a valid date was processed
+elif (( DAYS_SINCE_UPDATE != -1 )); then 
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${YELLOW}%-10s${NC}\n" "Last Update" "!!GOOD!!" "Updated <6 months"
 fi
 
