@@ -11,7 +11,6 @@ WHITE='\033[0;37m'
 NC='\033[0m'
 
 # Start Error Handing Functions
-
 check_root() {
 if [ "${EUID}" -ne 0 ]; then
 	printf "${RED}Error: This script must be run as root.${NC}\n"
@@ -67,15 +66,11 @@ richapp_check() {
     return 1       
   fi
 }
-
-
-
-
 # End Error Handing Functions
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.1.9 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.2.0 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -109,6 +104,7 @@ printf "${MAGENTA} 1.1.6 | 07/10/2025 | - Built a boot report function ${NC}\n"
 printf "${MAGENTA} 1.1.7 | 07/10/2025 | - Built a short oscheck function${NC}\n"
 printf "${MAGENTA} 1.1.8 | 07/15/2025 | - Built a confirm action function${NC}\n"
 printf "${MAGENTA} 1.1.9 | 07/16/2025 | - Built a app server check function${NC}\n"
+printf "${MAGENTA} 1.2.0 | 07/16/2025 | - Built a richapp check function${NC}\n"
 }
 
 print_help() {
@@ -323,16 +319,6 @@ else
         postconf -e "relayhost = [${relayhost}]:${port}"
         systemctl restart postfix
 fi
-local virtual_db="/etc/postfix/virtual.db"
-if [ -r "${virtual_db}" ]; then
-	:
-else
-        echo "@softcomputer.com          seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-        echo "@isd.dp.ua        seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-        echo "@softsystem.pl seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-        postmap /etc/postfix/virtual
-        systemctl restart postfix
-fi
 printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
 }
 
@@ -372,17 +358,6 @@ else
         postmap /etc/postfix/sasl_passwd
         chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
         systemctl restart postfix
-fi
-
-local virtual_db="/etc/postfix/virtual.db"
-if [ -r "${virtual_db}" ]; then
-	:
-else
-	echo "@softcomputer.com          seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-	echo "@isd.dp.ua        seauto@mail.softcomputer.com" >>/etc/postfix/virtual
- 	echo "@softsystem.pl seauto@mail.softcomputer.com" >>/etc/postfix/virtual
-	postmap /etc/postfix/virtual
-	systemctl restart postfix
 fi
 printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
 }
@@ -627,7 +602,6 @@ fi
 }
 
 #Problem Decription Section
-
 print_backupdisc() {
 check_root
 
@@ -653,8 +627,6 @@ printf "${CYAN}Oracle Listener Issues${NC}\n"
 printf "${CYAN}--------------------------${NC}\n\n"
 printf "${YELLOW} Run 'ps -ef | egrep '_pmon_|tnslsnr' | grep -v 'grep -E _pmon_|tnslsnr'' to check to see if listeners are present!${NC}\n"
 }
-
-
 #End of problem Description Section
 
 print_oscheck() {
@@ -1134,7 +1106,6 @@ awk '{
 sort | \
 uniq -c | \
 awk '$1 > 1 {print $2}')
-
 
 local ISCSI_SESSIONS=$(iscsiadm -m session 2>&1) 
 if echo "${ISCSI_SESSIONS}" | grep -q '^tcp:'; then 
