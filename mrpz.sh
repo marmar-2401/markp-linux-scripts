@@ -633,6 +633,8 @@ shortbootreport() {
 	/SCC/bin/Run! -L ${ENVUSER} Ver2! >> ${DESTINATION}/bootreport.${ENVUSER}
 }
 
+mkdir -p /SCC-TMP/bootreport
+
 if [ -f "${SCCADMHOME}/.nocheck" ]; then
 	shortbootreport
  	printf "${GREEN}Boot report finished!!!${NC}\n"
