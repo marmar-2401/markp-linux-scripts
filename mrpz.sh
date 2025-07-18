@@ -614,7 +614,7 @@ print_bootreport() {
 check_sccadm
 appserver_check
 local SCCADMHOME=$(grep sccadm /etc/passwd | awk -F : '{print $6}')
-local DESTINATION=/SCC-TMP/bootreports
+local DESTINATION=/SCC-TMP/bootreport
 local ENVUSER="$1"
 
 if [ -z "${ENVUSER}" ]; then
