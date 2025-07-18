@@ -1764,7 +1764,7 @@ print_linfo() {
 
 
     printf "\n${CYAN}Compressing newly collected system information...${NC}\n"
-    tar czf "$NEW_ARCHIVE_NAME" -C "$SYSINFO" "INFO.${HN}"
+    tar czf "$NEW_ARCHIVE_NAME" "${CURRENT_INFO_DIR}"
 
     if [ $? -eq 0 ]; then
         printf "${GREEN}Newly collected system information successfully compressed to: ${NEW_ARCHIVE_NAME}${NC}\n"
