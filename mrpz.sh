@@ -168,6 +168,7 @@ printf "${YELLOW}--oscheck${NC}	# Gives you a general system information overvie
 printf "${YELLOW}--shortoscheck${NC}	# Gives you a general system information overview omitting good\n\n"
 printf "${YELLOW}--harddetect${NC}	# Detects the hardware platform a Linux host is running on\n\n"
 printf "${YELLOW}--bootreport <ENVUSER>${NC}	# Creates a report on commonly viewed startup checks\n\n"
+printf "${YELLOW}--linfo${NC}	# Creates a system information archive with important details\n\n"
 printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
 printf "${YELLOW}--devconsolefix${NC}	# Checks and corrects the /dev/console rules on system\n\n"
 printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on system\n\n"
