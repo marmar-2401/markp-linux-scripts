@@ -1740,31 +1740,8 @@ print_linfo() {
         fi
     ) &> "$CURRENT_INFO_DIR/multipath.$HN"
 
-
-# ... (previous code) ...
-
-    # ADD THESE DIAGNOSTIC LINES:
-    printf "\\n${YELLOW}Verifying directory existence and contents before tar...${NC}\\n"
-    ls -l "${CURRENT_INFO_DIR}"
-    if [ -d "${CURRENT_INFO_DIR}" ]; then
-        printf "${GREEN}Directory ${CURRENT_INFO_DIR} exists.${NC}\\n"
-    else
-        printf "${RED}ERROR: Directory ${CURRENT_INFO_DIR} does NOT exist!${NC}\\n"
-    fi
-    printf "${YELLOW}Contents of the directory:${NC}\\n"
-    ls -l "${CURRENT_INFO_DIR}"
-    printf "\\n"
-    # END DIAGNOSTIC LINES
-
-    
-
-
-
-
-
-
     printf "\n${CYAN}Compressing newly collected system information...${NC}\n"
-    tar czf "$NEW_ARCHIVE_NAME" "${CURRENT_INFO_DIR}"
+    tar czf "$NEW_ARCHIVE_NAME" "${CURRENT_INFO_DIR}" &> /dev/null
 
     if [ $? -eq 0 ]; then
         printf "${GREEN}Newly collected system information successfully compressed to: ${NEW_ARCHIVE_NAME}${NC}\n"
