@@ -1374,44 +1374,42 @@ print_linfo() {
     fi
 
     local SYSINFO="/sysinfo.SCC"
-    local ARCHIVE_DIR="${SYSINFO}/INFO-ARC"
     local CURRENT_INFO_DIR="${SYSINFO}/INFO.${HN}"
+    local NEW_ARCHIVE_NAME="${SYSINFO}/INFO_NEW.$(date +%Y%m%d_%H%M%S).${HN}.tar.gz"
 
-    if ! mkdir -p "$SYSINFO" ; then
+    if ! mkdir -p "$SYSINFO"; then
         printf "${RED}Error: Could not create $SYSINFO. Check permissions or disk space.${NC}\n"
         exit 1
     fi
 
     if [ -d "$CURRENT_INFO_DIR" ]; then
-        if ! mkdir -p "$ARCHIVE_DIR" ; then
-            printf "${RED}Error: Could not create $ARCHIVE_DIR. Check permissions or disk space.${NC}\n"
-            exit 1
-        fi
-        
-        local TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-        tar czf "${ARCHIVE_DIR}/INFO.${TIMESTAMP}.${HN}.tar.gz" -C "$SYSINFO" "INFO.${HN}" &> /dev/null
-        if [ $? -eq 0 ]; then
-            printf "${GREEN}Backup of existing linfo files successful: ${ARCHIVE_DIR}/INFO.${TIMESTAMP}.${HN}.tar.gz${NC}\n"
-        else
-            printf "${RED}Warning: Failed to create backup of linfo files to archive.${NC}\n"
-        fi
-        
+        printf "${YELLOW}Removing old system information directory: ${CURRENT_INFO_DIR}${NC}\n"
         if ! rm -rf "$CURRENT_INFO_DIR"; then
             printf "${RED}Warning: Failed to remove old directory $CURRENT_INFO_DIR. Manual cleanup may be required.${NC}\n"
         fi
     fi
 
-    if ! mkdir -p "$CURRENT_INFO_DIR" "$CURRENT_INFO_DIR/proc" "$CURRENT_INFO_DIR/boot" "$CURRENT_INFO_DIR/printers"; then
+    if ! mkdir -p "$CURRENT_INFO_DIR" "$CURRENT_INFO_DIR/proc" "$CURRENT_INFO_DIR/boot" "$CURRENT_INFO_DIR/printers" "$CURRENT_INFO_DIR/etc" "$CURRENT_INFO_DIR/root"; then
         printf "${RED}Error: Could not create necessary directories under $SYSINFO. Check permissions or disk space.${NC}\n"
         exit 1
     fi
 
+    find /etc -maxdepth 1 -type f -print0 2>/dev/null | xargs -0 -I {} cp -p "{}" "$CURRENT_INFO_DIR/etc/" &>> /dev/null || true
+    find /root -maxdepth 1 -type f -print0 2>/dev/null | xargs -0 -I {} cp -p "{}" "$CURRENT_INFO_DIR/root/" &>> /dev/null || true
     cp -R /proc/*info "$CURRENT_INFO_DIR/proc" &>> /dev/null || true
-    cp -rp /boot/config* "$CURRENT_INFO_DIR/boot" &>> /dev/null || true
-    cp -rp /boot/grub* "$CURRENT_INFO_DIR/boot" &>> /dev/null || true
-    cp -rp /boot/*.gz "$CURRENT_INFO_DIR/boot" &>> /dev/null || true
-    cp -rp /etc "$CURRENT_INFO_DIR/" &>> /dev/null || true
-    cp -rp /root "$CURRENT_INFO_DIR/" &>> /dev/null || true
+    find /boot -maxdepth 1 -type f -name "config*" -print0 2>/dev/null | xargs -0 -I {} cp -p "{}" "$CURRENT_INFO_DIR/boot/" &>> /dev/null || true
+    find /boot -maxdepth 1 -type f -name "*.gz" -print0 2>/dev/null | xargs -0 -I {} cp -p "{}" "$CURRENT_INFO_DIR/boot/" &>> /dev/null || true
+
+    for grub_path in /boot/grub /boot/grub2; do
+        if [ -d "$grub_path" ]; then
+            find "$grub_path" -maxdepth 1 -type f -print0 2>/dev/null | xargs -0 -I {} cp -p "{}" "$CURRENT_INFO_DIR/boot/" &>> /dev/null || true
+        elif [ -f "$grub_path" ]; then
+            cp -p "$grub_path" "$CURRENT_INFO_DIR/boot/" &>> /dev/null || true
+        fi
+    done
+ 
+    find /boot -maxdepth 1 -type f -name "grub.conf" -print0 2>/dev/null | xargs -0 -I {} cp -p "{}" "$CURRENT_INFO_DIR/boot/" &>> /dev/null || true
+
     [ -f /usr/lib/printerc ] && cp -rp /usr/lib/printerc "$CURRENT_INFO_DIR/printers/" &>> /dev/null || true
 
     (
@@ -1742,7 +1740,6 @@ print_linfo() {
     ) &> "$CURRENT_INFO_DIR/multipath.$HN"
 
     printf "\n${CYAN}Compressing newly collected system information...${NC}\n"
-    local NEW_ARCHIVE_NAME="${ARCHIVE_DIR}/INFO_NEW.$(date +%Y%m%d_%H%M%S).${HN}.tar.gz"
     tar czf "$NEW_ARCHIVE_NAME" -C "$SYSINFO" "INFO.${HN}" &> /dev/null
 
     if [ $? -eq 0 ]; then
@@ -1752,10 +1749,8 @@ print_linfo() {
     fi
 
     printf "${MAGENTA}System information collection complete. Data is located in: ${NC}${CURRENT_INFO_DIR}\n"
-    printf "${MAGENTA}A compressed archive of old linfo information has been created in: ${NC}${ARCHIVE_DIR}\n"
-    printf "${MAGENTA}The newly collected information has also been compressed into: ${NC}${NEW_ARCHIVE_NAME}\n"
+    printf "${MAGENTA}The newly collected information has been compressed into: ${NC}${NEW_ARCHIVE_NAME}\n"
 }
-
 
 
 case "$1" in
