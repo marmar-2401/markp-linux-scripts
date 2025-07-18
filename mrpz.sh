@@ -66,11 +66,50 @@ richapp_check() {
     return 1       
   fi
 }
+
+check_linfo_commands() {
+    local missing_commands=()
+    local commands_to_check=("netstat" "needs-restarting" "lsblk" "fdisk" "pvs" "vgdisplay" "lvdisplay" "df" "lsscsi" "mokutil" "getenforce" "yum" "rpm" "nmcli" "ifconfig" "arp" "lpstat" "lshw" "lspci" "dmidecode" "hostnamectl" "lscpu" "swapon" "free")
+
+    for cmd in "${commands_to_check[@]}"; do
+        if ! command -v "$cmd" &> /dev/null; then
+            missing_commands+=("$cmd")
+        fi
+    done
+	
+    if ! command -v "firewall-cmd" &> /dev/null && ! command -v "iptables" &> /dev/null; then
+        missing_commands+=("firewall-cmd (or iptables)")
+    fi
+
+    if [ ${#missing_commands[@]} -gt 0 ]; then
+        echo "Error: The following required commands are missing. Please install them:"
+        for missing_cmd in "${missing_commands[@]}"; do
+            echo "  - ${missing_cmd}"
+        done
+        echo ""
+        echo "Hints for common missing commands:"
+        echo "  - netstat, ifconfig, arp: install net-tools"
+        echo "  - needs-restarting: install yum-utils"
+        echo "  - lshw: install lshw"
+        echo "  - mokutil: install mokutil"
+        echo "  - firewall-cmd: install firewalld"
+        echo "  - iptables: install iptables-services (for older systems)"
+        exit 1
+    fi
+}
+
+linux_check() {
+    if [ "$(uname)" != "Linux" ]; then
+        echo "Error: This script is for Linux only. For AIX, use 'info!' instead."
+        exit 1
+    fi
+}
+
 # End Error Handing Functions
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.2.0 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.2.3 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -105,6 +144,9 @@ printf "${MAGENTA} 1.1.7 | 07/10/2025 | - Built a short oscheck function${NC}\n"
 printf "${MAGENTA} 1.1.8 | 07/15/2025 | - Built a confirm action function${NC}\n"
 printf "${MAGENTA} 1.1.9 | 07/16/2025 | - Built a app server check function${NC}\n"
 printf "${MAGENTA} 1.2.0 | 07/16/2025 | - Built a richapp check function${NC}\n"
+printf "${MAGENTA} 1.2.1 | 07/17/2025 | - Built a linfo command check function${NC}\n"
+printf "${MAGENTA} 1.2.2 | 07/17/2025 | - Built a Linux system check function${NC}\n"
+printf "${MAGENTA} 1.2.3 | 07/17/2025 | - Rebuilt David Wong's linfo! to integrate into mrpz.sh and be more optimized${NC}\n"
 }
 
 print_help() {
@@ -1037,7 +1079,7 @@ else
 fi
 
 if command -v podman &> /dev/null; then
-    	local PODVER=$(podman --version 2>/dev/null) # Redirect stderr to /dev/null
+    	local PODVER=$(podman --version 2>/dev/null)
 	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Podman" "!!ATTN!!" "${PODVER}"
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Podman" "!!GOOD!!" "No Podman"
@@ -1313,6 +1355,408 @@ print_shortoscheck() {
     rm -rf /tmp/oscheck.txt
 }
 
+print_linfo() {
+    linux_check
+    check_root
+    check_linfo_commands
+    confirm_action
+
+    local HOST=$(hostname)
+    local HN=${HOST%%.*}
+    if [[ -z "$HN" ]]; then
+        HN="unknown_host"
+    fi
+
+    local OSID=$(cat /etc/os-release 2>/dev/null | grep ^NAME | awk -F\" '{print $2}')
+    if [[ -z "$OSID" ]]; then
+        OSID="UnknownOS"
+    fi
+
+    local SYSINFO="/sysinfo.SCC"
+    local ARCHIVE_DIR="${SYSINFO}/INFO-ARC"
+    local CURRENT_INFO_DIR="${SYSINFO}/INFO.${HN}"
+
+    if ! mkdir -p "$SYSINFO" ; then
+        printf "${RED}Error: Could not create $SYSINFO. Check permissions or disk space.${NC}\n"
+        exit 1
+    fi
+
+    if [ -d "$CURRENT_INFO_DIR" ]; then
+        if ! mkdir -p "$ARCHIVE_DIR" ; then
+            printf "${RED}Error: Could not create $ARCHIVE_DIR. Check permissions or disk space.${NC}\n"
+            exit 1
+        fi
+        
+        local TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+        tar czf "${ARCHIVE_DIR}/INFO.${TIMESTAMP}.${HN}.tar.gz" -C "$SYSINFO" "INFO.${HN}" &> /dev/null
+        if [ $? -eq 0 ]; then
+            printf "${GREEN}Backup of existing linfo files successful: ${ARCHIVE_DIR}/INFO.${TIMESTAMP}.${HN}.tar.gz${NC}\n"
+        else
+            printf "${RED}Warning: Failed to create backup of linfo files to archive.${NC}\n"
+        fi
+        
+        if ! rm -rf "$CURRENT_INFO_DIR"; then
+            printf "${RED}Warning: Failed to remove old directory $CURRENT_INFO_DIR. Manual cleanup may be required.${NC}\n"
+        fi
+    fi
+
+    if ! mkdir -p "$CURRENT_INFO_DIR" "$CURRENT_INFO_DIR/proc" "$CURRENT_INFO_DIR/boot" "$CURRENT_INFO_DIR/printers"; then
+        printf "${RED}Error: Could not create necessary directories under $SYSINFO. Check permissions or disk space.${NC}\n"
+        exit 1
+    fi
+
+    cp -R /proc/*info "$CURRENT_INFO_DIR/proc" &>> /dev/null || true
+    cp -rp /boot/config* "$CURRENT_INFO_DIR/boot" &>> /dev/null || true
+    cp -rp /boot/grub* "$CURRENT_INFO_DIR/boot" &>> /dev/null || true
+    cp -rp /boot/*.gz "$CURRENT_INFO_DIR/boot" &>> /dev/null || true
+    cp -rp /etc "$CURRENT_INFO_DIR/" &>> /dev/null || true
+    cp -rp /root "$CURRENT_INFO_DIR/" &>> /dev/null || true
+    [ -f /usr/lib/printerc ] && cp -rp /usr/lib/printerc "$CURRENT_INFO_DIR/printers/" &>> /dev/null || true
+
+    (
+        echo "### Storage Information ###"
+        for cmd in "lsblk" "fdisk -l" "pvs" "pvdisplay" "vgs" "vgdisplay" "lvs" "lvdisplay" "df -h" "lsscsi"; do
+            echo "--- Command: $cmd ---"
+            if command -v "$(echo "$cmd" | awk '{print $1}')" &> /dev/null; then
+                eval "$cmd" 2>/dev/null
+            else
+                echo "Command '$cmd' not found or not executable."
+            fi
+            echo "---------------------"
+        done
+    ) &> "$CURRENT_INFO_DIR/storage.$HN"
+
+    (
+        echo "### OS Information ###"
+        echo "--- File: /etc/system-release ---"
+        cat /etc/system-release 2>/dev/null || echo "N/A - /etc/system-release not found"
+        echo "--- Secure Boot Status ---"
+        if command -v mokutil &> /dev/null; then
+            mokutil --sb-state 2>/dev/null
+        else
+            echo "mokutil command not found."
+        fi
+        echo "--- SELinux Status ---"
+        if command -v getenforce &> /dev/null; then
+            getenforce 2>/dev/null
+        else
+            echo "getenforce command not found."
+        fi
+    ) &> "$CURRENT_INFO_DIR/OS_info.$HN"
+
+    (
+        echo "### Yum Installed Packages ###"
+        if command -v yum &> /dev/null; then
+            yum list installed 2>/dev/null
+        else
+            echo "yum command not found."
+        fi
+        echo "### RPM Installed Packages ###"
+        if command -v rpm &> /dev/null; then
+            rpm -qa 2>/dev/null
+        else
+            echo "rpm command not found."
+        fi
+    ) &> "$CURRENT_INFO_DIR/yum-packages.$HN"
+
+    (
+        echo "### Boot Mode and Secure Boot Status ###"
+        echo "--- Secure Boot Status (mokutil --sb-state) ---"
+        if command -v mokutil &> /dev/null; then
+            mokutil --sb-state 2>/dev/null
+        else
+            echo "mokutil command not found."
+        fi
+        echo "--- EFI or BIOS Boot ---"
+        if dmesg 2>/dev/null | grep -q "EFI v"; then
+            echo "EFI boot"
+            dmesg 2>/dev/null | grep "EFI v"
+        else
+            echo "BIOS boot"
+        fi
+    ) &> "$CURRENT_INFO_DIR/bootmode.out"
+
+    (
+        echo "### Kernel Message Buffer Settings (sysctl -a | grep kernel.msg) ###"
+        if command -v sysctl &> /dev/null; then
+            sysctl -a 2>/dev/null | grep -i ^kernel.msg
+        else
+            echo "sysctl command not found."
+        fi
+    ) &> "$CURRENT_INFO_DIR/kernel-msg.out"
+
+    [ -f /etc/systemd/system/sccmain.service ] && cp /etc/systemd/system/sccmain.service "$CURRENT_INFO_DIR/" &>> /dev/null || true
+    [ -f /etc/systemd/system/oracle.service ] && cp /etc/systemd/system/oracle.service "$CURRENT_INFO_DIR/" &>> /dev/null || true
+
+    (
+        echo "### Network Information ###"
+        echo "--- nmcli device status ---"
+        if command -v nmcli &> /dev/null; then
+            nmcli device status 2>/dev/null
+        else
+            echo "nmcli command not found."
+        fi
+        echo "--- netstat -i (interface statistics) ---"
+        if command -v netstat &> /dev/null; then
+            netstat -i 2>/dev/null
+        else
+            echo "netstat command not found."
+        fi
+        echo "--- netstat -s (network statistics) ---"
+        if command -v netstat &> /dev/null; then
+            netstat -s 2>/dev/null
+        else
+            echo "netstat command not found."
+        fi
+        echo "--- netstat -p (programs using ports) ---"
+        if command -v netstat &> /dev/null; then
+            netstat -p 2>/dev/null
+        else
+            echo "netstat command not found."
+        fi
+        echo "--- netstat -l (listening sockets) ---"
+        if command -v netstat &> /dev/null; then
+            netstat -l 2>/dev/null | grep LISTEN
+        else
+            echo "netstat command not found."
+        fi
+        echo "--- netstat -a (all sockets) ---"
+        if command -v netstat &> /dev/null; then
+            netstat -a 2>/dev/null
+        else
+            echo "netstat command not found."
+        fi
+        echo "--- ifconfig -a (all interfaces) ---"
+        if command -v ifconfig &> /dev/null; then
+            ifconfig -a 2>/dev/null
+        else
+            echo "ifconfig command not found."
+        fi
+        echo "--- arp -a (ARP cache) ---"
+        if command -v arp &> /dev/null; then
+            arp -a 2>/dev/null
+        else
+            echo "arp command not found."
+        fi
+        echo "--- arp -an (ARP cache, numeric) ---"
+        if command -v arp &> /dev/null; then
+            arp -an 2>/dev/null
+        else
+            echo "arp command not found."
+        fi
+    ) &> "$CURRENT_INFO_DIR/network_info.$HN"
+
+    (
+        echo "### Firewall Status ###"
+        if command -v "firewall-cmd" &> /dev/null; then
+            echo "--- firewall-cmd --list-all ---"
+            firewall-cmd --list-all 2>/dev/null
+        elif command -v "iptables" &> /dev/null; then
+            echo "--- iptables -L -n -v (IPv4 rules) ---"
+            iptables -L -n -v 2>/dev/null
+            echo "--- iptables -S (IPv4 rules in save format) ---"
+            iptables -S 2>/dev/null
+            if command -v "ip6tables" &> /dev/null; then
+                echo "--- ip6tables -L -n -v (IPv6 rules) ---"
+                ip6tables -L -n -v 2>/dev/null
+                echo "--- ip6tables -S (IPv6 rules in save format) ---"
+                ip6tables -S 2>/dev/null
+            fi
+        else
+            echo "Warning: Neither 'firewall-cmd' nor 'iptables' found. Cannot collect firewall information."
+        fi
+    ) &> "$CURRENT_INFO_DIR/firewall.out"
+
+    (
+        echo "### Printer Information ###"
+        echo "--- lpstat -s (printer status) ---"
+        if command -v lpstat &> /dev/null; then
+            lpstat -s 2>/dev/null
+        else
+            echo "lpstat command not found."
+        fi
+    ) &> "$CURRENT_INFO_DIR/printers/printers.out"
+    [ -f /usr/lib/prinfo1 ] && cp /usr/lib/prinfo1 "$CURRENT_INFO_DIR/printers/" &>> /dev/null || true
+
+    (
+        echo "### Hardware Information ###"
+        echo "--- lshw (hardware list) ---"
+        if command -v lshw &> /dev/null; then
+            lshw 2>/dev/null
+        else
+            echo "lshw command not found."
+        fi
+        echo "--- lspci (PCI devices) ---"
+        if command -v lspci &> /dev/null; then
+            lspci 2>/dev/null
+        else
+            echo "lspci command not found."
+        fi
+        echo "--- lsusb (USB devices) ---"
+        if command -v lsusb &> /dev/null; then
+            lsusb 2>/dev/null
+        else
+            echo "lsusb command not found."
+        fi
+        echo "--- lspci -nnk (PCI device drivers) ---"
+        if command -v lspci &> /dev/null; then
+            lspci -nnk 2>/dev/null
+        else
+            echo "lspci command not found."
+        fi
+    ) &> "$CURRENT_INFO_DIR/lshw.out"
+
+    (
+        echo "### System Overview for $HN ($OSID) ###"
+        echo "--- OS Details ---"
+        if command -v uname &> /dev/null; then
+            uname -a 2>/dev/null
+        else
+            echo "uname command not found."
+        fi
+        grep ^NAME= /etc/os-release 2>/dev/null || true
+        grep ^VERSION= /etc/os-release 2>/dev/null || true
+
+        echo -e "\n--- Platform Details ---"
+        if command -v dmidecode &> /dev/null; then
+            dmidecode 2>/dev/null | egrep -i 'manufacturer|product'
+        else
+            echo "dmidecode command not found."
+        fi
+        echo "--------------------------------------------------------------------------------"
+        if command -v lshw &> /dev/null; then
+            lshw -class system 2>/dev/null
+        else
+            echo "lshw command not found."
+        fi
+        echo "--------------------------------------------------------------------------------"
+        if command -v hostnamectl &> /dev/null; then
+            hostnamectl 2>/dev/null
+        else
+            echo "hostnamectl command not found."
+        fi
+
+        echo -e "\n--- CPU Details ---"
+        if command -v lscpu &> /dev/null; then
+            lscpu 2>/dev/null
+        else
+            echo "lscpu command not found."
+        fi
+
+        echo -e "\n--- Memory Details ---"
+        grep MemTotal /proc/meminfo 2>/dev/null || true
+        echo "--- Swap Info (swapon -s) ---"
+        if command -v swapon &> /dev/null; then
+            swapon -s 2>/dev/null
+        else
+            echo "swapon command not found."
+        fi
+        echo "--- Free Memory (free -m) ---"
+        if command -v free &> /dev/null; then
+            free -m 2>/dev/null
+        else
+            echo "free command not found."
+        fi
+
+        echo -e "\n--- Storage Details ---"
+        echo "--- Block Devices (lsblk) ---"
+        if command -v lsblk &> /dev/null; then
+            lsblk 2>/dev/null
+        else
+            echo "lsblk command not found."
+        fi
+        echo "--------------------------------------------------------------------------------"
+        echo "--- Filesystem Usage (df -h) ---"
+        if command -v df &> /dev/null; then
+            df -h 2>/dev/null
+        else
+            echo "df command not found."
+        fi
+        echo "--------------------------------------------------------------------------------"
+        echo "--- Volume Group (VG) Info (vgdisplay) ---"
+        if command -v vgdisplay &> /dev/null; then
+            vgdisplay 2>/dev/null
+        else
+            echo "vgdisplay command not found."
+        fi
+        echo "--- Logical Volume (LV) Info (lvdisplay) ---"
+        if command -v lvdisplay &> /dev/null; then
+            lvdisplay 2>/dev/null
+        else
+            echo "lvdisplay command not found."
+        fi
+        echo "--------------------------------------------------------------------------------"
+
+        echo -e "\n--- Network Details ---"
+        echo "--- IP Addresses (ip address) ---"
+        if command -v ip &> /dev/null; then
+            ip address 2>/dev/null
+        else
+            echo "ip command not found."
+        fi
+        echo "--- Routing Table (netstat -rn) ---"
+        if command -v netstat &> /dev/null; then
+            netstat -rn 2>/dev/null
+        else
+            echo "netstat command not found."
+        fi
+        echo "--- All Network Connections (netstat -an) ---"
+        if command -v netstat &> /dev/null; then
+            netstat -an 2>/dev/null
+        else
+            echo "netstat command not found."
+        fi
+    ) &> "$CURRENT_INFO_DIR/overview.txt"
+
+    (
+        echo "### Last Login and Reboot Info ###"
+        echo "--- last -x (all logins/logouts/runlevels) ---"
+        if command -v last &> /dev/null; then
+            last -x 2>/dev/null
+        else
+            echo "last command not found."
+        fi
+        echo "--- last reboot ---"
+        if command -v last &> /dev/null; then
+            last reboot 2>/dev/null
+        else
+            echo "last command not found."
+        fi
+    ) &> "$CURRENT_INFO_DIR/last.out"
+
+    (
+        echo "### Multipath and SCSI Information ###"
+        echo "--- multipath -ll (multipath devices) ---"
+        if command -v multipath &> /dev/null; then
+            multipath -ll 2>/dev/null
+        else
+            echo "multipath command not found."
+        fi
+        echo "--- lsscsi (SCSI devices) ---"
+        if command -v lsscsi &> /dev/null; then
+            lsscsi 2>/dev/null
+        else
+            echo "lsscsi command not found."
+        fi
+    ) &> "$CURRENT_INFO_DIR/multipath.$HN"
+
+    printf "\n${CYAN}Compressing newly collected system information...${NC}\n"
+    local NEW_ARCHIVE_NAME="${ARCHIVE_DIR}/INFO_NEW.$(date +%Y%m%d_%H%M%S).${HN}.tar.gz"
+    tar czf "$NEW_ARCHIVE_NAME" -C "$SYSINFO" "INFO.${HN}" &> /dev/null
+
+    if [ $? -eq 0 ]; then
+        printf "${GREEN}Newly collected system information successfully compressed to: ${NEW_ARCHIVE_NAME}${NC}\n"
+    else
+        printf "${RED}Error: Failed to create compressed archive of newly collected information.${NC}\n"
+    fi
+
+    printf "${MAGENTA}System information collection complete. Data is located in: ${NC}${CURRENT_INFO_DIR}\n"
+    printf "${MAGENTA}A compressed archive of old linfo information has been created in: ${NC}${ARCHIVE_DIR}\n"
+    printf "${MAGENTA}The newly collected information has also been compressed into: ${NC}${NEW_ARCHIVE_NAME}\n"
+}
+
+
+
 case "$1" in
 	--ver) print_version ;;
 	--help) print_help ;;
@@ -1331,6 +1775,7 @@ case "$1" in
 	--listndisc) print_listndisc ;;
  	--bootreport) print_bootreport "$2" ;;
   	--shortoscheck) print_shortoscheck ;;
+   	--linfo) print_linfo ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
