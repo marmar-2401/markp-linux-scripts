@@ -633,7 +633,7 @@ shortbootreport() {
 	/SCC/bin/Run! -L ${ENVUSER} Ver2! >> ${DESTINATION}/bootreport.${ENVUSER}
 }
 
-mkdir -p /SCC-TMP/bootreport
+mkdir -p /SCC-TMP/bootreport &> /dev/null
 
 if [ -f "${SCCADMHOME}/.nocheck" ]; then
 	shortbootreport
