@@ -146,7 +146,7 @@ printf "${MAGENTA} 1.1.9 | 07/16/2025 | - Built a app server check function${NC}
 printf "${MAGENTA} 1.2.0 | 07/16/2025 | - Built a richapp check function${NC}\n"
 printf "${MAGENTA} 1.2.1 | 07/17/2025 | - Built a linfo command check function${NC}\n"
 printf "${MAGENTA} 1.2.2 | 07/17/2025 | - Built a Linux system check function${NC}\n"
-printf "${MAGENTA} 1.2.3 | 07/17/2025 | - Rebuilt David Wong's linfo! to integrate into mrpz.sh and be more optimized${NC}\n"
+printf "${MAGENTA} 1.2.3 | 07/17/2025 | - Rebuilt linfo! to integrate into mrpz.sh and be more optimized${NC}\n"
 }
 
 print_help() {
