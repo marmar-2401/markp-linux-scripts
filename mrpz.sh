@@ -629,7 +629,7 @@ shortbootreport() {
 	sudo -i -u sccupd rc.softupdate view >> ${DESTINATION}/bootreport.${ENVUSER}
 	printf '\nWeblogic & Springboot\n\n'>> ${DESTINATION}/bootreport.${ENVUSER}
 	/SCC/bin/Run! -L ${ENVUSER} as.pl view_domain >> ${DESTINATION}/bootreport.${ENVUSER}
-	printf '\nVer2!\n\n'>> ${SDESTINATION}/bootreport.${ENVUSER}
+	printf '\nVer2!\n\n'>> ${DESTINATION}/bootreport.${ENVUSER}
 	/SCC/bin/Run! -L ${ENVUSER} Ver2! >> ${DESTINATION}/bootreport.${ENVUSER}
 }
 
