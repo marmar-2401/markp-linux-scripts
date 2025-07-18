@@ -614,6 +614,7 @@ print_bootreport() {
 check_sccadm
 appserver_check
 local SCCADMHOME=$(grep sccadm /etc/passwd | awk -F : '{print $6}')
+local DESTINATION=/SCC-TMP/bootreports
 local ENVUSER="$1"
 
 if [ -z "${ENVUSER}" ]; then
@@ -622,14 +623,14 @@ if [ -z "${ENVUSER}" ]; then
 fi
 
 shortbootreport() {
-	printf "Oracle Listener Processes\n\n"> ${SCCADMHOME}/bootreport.${ENVUSER}
-	ps -ef | egrep '_pmon_|tnslsnr' | grep -v 'grep -E _pmon_|tnslsnr' >> ${SCCADMHOME}/bootreport.${ENVUSER}
-	printf '\nSoft Update\n\n'>> ${SCCADMHOME}/bootreport.${ENVUSER}
-	sudo -i -u sccupd rc.softupdate view >> ${SCCADMHOME}/bootreport.${ENVUSER}
-	printf '\nWeblogic & Springboot\n\n'>> ${SCCADMHOME}/bootreport.${ENVUSER}
-	/SCC/bin/Run! -L ${ENVUSER} as.pl view_domain >> ${SCCADMHOME}/bootreport.${ENVUSER}
-	printf '\nVer2!\n\n'>> ${SCCADMHOME}/bootreport.${ENVUSER}
-	/SCC/bin/Run! -L ${ENVUSER} Ver2! >> ${SCCADMHOME}/bootreport.${ENVUSER}
+	printf "Oracle Listener Processes\n\n"> ${DESTINATION}/bootreport.${ENVUSER}
+	ps -ef | egrep '_pmon_|tnslsnr' | grep -v 'grep -E _pmon_|tnslsnr' >> ${DESTINATION}/bootreport.${ENVUSER}
+	printf '\nSoft Update\n\n'>> ${DESTINATION}/bootreport.${ENVUSER}
+	sudo -i -u sccupd rc.softupdate view >> ${DESTINATION}/bootreport.${ENVUSER}
+	printf '\nWeblogic & Springboot\n\n'>> ${DESTINATION}/bootreport.${ENVUSER}
+	/SCC/bin/Run! -L ${ENVUSER} as.pl view_domain >> ${DESTINATION}/bootreport.${ENVUSER}
+	printf '\nVer2!\n\n'>> ${SDESTINATION}/bootreport.${ENVUSER}
+	/SCC/bin/Run! -L ${ENVUSER} Ver2! >> ${DESTINATION}/bootreport.${ENVUSER}
 }
 
 if [ -f "${SCCADMHOME}/.nocheck" ]; then
@@ -1373,9 +1374,9 @@ print_linfo() {
         OSID="UnknownOS"
     fi
 
-    local SYSINFO="/sysinfo.SCC"
-    local CURRENT_INFO_DIR="${SYSINFO}/INFO.${HN}"
-    local NEW_ARCHIVE_NAME="${SYSINFO}/INFO_NEW.$(date +%Y%m%d_%H%M%S).${HN}.tar.gz"
+    local SYSINFO="/SCC-TMP"
+    local CURRENT_INFO_DIR="${SYSINFO}/linfo/INFO.${HN}"
+    local NEW_ARCHIVE_NAME="${SYSINFO}/linfo/INFO_NEW.$(date +%Y%m%d_%H%M%S).${HN}.tar.gz"
 
     if ! mkdir -p "$SYSINFO"; then
         printf "${RED}Error: Could not create $SYSINFO. Check permissions or disk space.${NC}\n"
