@@ -1742,20 +1742,20 @@ print_linfo() {
         fi
     ) &> "$CURRENT_INFO_DIR/multipath.$HN"
 
-    printf "\\n${CYAN}Compressing newly collected system information...${NC}\\n"
-    ORIGINAL_DIR=$(pwd)
-    cd "${CURRENT_INFO_DIR}" &> /dev/null
-    tar czf "$NEW_ARCHIVE_NAME" . &> /dev/null
-    cd "${ORIGINAL_DIR}" &> /dev/null
-    
-    if [ $? -eq 0 ]; then
-        printf "${GREEN}Newly collected system information successfully compressed to: ${NEW_ARCHIVE_NAME}${NC}\n"
-    else
-        printf "${RED}Error: Failed to create compressed archive of newly collected information.${NC}\n"
-    fi
+printf "\\n${CYAN}Compressing newly collected system information...${NC}\\n"
+ORIGINAL_DIR=$(pwd)
+cd "${CURRENT_INFO_DIR}" &> /dev/null
+tar czf "$NEW_ARCHIVE_NAME" . &> /dev/null
+cd "${ORIGINAL_DIR}" &> /dev/null
 
-    printf "${MAGENTA}System information collection complete. Data is located in: ${NC}${CURRENT_INFO_DIR}\n"
-    printf "${MAGENTA}The newly collected information has been compressed into: ${NC}${NEW_ARCHIVE_NAME}\n"
+if [ $? -eq 0 ]; then
+    printf "${GREEN}Newly collected system information successfully compressed to: ${NEW_ARCHIVE_NAME}${NC}\\n"
+else
+    printf "${RED}Error: Failed to create compressed archive of newly collected information.${NC}\\n"
+fi
+
+printf "${MAGENTA}System information collection complete. Data is located in: ${NC}${CURRENT_INFO_DIR}\\n"
+printf "${MAGENTA}The newly collected information has been compressed into: ${NC}${NEW_ARCHIVE_NAME}\\n"
 }
 
 
