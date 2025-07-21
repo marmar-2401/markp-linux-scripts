@@ -1742,9 +1742,12 @@ print_linfo() {
         fi
     ) &> "$CURRENT_INFO_DIR/multipath.$HN"
 
-    printf "\n${CYAN}Compressing newly collected system information...${NC}\n"
-    tar czf "$NEW_ARCHIVE_NAME" "${CURRENT_INFO_DIR}" &> /dev/null
-
+    printf "\\n${CYAN}Compressing newly collected system information...${NC}\\n"
+    ORIGINAL_DIR=$(pwd)
+    cd "${CURRENT_INFO_DIR}" &> /dev/null
+    tar czf "$NEW_ARCHIVE_NAME" . &> /dev/null
+    cd "${ORIGINAL_DIR}" &> /dev/null
+    
     if [ $? -eq 0 ]; then
         printf "${GREEN}Newly collected system information successfully compressed to: ${NEW_ARCHIVE_NAME}${NC}\n"
     else
