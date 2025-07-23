@@ -1353,7 +1353,6 @@ printf "${GREEN}Check Complete!${NC}\n"
 }
 
 print_shortoscheck() {
-    check_root
     print_oscheck | awk '{ stripped_line = $0; gsub(/\x1B\[[0-9;]*[a-zA-Z]/, "", stripped_line); if (tolower(stripped_line) !~ /!!good!!/) print $0 }' > /tmp/oscheck.txt
     cat /tmp/oscheck.txt
     rm -rf /tmp/oscheck.txt
@@ -1384,8 +1383,6 @@ print_linfo() {
         printf "${RED}Error: Could not create $SYSINFO. Check permissions or disk space.${NC}\n"
         exit 1
     fi
-
-    chown sccadm:sccadm ${SYSINFO}
 
     if [ -d "$CURRENT_INFO_DIR" ]; then
         printf "${YELLOW}Removing old system information directory: ${CURRENT_INFO_DIR}${NC}\n"
@@ -1749,6 +1746,8 @@ ORIGINAL_DIR=$(pwd)
 cd "${CURRENT_INFO_DIR}" &> /dev/null
 tar czf "$NEW_ARCHIVE_NAME" . &> /dev/null
 cd "${ORIGINAL_DIR}" &> /dev/null
+
+chown -R sccadm:sccadm ${SYSINFO}
 
 if [ $? -eq 0 ]; then
     printf "${GREEN}Newly collected system information successfully compressed to: ${NEW_ARCHIVE_NAME}${NC}\\n"
