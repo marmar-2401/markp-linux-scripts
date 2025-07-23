@@ -1360,7 +1360,6 @@ print_shortoscheck() {
 
 print_linfo() {
     linux_check
-    check_root
     check_linfo_commands
     confirm_action
 
