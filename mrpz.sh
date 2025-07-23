@@ -1376,14 +1376,16 @@ print_linfo() {
         OSID="UnknownOS"
     fi
 
-    local SYSINFO="/SCC-TMP"
-    local CURRENT_INFO_DIR="${SYSINFO}/linfo/INFO.${HN}"
-    local NEW_ARCHIVE_NAME="${SYSINFO}/linfo/INFO_NEW.$(date +%Y%m%d_%H%M%S).${HN}.tar.gz"
+    local SYSINFO="/SCC-TMP/linfo"
+    local CURRENT_INFO_DIR="${SYSINFO}/INFO.${HN}"
+    local NEW_ARCHIVE_NAME="${SYSINFO}/INFO_NEW.$(date +%Y%m%d_%H%M%S).${HN}.tar.gz"
 
     if ! mkdir -p "$SYSINFO"; then
         printf "${RED}Error: Could not create $SYSINFO. Check permissions or disk space.${NC}\n"
         exit 1
     fi
+
+    chown sccadm:sccadm ${SYSINFO}
 
     if [ -d "$CURRENT_INFO_DIR" ]; then
         printf "${YELLOW}Removing old system information directory: ${CURRENT_INFO_DIR}${NC}\n"
