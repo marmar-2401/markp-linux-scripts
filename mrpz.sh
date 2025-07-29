@@ -678,7 +678,7 @@ printf "${YELLOW} Run 'ps -ef | egrep '_pmon_|tnslsnr' | grep -v 'grep -E _pmon_
 print_oscheck() {
 check_root
 
-local OSTYPE=$(hostnamectl | grep -i operating | awk '{print $3, $4, $5, $6, $7}')
+local OSTYPE=$(cat /etc/system-release)
 local HARDTYPE=$(print_harddetect | head -1)
 local PLATFORM=$(print_harddetect | tail -1)
 local HOSTNAME=$(hostname)
