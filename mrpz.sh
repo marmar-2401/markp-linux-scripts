@@ -792,10 +792,10 @@ local PACKAGE_MANAGER_COMMAND=""
 
 if command -v dnf &>/dev/null; then
     PACKAGE_MANAGER_COMMAND="dnf"
-    UPDATE_DATE_RAW=$(dnf history list | awk -F'|' 'NR>1 && $4 ~ /U/ && $5+0 > 5 {print $3; exit}' | head -n 1)
+    UPDATE_DATE_RAW=$(dnf history list 2>/dev/null | awk -F'|' 'NR>1 && $4 ~ /U/ && $5+0 > 5 {print $3; exit}' | head -n 1)
 else
     PACKAGE_MANAGER_COMMAND="yum"
-    UPDATE_DATE_RAW=$(yum history list | awk -F'|' 'NR>1 && $4 ~ /U/ && $5+0 > 5 {print $3; exit}' | head -n 1)
+    UPDATE_DATE_RAW=$(yum history list 2>/dev/null | awk -F'|' 'NR>1 && $4 ~ /U/ && $5+0 > 5 {print $3; exit}' | head -n 1)
 fi
 
 local DAYS_SINCE_UPDATE=-1
