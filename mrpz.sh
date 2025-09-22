@@ -1097,7 +1097,7 @@ else
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!ATTN!!" "Firewall-cmd does not exist"
 fi
 
-local process_oralsnr=$(ps -ef | grep lsnr | grep -v grep | wc -l)
+local process_oralsnr=$(ps -ef | grep lsnr | grep -v grep)
 
 if [ "$process_oralsnr" -eq 0 ]; then
 # Threshold percentage (default 70%)
