@@ -1097,9 +1097,9 @@ else
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!ATTN!!" "Firewall-cmd does not exist"
 fi
 
-local process_oralsnr=$(ps -ef | grep lsnr | grep -v grep)
+local process_oralsnr=$(ps -ef | grep lsnr | grep -v grep | wc -l)
 
-if [ "$process_oralsnr" -eq 0 ]; then
+if [ "$process_oralsnr" -ne 0 ]; then
 # Threshold percentage (default 70%)
 local threshold=${1:-70}
 # Get total memory in MB
