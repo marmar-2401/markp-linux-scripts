@@ -1204,29 +1204,29 @@ print_shortoscheck() {
 }
 
 print_hugeusage() {
-	# Threshold percentage (default 70%)
-	local threshold=${1:-70}
-	# Get total memory in MB
-	local total_mem=$(free -m | awk '/^Mem:/ {print $2}')
-	# Get hugepages count
-	local hugepages=$(sysctl -n vm.nr_hugepages)
-	# Get hugepage size in KB
-	local hugepage_size_kb=$(grep Hugepagesize /proc/meminfo | awk '{print $2}')
-	# Convert hugepages to MB
-	local hugepages_mem=$(( hugepages * hugepage_size_kb / 1024 ))
+    # Threshold percentage (default 70%)
+    local threshold=${1:-70}
+    # Get total memory in MB
+    local total_mem=$(free -m | awk '/^Mem:/ {print $2}')
+    # Get hugepages count
+    local hugepages=$(sysctl -n vm.nr_hugepages)
+    # Get hugepage size in KB
+    local hugepage_size_kb=$(grep Hugepagesize /proc/meminfo | awk '{print $2}')
+    # Convert hugepages to MB
+    local hugepages_mem=$(( hugepages * hugepage_size_kb / 1024 ))
 
-	# Calculate percentage (hugepages / total_mem * 100)
-	if [ "$total_mem" -gt 0 ]; then
-            local percent=$(awk -v h="$hugepages_mem" -v t="$total_mem" 'BEGIN {printf "%.2f", (h/t)*100}')
+    # Calculate percentage (hugepages / total_mem * 100)
+    if [ "$total_mem" -gt 0 ]; then
+        local percent=$(awk -v h="$hugepages_mem" -v t="$total_mem" 'BEGIN {printf "%.2f", (h/t)*100}')
     else
-            local percent=0
-	fi
-    
-	printf "\n${MAGENTA}Hugepage Usage${NC}\n"
-	printf "${MAGENTA}==============${NC}\n"
-	printf "${YELLOW}total Memory:${NC} ${MAGENTA}${total_mem} MB${NC}\n"
-	printf "${YELLOW}HugePages:${NC} ${MAGENTA}${hugepages} pages (${hugepages_mem} MB)${NC}\n"
-	printf "${YELLOW}Percentage:${NC} ${MAGENTA}${percent}%${NC}\n"
+        local percent=0
+    fi
+
+    printf "\n${MAGENTA}Hugepage Usage${NC}\n"
+    printf "${MAGENTA}==============${NC}\n"
+    printf "${YELLOW}total Memory:${NC} ${MAGENTA}${total_mem} MB${NC}\n"
+    printf "${YELLOW}HugePages:${NC} ${MAGENTA}${hugepages} pages (${hugepages_mem} MB)${NC}\n"
+    printf "${YELLOW}Percentage:${NC} ${MAGENTA}${percent}%${NC}\n"
 }
 
 print_linfo() {
