@@ -1119,9 +1119,9 @@ fi
 local percent_int=${percent%.*}
 
 if [ "$percent_int" -ge "$threshold" ]; then
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Hugepage Usage" "!!BAD!!" "HugePages consume ${percent}% of total memory (>= ${threshold}%)"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Hugepage Usage" "!!BAD!!" "HugePages consume ${percent}% of total memory (>= ${threshold}%) (Percentage: $percent_int)"
 else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Hugepage Usage" "!!GOOD!!" "HugePages usage is below ${threshold}%"
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Hugepage Usage" "!!GOOD!!" "HugePages usage is below ${threshold}% (Percentage: $percent_int)"
 fi
 
 if cat /sys/kernel/mm/transparent_hugepage/enabled | grep -q "\[never\]"; then
