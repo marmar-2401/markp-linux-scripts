@@ -1222,11 +1222,11 @@ print_hugeusage() {
         local percent=0
     fi
 
-    printf "\n${MAGENTA}Hugepage Usage${NC}\n"
-    printf "${MAGENTA}==============${NC}\n"
-    printf "${YELLOW}total Memory:${NC} ${MAGENTA}${total_mem} MB${NC}\n"
-    printf "${YELLOW}HugePages:${NC} ${MAGENTA}${hugepages} pages (${hugepages_mem} MB)${NC}\n"
-    printf "${YELLOW}Percentage:${NC} ${MAGENTA}${percent}%${NC}\n"
+   printf "\n${MAGENTA}Hugepage Usage${NC}\n"
+printf "${MAGENTA}==============${NC}\n"
+printf "${YELLOW}total Memory:${NC} ${MAGENTA}${total_mem} MB${NC}\n"
+printf "${YELLOW}HugePages:${NC} ${MAGENTA}${hugepages} pages (${hugepages_mem} MB)${NC}\n"
+printf "${YELLOW}Percentage:${NC} ${MAGENTA}${percent}%${NC}\n"
 }
 
 print_linfo() {
