@@ -109,7 +109,7 @@ linux_check() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.2.3 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.2.0 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -127,27 +127,23 @@ printf "${MAGENTA} 1.0.0 | 05/05/2025 | - Initial release ${NC}\n"
 printf "${MAGENTA} 1.0.1 | 05/05/2025 | - Version function was built ${NC}\n"
 printf "${MAGENTA} 1.0.2 | 05/05/2025 | - Help function was built ${NC}\n"
 printf "${MAGENTA} 1.0.3 | 05/05/2025 | - NTP check function was built ${NC}\n"
-printf "${MAGENTA} 1.0.4 | 05/07/2025 | - SMTP check function was built ${NC}\n"
-printf "${MAGENTA} 1.0.5 | 05/07/2025 | - SMTP test function was built ${NC}\n"
-printf "${MAGENTA} 1.0.6 | 05/15/2025 | - SMTP config function was built ${NC}\n"
-printf "${MAGENTA} 1.0.7 | 05/15/2025 | - SMTP SASL config function was built ${NC}\n"
-printf "${MAGENTA} 1.0.8 | 05/16/2025 | - SMTP SASL config remove function was built ${NC}\n"
-printf "${MAGENTA} 1.0.9 | 06/10/2025 | - Built a function to check for sccadm user ${NC}\n"
-printf "${MAGENTA} 1.1.0 | 06/17/2025 | - Created devconsolefix function building out system checks ${NC}\n"
-printf "${MAGENTA} 1.1.1 | 06/17/2025 | - Built oscheck function ${NC}\n"
-printf "${MAGENTA} 1.1.2 | 06/24/2025 | - Build hardware platform detection functions ${NC}\n"
-printf "${MAGENTA} 1.1.3 | 07/09/2025 | - Built mqfix to correct message queue limits ${NC}\n"
-printf "${MAGENTA} 1.1.4 | 07/10/2025 | - Built description section for problems ${NC}\n"
-printf "${MAGENTA} 1.1.5 | 07/10/2025 | - Built a function to check for sccadm user ${NC}\n"
-printf "${MAGENTA} 1.1.6 | 07/10/2025 | - Built a boot report function ${NC}\n"
-printf "${MAGENTA} 1.1.7 | 07/10/2025 | - Built a short oscheck function${NC}\n"
-printf "${MAGENTA} 1.1.8 | 07/15/2025 | - Built a confirm action function${NC}\n"
-printf "${MAGENTA} 1.1.9 | 07/16/2025 | - Built a app server check function${NC}\n"
-printf "${MAGENTA} 1.2.0 | 07/16/2025 | - Built a richapp check function${NC}\n"
-printf "${MAGENTA} 1.2.1 | 07/17/2025 | - Built a linfo command check function${NC}\n"
-printf "${MAGENTA} 1.2.2 | 07/17/2025 | - Built a Linux system check function${NC}\n"
-printf "${MAGENTA} 1.2.3 | 07/17/2025 | - Rebuilt linfo! to integrate into mrpz.sh and be more optimized${NC}\n"
-printf "${MAGENTA} 1.2.4 | 09/22/2025 | - Added a hugepages check after issue discovered.${NC}\n"
+printf "${MAGENTA} 1.0.4 | 06/10/2025 | - Built a function to check for sccadm user ${NC}\n"
+printf "${MAGENTA} 1.0.5 | 06/17/2025 | - Created devconsolefix function building out system checks ${NC}\n"
+printf "${MAGENTA} 1.0.6 | 06/17/2025 | - Built oscheck function ${NC}\n"
+printf "${MAGENTA} 1.0.7 | 06/24/2025 | - Build hardware platform detection functions ${NC}\n"
+printf "${MAGENTA} 1.0.8 | 07/09/2025 | - Built mqfix to correct message queue limits ${NC}\n"
+printf "${MAGENTA} 1.0.9 | 07/10/2025 | - Built description section for problems ${NC}\n"
+printf "${MAGENTA} 1.1.0 | 07/10/2025 | - Built a function to check for sccadm user ${NC}\n"
+printf "${MAGENTA} 1.1.1 | 07/10/2025 | - Built a boot report function ${NC}\n"
+printf "${MAGENTA} 1.1.2 | 07/10/2025 | - Built a short oscheck function${NC}\n"
+printf "${MAGENTA} 1.1.3 | 07/15/2025 | - Built a confirm action function${NC}\n"
+printf "${MAGENTA} 1.1.4 | 07/16/2025 | - Built a app server check function${NC}\n"
+printf "${MAGENTA} 1.1.5 | 07/16/2025 | - Built a richapp check function${NC}\n"
+printf "${MAGENTA} 1.1.6 | 07/17/2025 | - Built a linfo command check function${NC}\n"
+printf "${MAGENTA} 1.1.7 | 07/17/2025 | - Built a Linux system check function${NC}\n"
+printf "${MAGENTA} 1.1.8 | 07/17/2025 | - Rebuilt linfo! to integrate into mrpz.sh and be more optimized${NC}\n"
+printf "${MAGENTA} 1.1.9 | 09/22/2025 | - Added a hugepages usage check in oscheck.${NC}\n"
+printf "${MAGENTA} 1.2.0 | 09/22/2025 | - Added a hugepages usage option for more detailed statistics.${NC}\n"
 }
 
 print_help() {
@@ -158,18 +154,13 @@ printf "${YELLOW}--help${NC}	# Gives script overview information\n\n"
 printf "${YELLOW}--ver${NC} 	# Gives script versioning related information\n\n"
 printf "\n${MAGENTA}NTP Based Options:${NC}\n"
 printf "${YELLOW}--ntpcheck${NC}	# Gives you system NTP related information\n\n"
-printf "\n${MAGENTA}SMTP Based Options:${NC}\n"
-printf "${YELLOW}--smtpcheck${NC}	# Gives you system SMTP related information\n\n"
-printf "${YELLOW}--smtptest${NC}	# Allows you to send a test email and retrieve the status from the mail log\n\n"
-printf "${YELLOW}--smtpconfig${NC}	# Allows you to setup and configure a non-SASL relayhost in postfix\n\n"
-printf "${YELLOW}--smtpsaslconfig${NC}	# Allows you to setup and configure a SASL relayhost in postfix\n\n"
-printf "${YELLOW}--smtpsaslremove${NC}	# Allows you to remove a SASL relayhost and configuration in postfix\n\n"
 printf "\n${MAGENTA}General System Information Options:${NC}\n"
 printf "${YELLOW}--oscheck${NC}	# Gives you a general system information overview\n\n"
 printf "${YELLOW}--shortoscheck${NC}	# Gives you a general system information overview omitting good\n\n"
 printf "${YELLOW}--harddetect${NC}	# Detects the hardware platform a Linux host is running on\n\n"
 printf "${YELLOW}--bootreport <ENVUSER>${NC}	# Creates a report on commonly viewed startup checks\n\n"
 printf "${YELLOW}--linfo${NC}	# Creates a system information archive with important details\n\n"
+printf "${YELLOW}--hugeusage${NC}	# Checks the details regarding the hughpage usage on system\n\n"
 printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
 printf "${YELLOW}--devconsolefix${NC}	# Checks and corrects the /dev/console rules on system\n\n"
 printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on system\n\n"
@@ -233,193 +224,6 @@ for SERVER in $(grep -E "^(server|pool)" /etc/chrony.conf | awk '{print $2}'); d
     	fi
 	printf "${MAGENTA}============================================= ${NC} \n"
 done
-}
-
-print_smtpcheck() {
-check_root
-printf "\n${MAGENTA}SMTP Status${NC}\n"
-printf "${MAGENTA}===========${NC}\n"
-
-which postconf >> /dev/null
-local EXITPOSTCONF=$(echo $?)
-local SMTPPERSISTENCE=$(systemctl status postfix | grep -i enabled | awk '{ print $4 }')
-local RELAYHOST=$(postconf relayhost | awk '{print $3}' | sed 's/\[\(.*\)\]:.*/\1/')
-local MAILDIR=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
-local SASL_PASSWD_DB="/etc/postfix/sasl_passwd.db"
-local VIRTUAL_DB="/etc/postfix/virtual.db"
-
-if [[ "${EXITPOSTCONF}" == "0" ]]; then
-	printf "Postfix Installation Status: ${GREEN}Installed${NC}\n"
-else
-        printf "Postfix Installation Status: ${RED}!!!Not Installed!!!${NC}\n"
-fi
-
-if [[ "${SMTPPERSISTENCE}" == "enabled;" ]]; then
-        printf "Survives Reboot: ${GREEN}Yes${NC}\n"
-else
-        printf "Survives Reboot: ${RED}No${NC}\n"
-fi
-
-if systemctl is-active --quiet postfix; then
-	printf "Postfix Running Status: ${GREEN}Running${NC}\n"
-else
-	printf "Postfix Running Status: ${RED}Not Running${NC}\n"
-fi
-
-
-if [ -n "${RELAYHOST}" ]; then
-	printf "Configured Relayhost: ${GREEN}${RELAYHOST}${NC}\n"
-else
-	printf "Configured Relayhost: ${RED}There Is None${NC}\n"
-fi
-
-printf "Path To Configured Maillog: ${GREEN}${MAILDIR}${NC}\n"
-
-if [ -r "${SASL_PASSWD_DB}" ]; then
-	printf "Configuration Type: ${GREEN}SASL Based Configuration${NC}\n"
-else
-	printf "Configured Type: ${GREEN}Non-SASL Based Configuration${NC}\n"
-fi
-
-if rpm -q cyrus-sasl-plain &>/dev/null; then
-	printf "cyrus-sasl-plain Package: ${GREEN}Installed${NC}\n"
-else
-        printf "cyrus-sasl-plain Package: ${RED}Not Installed${NC}\n"
-fi
-
-if [ -r "${VIRTUAL_DB}" ]; then
-	printf "Virtual Table: ${GREEN}Configured${NC}\n"
-else
-        printf "Virtual Table: ${RED}Not Configured${NC}\n"
-fi
-
-ping -c 3 "${RELAYHOST}" > /dev/null 2>&1
-local RELAYREACH=$(echo $?)
-
-if [[ "${RELAYREACH}" == "0" ]]; then
-	printf "Is The Relayhost Online?: ${GREEN}Yes${NC}\n"
-else
-	printf "Is The Relayhost Online?: ${RED}No${NC}\n"
-fi
-
-timeout 5 nc -zv -w 3 "${RELAYHOST}" 25 &>/dev/null
-local SMTP25=$(echo $?)
-
-if [[ "${SMTP25}" == "0" ]]; then
-	printf "Is Relayhost Reachable On Port 25?: ${GREEN}Yes${NC}\n"
-else
-	printf "Is Relayhost Reachable On Port 25?: ${RED}No${NC}\n"
-fi
-
-timeout 5 nc -zv -w 3 "${RELAYHOST}" 587 &>/dev/null
-local SMTP587=$(echo $?)
-
-if [[ "${SMTP587}" == "0" ]]; then
-	printf "Is Relayhost Reachable On Port 587?: ${GREEN}Yes${NC}\n"
-else
-	printf "Is Relayhost Reachable On Port 587?: ${RED}No${NC}\n"
-fi
-
-}
-
-print_testemail() {
-check_root
-confirm_action
-local MAILDIR=$(cat /etc/rsyslog.conf | grep -i 'mail.\*' | awk '{print $2}' | sed 's/^-//')
-local TMPFILE="/tmp/testsmtpfile.txt"
-cp "${MAILDIR}" "${MAILDIR}".bak
-> "${MAILDIR}"
-echo "This is a test email" > "${TMPFILE}"
-read -p "Enter sender: " SENDER
-read -p "Enter recipient: " RECIPIENT
-mail -r "${SENDER}" -s "SMTP Test Email From $(hostname)" "${RECIPIENT}" < "${TMPFILE}"
-rm "${TMPFILE}"
-sleep 5
-local RELAY=$(tail "${MAILDIR}" | grep -i "${RECIPIENT}" | awk '{print $8}' | sed 's/^relay=//;s/,$//')
-local DSN=$(tail "${MAILDIR}" | grep -i "${RECIPIENT}" | awk '{print $11}' | sed 's/,$//')
-printf "DSN Number Of Test Email: \n${YELLOW}${DSN}${NC}\n"
-printf "Relayed To: \n${YELLOW}${RELAY}${NC}\n"
-local MESSAGEID=$(tail "${MAILDIR}" | grep -i "${RECIPIENT}" | awk '{print $6}' | sed 's/^relay=//;s/:$//')
-printf "Email MessageID: \n${YELLOW}${MESSAGEID}${NC}\n"
-cat "${MAILDIR}" >> "${MAILDIR}".bak
-cat "${MAILDIR}".bak > "${MAILDIR}"
-}
-
-print_smtpconfig() {
-check_root
-confirm_action
-if command -v postfix &>/dev/null; then
-	read -p "Enter Relay Host's IP Or FQDN: " RELAYHOST
-        read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " PORT
-        systemctl enable --now postfix &>/dev/null
-        postconf -e "relayhost = [${RELAYHOST}]:${PORT}"
-        systemctl restart postfix
-        printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
-else
-        read -p "Enter Relay Host's IP Or FQDN: " RELAYHOST
-        read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " PORT
-        yum install postfix -y &>/dev/null
-        systemctl enable --now postfix &>/dev/null
-        postconf -e "relayhost = [${RELAYHOST}]:${PORT}"
-        systemctl restart postfix
-fi
-printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
-}
-
-print_saslconfig() {
-check_root
-
-if command -v postfix &>/dev/null; then
-	read -p "Enter Relay Host's IP Or FQDN: " RELAYHOST
-        read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " PORT
-        read -p "Enter the authorized SASL sender: " SASLSENDER
-        read -p "Enter the SASL password for the authorized SASL sender: " SASLPASSWORD
-        yum install cyrus-sasl-plain -y &>/dev/null
-        systemctl enable --now postfix &>/dev/null
-        postconf -e "relayhost = [${RELAYHOST}]:${PORT}"
-        postconf -e "smtp_use_tls = yes"
-        postconf -e "smtp_sasl_auth_enable = yes"
-        postconf -e "smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd"
-        postconf -e "smtp_sasl_security_options = noanonymous"
-        echo "[${RELAYHOST}]:${PORT}    ${SASLSENDER}:${SASLPASSWORD}" > /etc/postfix/sasl_passwd
-        postmap /etc/postfix/sasl_passwd
-        chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
-        systemctl restart postfix
-else
-        read -p "Enter Relay Host's IP Or FQDN: " RELAYHOST
-        read -p "Enter Configured Port To Relay SMTP Over 25 or 587: " PORT
-        read -p "Enter the authorized SASL sender: " SASLSENDER
-        read -p "Enter the SASL password for the authorized SASL sender: " SASLPASSWORD
-        yum install postfix -y &>/dev/null
-        yum install cyrus-sasl-plain -y &>/dev/null
-        systemctl enable --now postfix &>/dev/null
-        postconf -e "relayhost = [${RELAYHOST}]:${PORT}"
-        postconf -e "smtp_use_tls = yes"
-        postconf -e "smtp_sasl_auth_enable = yes"
-        postconf -e "smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd"
-        postconf -e "smtp_sasl_security_options = noanonymous"
-        echo "[${RELAYHOST}]:${PORT}    ${SASLSENDER}:${SASLPASSWORD}" > /etc/postfix/sasl_passwd
-        postmap /etc/postfix/sasl_passwd
-        chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
-        systemctl restart postfix
-fi
-printf "${GREEN}Postfix has been configured please proceed with testing!${NC}\n"
-}
-
-print_saslremove() {
-check_root
-confirm_action
-printf "${MAGENTA}SASL Configuration Is Being Removed.....${NC}\n"
-postconf -e "smtp_use_tls = no"
-postconf -e "smtp_sasl_auth_enable = no"
-postconf -e "smtp_sasl_password_maps ="
-postconf -e "smtp_sasl_security_options = noplaintext, noanonymous"
-postconf -e "relayhost ="
-> /etc/postfix/sasl_passwd
-postmap /etc/postfix/sasl_passwd &>/dev/null
-rm -rf /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
-systemctl restart postfix &>/dev/null
-printf "${GREEN}!!!SASL Configuration Has Been Removed!!!${NC}\n"
 }
 
 get_raw_mem_percentages() {
@@ -1302,13 +1106,13 @@ local hugepages=$(sysctl -n vm.nr_hugepages)
 # Get hugepage size in KB
 local hugepage_size_kb=$(grep Hugepagesize /proc/meminfo | awk '{print $2}')
 # Convert hugepages to MB
-hugepages_mem=$(( hugepages * hugepage_size_kb / 1024 ))
+local hugepages_mem=$(( hugepages * hugepage_size_kb / 1024 ))
 
 # Calculate percentage (hugepages / total_mem * 100)
 if [ "$total_mem" -gt 0 ]; then
-            percent=$(awk -v h="$hugepages_mem" -v t="$total_mem" 'BEGIN {printf "%.2f", (h/t)*100}')
+            local percent=$(awk -v h="$hugepages_mem" -v t="$total_mem" 'BEGIN {printf "%.2f", (h/t)*100}')
     else
-            percent=0
+            local percent=0
 fi
 
 # Check threshold
@@ -1397,6 +1201,32 @@ print_shortoscheck() {
     print_oscheck | awk '{ stripped_line = $0; gsub(/\x1B\[[0-9;]*[a-zA-Z]/, "", stripped_line); if (tolower(stripped_line) !~ /!!good!!/) print $0 }' > /tmp/oscheck.txt
     cat /tmp/oscheck.txt
     rm -rf /tmp/oscheck.txt
+}
+
+print_hugeusage() {
+	# Threshold percentage (default 70%)
+	local threshold=${1:-70}
+	# Get total memory in MB
+	local total_mem=$(free -m | awk '/^Mem:/ {print $2}')
+	# Get hugepages count
+	local hugepages=$(sysctl -n vm.nr_hugepages)
+	# Get hugepage size in KB
+	local hugepage_size_kb=$(grep Hugepagesize /proc/meminfo | awk '{print $2}')
+	# Convert hugepages to MB
+	local hugepages_mem=$(( hugepages * hugepage_size_kb / 1024 ))
+
+	# Calculate percentage (hugepages / total_mem * 100)
+	if [ "$total_mem" -gt 0 ]; then
+            local percent=$(awk -v h="$hugepages_mem" -v t="$total_mem" 'BEGIN {printf "%.2f", (h/t)*100}')
+    else
+            local percent=0
+	fi
+
+	printf "\n${MAGENTA}Hugepage Usage${NC}\n"
+	printf "${MAGENTA}=============${NC}\n"
+	printf "${YELLOW}total Memory:{NC} ${MAGENTA}Not Synchronized${NC}\n"
+	printf "${YELLOW}HugePages:{NC} ${MAGENTA}Not Synchronized${NC}\n"
+	printf "${YELLOW}Percentage:{NC} ${MAGENTA}Not Synchronized${NC}\n"
 }
 
 print_linfo() {
@@ -1804,11 +1634,6 @@ case "$1" in
 	--ver) print_version ;;
 	--help) print_help ;;
 	--ntpcheck) print_ntpcheck ;;
-	--smtpcheck) print_smtpcheck ;;
-	--smtptest) print_testemail ;;
-	--smtpconfig) print_smtpconfig ;;
-	--smtpsaslconfig) print_saslconfig ;;
-	--smtpsaslremove) print_saslremove ;;
 	--devconsolefix) print_devconsolefix ;;
 	--oscheck) print_oscheck ;;
 	--harddetect) print_harddetect ;;
@@ -1819,6 +1644,7 @@ case "$1" in
  	--bootreport) print_bootreport "$2" ;;
   	--shortoscheck) print_shortoscheck ;;
    	--linfo) print_linfo ;;
+	--hugeusage) print_hugeusage ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
