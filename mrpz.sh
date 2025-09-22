@@ -147,6 +147,7 @@ printf "${MAGENTA} 1.2.0 | 07/16/2025 | - Built a richapp check function${NC}\n"
 printf "${MAGENTA} 1.2.1 | 07/17/2025 | - Built a linfo command check function${NC}\n"
 printf "${MAGENTA} 1.2.2 | 07/17/2025 | - Built a Linux system check function${NC}\n"
 printf "${MAGENTA} 1.2.3 | 07/17/2025 | - Rebuilt linfo! to integrate into mrpz.sh and be more optimized${NC}\n"
+printf "${MAGENTA} 1.2.4 | 09/22/2025 | - Added a hugepages check after issue discovered.${NC}\n"
 }
 
 print_help() {
@@ -1290,6 +1291,33 @@ if command -v firewall-cmd &>/dev/null; then
     fi
 else
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!ATTN!!" "Firewall-cmd does not exist"
+fi
+
+# Threshold percentage (default 70%)
+local threshold=${1:-70}
+# Get total memory in MB
+local total_mem=$(free -m | awk '/^Mem:/ {print $2}')
+# Get hugepages count
+local hugepages=$(sysctl -n vm.nr_hugepages)
+# Get hugepage size in KB
+local hugepage_size_kb=$(grep Hugepagesize /proc/meminfo | awk '{print $2}')
+# Convert hugepages to MB
+hugepages_mem=$(( hugepages * hugepage_size_kb / 1024 ))
+
+# Calculate percentage (hugepages / total_mem * 100)
+if [ "$total_mem" -gt 0 ]; then
+            percent=$(awk -v h="$hugepages_mem" -v t="$total_mem" 'BEGIN {printf "%.2f", (h/t)*100}')
+    else
+            percent=0
+fi
+
+# Check threshold
+local percent_int=${percent%.*}
+
+if [ "$percent_int" -ge "$threshold" ]; then
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Hugepage Usage" "!!BAD!!" "HugePages consume ${percent}% of total memory (>= ${threshold}%)"
+else
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Hugepage Usage" "!!GOOD!!" "HugePages usage is below ${threshold}%"
 fi
 
 if cat /sys/kernel/mm/transparent_hugepage/enabled | grep -q "\[never\]"; then
