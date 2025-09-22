@@ -1097,6 +1097,9 @@ else
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!ATTN!!" "Firewall-cmd does not exist"
 fi
 
+local process_oralsnr=$(ps -ef | grep lsnr | grep -v grep | wc -l)
+
+if [ "$process_oralsnr" -eq 0 ]; then
 # Threshold percentage (default 70%)
 local threshold=${1:-70}
 # Get total memory in MB
@@ -1122,6 +1125,7 @@ if [ "$percent_int" -ge "$threshold" ]; then
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Hugepage Usage" "!!BAD!!" "HugePages consume ${percent}% of total memory (>= ${threshold}%) (Percentage: $percent_int)"
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Hugepage Usage" "!!GOOD!!" "HugePages usage is below ${threshold}% (Percentage: $percent_int)"
+fi
 fi
 
 if cat /sys/kernel/mm/transparent_hugepage/enabled | grep -q "\[never\]"; then
