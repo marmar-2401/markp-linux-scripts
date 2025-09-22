@@ -1225,21 +1225,11 @@ if [ "$total_mem" -gt 0 ]; then
     else
                 percent=0
         fi
-
-        echo "Total Memory: ${total_mem} MB"
-        echo "HugePages: ${hugepages} pages (${hugepages_mem} MB)"
-        echo "Percentage: $percent%"
-
-        # Check threshold
-        percent_int=${percent%.*}   # strip decimals for comparison
-        if [ "$percent_int" -ge "$threshold" ]; then
-                    echo "⚠️ ALERT: HugePages consume ${percent}% of total memory (>= ${threshold}%)"
-                        exit 1
-                else
-                            echo "✅ OK: HugePages usage is below ${threshold}%"
-                                exit 0
-                        fi
-
+printf "\n${MAGENTA}Hugepage Usage${NC}\n"
+printf "${MAGENTA}==============${NC}\n"
+echo "Total Memory: ${total_mem} MB"
+echo "HugePages: ${hugepages} pages (${hugepages_mem} MB)"
+echo "Percentage: $percent%"
 }
 
 print_linfo() {
