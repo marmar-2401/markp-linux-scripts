@@ -143,8 +143,9 @@ printf "${MAGENTA} 1.1.6 | 07/17/2025 | - Built a linfo command check function${
 printf "${MAGENTA} 1.1.7 | 07/17/2025 | - Built a Linux system check function${NC}\n"
 printf "${MAGENTA} 1.1.8 | 07/17/2025 | - Rebuilt linfo! to integrate into mrpz.sh and be more optimized${NC}\n"
 printf "${MAGENTA} 1.1.9 | 09/22/2025 | - Added a hugepages usage check in oscheck.${NC}\n"
-printf "${MAGENTA} 1.2.0 | 09/22/2025 | - Added a hugepages usage option for more detailed statistics.${NC}\n"
-printf "${MAGENTA} 1.2.1 | 09/23/2025 | - Added a hugepage check for persistence & run-time configs.${NC}\n"
+printf "${MAGENTA} 1.2.0 | 09/22/2025 | - Added a hugepages usage option for more detailed statistics${NC}\n"
+printf "${MAGENTA} 1.2.1 | 09/23/2025 | - Added a hugepage check for persistence & run-time configs${NC}\n"
+printf "${MAGENTA} 1.2.1 | 09/23/2025 | - Added a unlabeled context checker${NC}\n"
 }
 
 print_help() {
