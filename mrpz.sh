@@ -1139,6 +1139,7 @@ if [ "$oradb" = true ]; then
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Huge Page Persist/Run-Time" "!!BAD!!" "There is a persist/run-time mismatch"
 	else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Huge Page Persist/Run-Time" "!!GOOD!!" "Persist/run-time are not zero & are ="
+	fi
 else
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Huge Page Persist/Run-Time" "!!GOOD!!" "This is not a database server"
 fi
