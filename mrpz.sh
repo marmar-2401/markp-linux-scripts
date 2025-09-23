@@ -1215,7 +1215,7 @@ elif [[ "${OSTYPE}" == *"Red Hat Enterprise Linux"* ]]; then
 	
 fi
 
-local unlabeledcontext=$(ls -lZ / | grep -i unlabeled | wc)
+local unlabeledcontext=$(ls -lZ / | grep -i unlabeled | wc -l)
 
 if [ "${unlabeledcontext}" -eq 0 ]; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Unlabeled Context" "!!GOOD!!" "Optimal"
