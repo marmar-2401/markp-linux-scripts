@@ -1134,14 +1134,14 @@ fi
 
 if [ "$oradb" = true ]; then
 	if [ "${runtimehuge}" = 0 ] || [ "${persisthuge}" = 0 ]; then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Huge Page Persist/Run-Time" "!!BAD!!" "One of the values is set to zero"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Hugepage In Mem" "!!BAD!!" "One of the values is set to zero"
 	elif [ "${runtimehuge}" -ne "${persisthuge}" ] ; then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Huge Page Persist/Run-Time" "!!BAD!!" "There is a persist/run-time mismatch"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Hugepage In Mem" "!!BAD!!" "There is a persist/run-time mismatch"
 	else
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Huge Page Persist/Run-Time" "!!GOOD!!" "Persist/run-time are not zero & are ="
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Hugepage In Mem" "!!GOOD!!" "Persist/run-time are not zero & are ="
 	fi
 else
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Huge Page Persist/Run-Time" "!!GOOD!!" "This is not a database server"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Hugepage In Mem" "!!GOOD!!" "This is not a database server"
 fi
 
 
