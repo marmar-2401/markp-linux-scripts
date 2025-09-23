@@ -109,7 +109,7 @@ linux_check() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.2.0 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.2.1 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -144,6 +144,7 @@ printf "${MAGENTA} 1.1.7 | 07/17/2025 | - Built a Linux system check function${N
 printf "${MAGENTA} 1.1.8 | 07/17/2025 | - Rebuilt linfo! to integrate into mrpz.sh and be more optimized${NC}\n"
 printf "${MAGENTA} 1.1.9 | 09/22/2025 | - Added a hugepages usage check in oscheck.${NC}\n"
 printf "${MAGENTA} 1.2.0 | 09/22/2025 | - Added a hugepages usage option for more detailed statistics.${NC}\n"
+printf "${MAGENTA} 1.2.1 | 09/23/2025 | - Added a hugepage check for persistence & run-time configs.${NC}\n"
 }
 
 print_help() {
@@ -1097,9 +1098,6 @@ else
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!ATTN!!" "Firewall-cmd does not exist"
 fi
 
-local process_oralsnr=$(ps -ef | grep lsnr | grep -v grep | wc -l)
-
-if [ "$process_oralsnr" -ne 0 ]; then
 # Threshold percentage (default 70%)
 local threshold=${1:-70}
 # Get total memory in MB
@@ -1126,7 +1124,25 @@ if [ "$percent_int" -ge "$threshold" ]; then
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Hugepage Usage" "!!GOOD!!" "HugePages usage is below ${threshold}% (Percentage: $percent_int)"
 fi
+
+local process_oralsnr=$(ps -ef | grep lsnr | grep -v grep | wc -l)
+local runtimehuge=$(sysctl -n vm.nr_hugepages)
+local persisthuge=$(grep -i "^vm.nr_hugepages" /etc/sysctl.d/99-sysctl.conf | awk -F = '{print $2}')
+if [ "${process_oralsnr}" -ne 0 ]; then
+  oradb=true
 fi
+
+if [ "$oradb" = true ]; then
+	if [ "${runtimehuge}" = 0 ] || [ "${persisthuge}" = 0 ]; then
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Huge Page Persist/Run-Time" "!!BAD!!" "One of the values is set to zero"
+	elif [ "${runtimehuge}" -ne "${persisthuge}" ] ; then
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Huge Page Persist/Run-Time" "!!BAD!!" "There is a persist/run-time mismatch"
+	else
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Huge Page Persist/Run-Time" "!!GOOD!!" "Persist/run-time are not zero & are ="
+else
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Huge Page Persist/Run-Time" "!!GOOD!!" "This is not a database server"
+fi
+
 
 if cat /sys/kernel/mm/transparent_hugepage/enabled | grep -q "\[never\]"; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Transparent Hugepage" "!!GOOD!!" "[never] present"
