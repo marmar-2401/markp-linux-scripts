@@ -911,7 +911,7 @@ if command -v podman &> /dev/null; then
 		if [ -z "$LOCK_ENTRY" ]; then
         	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Podman Version Lock" "!!BAD!!" "No Podman Version Lock"
 		else
-        	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Podman Version Lock" "!!ATTN!!" "Version Lock In Place: ${LOCK_ENTRY}"
+			printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Podman Version Lock" "!!GOOD!!" "Version Lock In Place: ${LOCK_ENTRY}"
 		fi
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Podman" "!!GOOD!!" "No Podman"
