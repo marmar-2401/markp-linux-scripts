@@ -903,8 +903,15 @@ else
 fi
 
 if command -v podman &> /dev/null; then
-    	local PODVER=$(podman --version 2>/dev/null)
+    local PODVER=$(podman --version 2>/dev/null)
 	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Podman" "!!ATTN!!" "${PODVER}"
+	local LOCK_ENTRY=$(dnf versionlock list 2>/dev/null | grep -vE '^Last metadata|^$|^$|^\s*$' | grep "podman")
+ 
+		if [ -z "$LOCK_ENTRY" ]; then
+        	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Podman Version Lock" "!!BAD!!" "No Podman Version Lock"
+		else
+        	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Podman Version Lock" "!!ATTN!!" "Version Lock In Place: ${LOCK_ENTRY}"
+		fi
 else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Podman" "!!GOOD!!" "No Podman"
 fi
