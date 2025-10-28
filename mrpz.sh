@@ -146,6 +146,7 @@ printf "${MAGENTA} 1.1.9 | 09/22/2025 | - Added a hugepages usage check in osche
 printf "${MAGENTA} 1.2.0 | 09/22/2025 | - Added a hugepages usage option for more detailed statistics${NC}\n"
 printf "${MAGENTA} 1.2.1 | 09/23/2025 | - Added a hugepage check for persistence & run-time configs${NC}\n"
 printf "${MAGENTA} 1.2.1 | 09/23/2025 | - Added a unlabeled context checker${NC}\n"
+printf "${MAGENTA} 1.2.2 | 10/28/2025 | - Added Podman version lock checker to oscheck${NC}\n"
 }
 
 print_help() {
