@@ -147,6 +147,7 @@ printf "${MAGENTA} 1.2.0 | 09/22/2025 | - Added a hugepages usage option for mor
 printf "${MAGENTA} 1.2.1 | 09/23/2025 | - Added a hugepage check for persistence & run-time configs${NC}\n"
 printf "${MAGENTA} 1.2.1 | 09/23/2025 | - Added a unlabeled context checker${NC}\n"
 printf "${MAGENTA} 1.2.2 | 10/28/2025 | - Added Podman version lock checker to oscheck${NC}\n"
+printf "${MAGENTA} 1.2.3 | 10/28/2025 | - Streamlined and added DB and APP server checks to specific checks${NC}\n"
 }
 
 print_help() {
@@ -572,13 +573,15 @@ else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Uptime" "!!GOOD!!" "${DAYS_UP} days"
 fi
 
-local TERMTYPE="$TERM"
+#May use in future after more relevant information is gathered 
 
-if [[ "${TERMTYPE}" != "vt220scc" ]]; then
-      printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "TERM Of vt220scc" "!!BAD!!" "${TERMTYPE}"
-else
-      printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "TERM Of vt220scc" "!!GOOD!!" "${TERMTYPE}"
-fi
+#local TERMTYPE="$TERM"
+
+#if [[ "${TERMTYPE}" != "vt220scc" ]]; then
+      #printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "TERM Of vt220scc" "!!BAD!!" "${TERMTYPE}"
+#else
+      #printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "TERM Of vt220scc" "!!GOOD!!" "${TERMTYPE}"
+#fi
 
 local CURRENT_SHELL="$SHELL"
 
@@ -731,12 +734,6 @@ if [ -z "${UNLABELED_FILES}" ]; then
     	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SELinux Unlabled" "!!GOOD!!" "Optimal"
 else
     	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "SELinux Unlabled" "!!BAD!!" "Unlabeled context 'restorecon -Rv /' or 'journalctl -t setroubleshoot'"
-fi
-
-if systemctl is-active --quiet postfix.service; then
-	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Postfix" "!!GOOD!!" "Running"
-else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Postfix" "!!BAD!!" "Not Running/installed"
 fi
 
 local NTPSYNC=$(unset TZ; timedatectl | head -5 | tail -1 | awk '{ print $NF }')
@@ -991,7 +988,7 @@ fi
 if [ -n "${MULTIPLE_IP_INTERFACES}" ] && ${ISCSI_ACTIVE}; then
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!ATTN!!" "Multiple IPs and iSCSI sessions detected (Run 'ip -br a' & 'iscsiadm -m session')"
 elif [ -n "${MULTIPLE_IP_INTERFACES}" ] && ! ${ISCSI_ACTIVE}; then
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!BAD!!" "Multiple service IPs detected (Run 'ip -br a')"
+	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!ATTN!!" "Multiple service IPs detected (Run 'ip -br a')"
 else
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!GOOD!!" "No Service IP"
 fi
