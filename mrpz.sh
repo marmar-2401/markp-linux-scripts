@@ -1712,12 +1712,7 @@ print_badextfs() {
     if [ ${#BAD_FS[@]} -eq 0 ]; then
         printf "${GREEN}EXT Integrity Check Status: Clean${NC}\n"
     else
-        printf "${RED}EXT Integrity Check Status: BAD${NC}\n"
-        
-        if [ "$LIST_BAD_FS" = "1" ]; then
-            # ADDED: This line prints the header for the list of bad filesystems
-            printf "${YELLOW}Filesystems Lacking 'clean' Status:${NC}\n" 
-            
+        printf "${RED}EXT Integrity Check Status: BAD${NC}\n"             
             for FS in "${BAD_FS[@]}"; do
                 printf "  %s\n" "$FS"
             done
