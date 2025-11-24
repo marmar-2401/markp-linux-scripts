@@ -1698,19 +1698,26 @@ print_badextfs() {
         [[ "$FS_TYPE" != "ext4" ]] && continue
         [[ ! -b "$DEVICE" ]] && continue
 
+        # Check if 'clean' is NOT found in the fsck -n output
         if ! $FSCK_BIN -n "$DEVICE" 2>&1 | grep -q 'clean'; then
+            
+            # Add the filesystem to the array because it did not report 'clean'
             BAD_FS+=("$DEVICE (Mount: $MOUNT_POINT)")
         fi
 
     done < /proc/mounts
     
-
+    # --- Reporting ---
+    
     if [ ${#BAD_FS[@]} -eq 0 ]; then
         printf "${GREEN}EXT Integrity Check Status: Clean${NC}\n"
     else
         printf "${RED}EXT Integrity Check Status: BAD${NC}\n"
         
         if [ "$LIST_BAD_FS" = "1" ]; then
+            # ADDED: This line prints the header for the list of bad filesystems
+            printf "${YELLOW}Filesystems Lacking 'clean' Status:${NC}\n" 
+            
             for FS in "${BAD_FS[@]}"; do
                 printf "  %s\n" "$FS"
             done
