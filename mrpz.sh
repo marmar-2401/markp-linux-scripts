@@ -148,6 +148,7 @@ printf "${MAGENTA} 1.2.1 | 09/23/2025 | - Added a hugepage check for persistence
 printf "${MAGENTA} 1.2.1 | 09/23/2025 | - Added a unlabeled context checker${NC}\n"
 printf "${MAGENTA} 1.2.2 | 10/28/2025 | - Added Podman version lock checker to oscheck${NC}\n"
 printf "${MAGENTA} 1.2.3 | 10/28/2025 | - Streamlined and added DB and APP server checks to specific checks${NC}\n"
+printf "${MAGENTA} 1.2.4 | 11/24/2025 | - Added EXT FS checker to --oscheck and created --badextfs function${NC}\n"
 }
 
 print_help() {
@@ -165,6 +166,7 @@ printf "${YELLOW}--harddetect${NC}	# Detects the hardware platform a Linux host 
 printf "${YELLOW}--bootreport <ENVUSER>${NC}	# Creates a report on commonly viewed startup checks\n\n"
 printf "${YELLOW}--linfo${NC}	# Creates a system information archive with important details\n\n"
 printf "${YELLOW}--hugeusage${NC}	# Checks the details regarding the hughpage usage on system\n\n"
+printf "${YELLOW}--badextfs${NC}	# Gives you a list of corrupted EXT FS\n\n"
 printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
 printf "${YELLOW}--devconsolefix${NC}	# Checks and corrects the /dev/console rules on system\n\n"
 printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on system\n\n"
@@ -1229,6 +1231,29 @@ else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Unlabeled Context" "!!BAD!!" "Unlabeled context detected (Run 'ls -lZ / | grep -i unlabeled')"
 fi
 
+local BAD_FS=()
+local FSCK_BIN="/usr/sbin/fsck"
+local STATUS
+
+while IFS=' ' read -r DEVICE MOUNT_POINT FS_TYPE REST || [ -n "$DEVICE" ]; do
+    [[ "$FS_TYPE" != "ext4" ]] && continue
+    [[ ! -b "$DEVICE" ]] && continue
+
+    $FSCK_BIN -n "$DEVICE" >/dev/null 2>&1 || true
+    STATUS=$?
+
+    if [ $STATUS -ne 0 ]; then
+        BAD_FS+=("$DEVICE (Mount: $MOUNT_POINT, Status: $STATUS)")
+    fi
+
+done < /proc/mounts
+
+if [ ${#BAD_FS[@]} -eq 0 ]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "EXT FS Check" "!!GOOD!!" "No Corruption Showing On FS"
+else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "EXT FS Check" "!!BAD!!" "FS Corruption Found (Run 'bash mrpz.sh --badextfs')"
+fi
+
 printf "${GREEN}Check Complete!${NC}\n"
 }
 
@@ -1667,6 +1692,39 @@ printf "${MAGENTA}System information collection complete. Data is located in: ${
 printf "${MAGENTA}The newly collected information has been compressed into: ${NC}${NEW_ARCHIVE_NAME}\\n"
 }
 
+print_badextfs() {
+
+local BAD_FS=()
+local FSCK_BIN="/usr/sbin/fsck"
+local STATUS
+
+while IFS=' ' read -r DEVICE MOUNT_POINT FS_TYPE REST || [ -n "$DEVICE" ]; do
+    [[ "$FS_TYPE" != "ext4" ]] && continue
+    [[ ! -b "$DEVICE" ]] && continue
+
+    $FSCK_BIN -n "$DEVICE" >/dev/null 2>&1 || true
+    STATUS=$?
+
+    if [ $STATUS -ne 0 ]; then
+        BAD_FS+=("$DEVICE (Mount: $MOUNT_POINT, Status: $STATUS)")
+    fi
+
+done < /proc/mounts
+
+if [ ${#BAD_FS[@]} -eq 0 ]; then
+    printf "${GREEN}EXT4 Integrity Check Status: Clean${NC}\n"
+else
+    printf "${RED}EXT4 Integrity Check Status: bad${NC}\n"
+       
+    if [ $LIST_BAD_FS -eq 1 ]; then
+		printf "${YELLOW}Failed ext4 filesystems:${NC}\n"
+        for FS in "${BAD_FS[@]}"; do
+            echo "$FS"
+        done
+    fi
+fi
+}
+
 
 case "$1" in
 	--ver) print_version ;;
@@ -1674,6 +1732,7 @@ case "$1" in
 	--ntpcheck) print_ntpcheck ;;
 	--devconsolefix) print_devconsolefix ;;
 	--oscheck) print_oscheck ;;
+	--badextfs) print_badextfs ;;
 	--harddetect) print_harddetect ;;
 	--mqfix) print_mqfix ;;
  	--backupdisc) print_backupdisc ;;
