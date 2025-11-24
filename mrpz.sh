@@ -1233,17 +1233,14 @@ fi
 
 local BAD_FS=()
 local FSCK_BIN="/usr/sbin/fsck"
-local STATUS
+local DEVICE MOUNT_POINT FS_TYPE REST 
 
 while IFS=' ' read -r DEVICE MOUNT_POINT FS_TYPE REST || [ -n "$DEVICE" ]; do
     [[ "$FS_TYPE" != "ext4" ]] && continue
     [[ ! -b "$DEVICE" ]] && continue
-
-    $FSCK_BIN -n "$DEVICE" >/dev/null 2>&1 || true
-    STATUS=$?
-
-    if [ $STATUS -ne 0 ]; then
-        BAD_FS+=("$DEVICE (Mount: $MOUNT_POINT, Status: $STATUS)")
+	
+    if ! $FSCK_BIN -n "$DEVICE" 2>&1 | grep -q 'clean'; then
+        BAD_FS+=("$DEVICE (Mount: $MOUNT_POINT)")
     fi
 
 done < /proc/mounts
@@ -1693,38 +1690,33 @@ printf "${MAGENTA}The newly collected information has been compressed into: ${NC
 }
 
 print_badextfs() {
+    local BAD_FS=()
+    local FSCK_BIN="/usr/sbin/fsck"
+    local DEVICE MOUNT_POINT FS_TYPE REST
+    
+    while IFS=' ' read -r DEVICE MOUNT_POINT FS_TYPE REST || [ -n "$DEVICE" ]; do
+        [[ "$FS_TYPE" != "ext4" ]] && continue
+        [[ ! -b "$DEVICE" ]] && continue
 
-local BAD_FS=()
-local FSCK_BIN="/usr/sbin/fsck"
-local STATUS
+        if ! $FSCK_BIN -n "$DEVICE" 2>&1 | grep -q 'clean'; then
+            BAD_FS+=("$DEVICE (Mount: $MOUNT_POINT)")
+        fi
 
-while IFS=' ' read -r DEVICE MOUNT_POINT FS_TYPE REST || [ -n "$DEVICE" ]; do
-    [[ "$FS_TYPE" != "ext4" ]] && continue
-    [[ ! -b "$DEVICE" ]] && continue
+    done < /proc/mounts
+    
 
-    $FSCK_BIN -n "$DEVICE" >/dev/null 2>&1 || true
-    STATUS=$?
-
-    if [ $STATUS -ne 0 ]; then
-        BAD_FS+=("$DEVICE (Mount: $MOUNT_POINT, Status: $STATUS)")
+    if [ ${#BAD_FS[@]} -eq 0 ]; then
+        printf "${GREEN}EXT Integrity Check Status: Clean${NC}\n"
+    else
+        printf "${RED}EXT Integrity Check Status: BAD${NC}\n"
+        
+        if [ "$LIST_BAD_FS" = "1" ]; then
+            for FS in "${BAD_FS[@]}"; do
+                printf "  %s\n" "$FS"
+            done
+        fi
     fi
-
-done < /proc/mounts
-
-if [ ${#BAD_FS[@]} -eq 0 ]; then
-    printf "${GREEN}EXT Integrity Check Status: Clean${NC}\n"
-else
-    printf "${RED}EXT Integrity Check Status: bad${NC}\n"
-       
-    if [ $LIST_BAD_FS -eq 1 ]; then
-		printf "${YELLOW}Corrupted EXT Filesystems:${NC}\n"
-        for FS in "${BAD_FS[@]}"; do
-            echo "$FS"
-        done
-    fi
-fi
 }
-
 
 case "$1" in
 	--ver) print_version ;;
