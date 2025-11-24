@@ -1249,9 +1249,9 @@ while IFS=' ' read -r DEVICE MOUNT_POINT FS_TYPE REST || [ -n "$DEVICE" ]; do
 done < /proc/mounts
 
 if [ ${#BAD_FS[@]} -eq 0 ]; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "EXT FS Check" "!!GOOD!!" "No Corruption Showing On FS"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "EXT FS Check" "!!GOOD!!" "Filesystems Appear OK"
 else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "EXT FS Check" "!!BAD!!" "FS Corruption Found (Run 'bash mrpz.sh --badextfs')"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "EXT FS Check" "!!BAD!!" "FS Appear Unhealthy (Run 'bash mrpz.sh --badextfs')"
 fi
 
 printf "${GREEN}Check Complete!${NC}\n"
@@ -1712,12 +1712,12 @@ while IFS=' ' read -r DEVICE MOUNT_POINT FS_TYPE REST || [ -n "$DEVICE" ]; do
 done < /proc/mounts
 
 if [ ${#BAD_FS[@]} -eq 0 ]; then
-    printf "${GREEN}EXT4 Integrity Check Status: Clean${NC}\n"
+    printf "${GREEN}EXT Integrity Check Status: Clean${NC}\n"
 else
-    printf "${RED}EXT4 Integrity Check Status: bad${NC}\n"
+    printf "${RED}EXT Integrity Check Status: bad${NC}\n"
        
     if [ $LIST_BAD_FS -eq 1 ]; then
-		printf "${YELLOW}Failed ext4 filesystems:${NC}\n"
+		printf "${YELLOW}Corrupted EXT Filesystems:${NC}\n"
         for FS in "${BAD_FS[@]}"; do
             echo "$FS"
         done
