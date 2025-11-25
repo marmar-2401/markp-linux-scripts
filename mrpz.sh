@@ -1255,7 +1255,8 @@ fi
 
 
 local EXPECTED_FORMAT="%F %T "
-local CURRENT_FORMAT_TRIMMED=$(echo "$HISTTIMEFORMAT" | tr -d '\n' | xargs)
+
+local CURRENT_FORMAT_TRIMMED=$(echo "$HISTTIMEFORMAT" | tr -d '[:cntrl:]' | xargs)
 
 if [[ "$CURRENT_FORMAT_TRIMMED" == "${EXPECTED_FORMAT}" ]]; then
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "History Timestamp" "!!GOOD!!" "Variable Is Set"
