@@ -1253,14 +1253,15 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "EXT FS Check" "!!BAD!!" "FS Appear Unhealthy (Run 'bash mrpz.sh --badextfs')"
 fi
 
-local EXPECTED_FORMAT="%F %T "
 
-if [[ "${HISTTIMEFORMAT}" == "${EXPECTED_FORMAT}" ]]; then
+local EXPECTED_FORMAT="%F %T "
+local CURRENT_FORMAT_TRIMMED=$(echo "$HISTTIMEFORMAT" | xargs)
+
+if [[ "$CURRENT_FORMAT_TRIMMED" == "${EXPECTED_FORMAT}" ]]; then
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "History Timestamp" "!!GOOD!!" "Variable Is Set"
 else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "History Timestamp" "!!BAD!!" "HISTTIMEFORMAT Variable Not Set (Run 'bash mrpz.sh --histtimestampfix')"
 fi
-
 printf "${GREEN}Check Complete!${NC}\n"
 }
 
