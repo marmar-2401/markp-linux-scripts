@@ -1254,14 +1254,14 @@ else
 fi
 
 
-local EXPECTED_FORMAT="%F %T "
+local SEARCH_LINE='export HISTTIMEFORMAT="%F %T "'
+local CONFIG_FILE='/etc/bashrc'
 
-local CURRENT_FORMAT_TRIMMED=$(echo "$HISTTIMEFORMAT" | tr -d '[:cntrl:]' | xargs)
-
-if [[ "$CURRENT_FORMAT_TRIMMED" == "${EXPECTED_FORMAT}" ]]; then
+if grep -qF "$SEARCH_LINE" "$CONFIG_FILE"; then
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "History Timestamp" "!!GOOD!!" "Variable Is Set"
+    
 else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "History Timestamp" "!!BAD!!" "HISTTIMEFORMAT Variable Not Set (Run 'bash mrpz.sh --histtimestampfix')"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "History Timestamp" "!!BAD!!" "Config Line NOT Found (Run 'bash mrpz.sh --histtimestampfix')"
 fi
 
 printf "${GREEN}Check Complete!${NC}\n"
