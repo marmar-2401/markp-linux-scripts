@@ -10,7 +10,6 @@ CYAN='\033[0;36m'
 WHITE='\033[0;37m'
 NC='\033[0m'
 
-# Start Error Handing Functions
 check_root() {
 if [ "${EUID}" -ne 0 ]; then
 	printf "${RED}Error: This script must be run as root.${NC}\n"
@@ -105,11 +104,11 @@ linux_check() {
     fi
 }
 
-# End Error Handing Functions
+
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.2.1 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.2.6 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -149,6 +148,8 @@ printf "${MAGENTA} 1.2.1 | 09/23/2025 | - Added a unlabeled context checker${NC}
 printf "${MAGENTA} 1.2.2 | 10/28/2025 | - Added Podman version lock checker to oscheck${NC}\n"
 printf "${MAGENTA} 1.2.3 | 10/28/2025 | - Streamlined and added DB and APP server checks to specific checks${NC}\n"
 printf "${MAGENTA} 1.2.4 | 11/24/2025 | - Added EXT FS checker to --oscheck and created --badextfs function${NC}\n"
+printf "${MAGENTA} 1.2.5 | 11/25/2025 | - Added History Time Stamp Fix Option${NC}\n"
+printf "${MAGENTA} 1.2.6 | 11/25/2025 | - Added History Time Stamp Checker${NC}\n"
 }
 
 print_help() {
@@ -170,6 +171,7 @@ printf "${YELLOW}--badextfs${NC}	# Gives you a list of corrupted EXT FS\n\n"
 printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
 printf "${YELLOW}--devconsolefix${NC}	# Checks and corrects the /dev/console rules on system\n\n"
 printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on system\n\n"
+printf "${YELLOW}--histtimestampfix${NC}	# Corrects history timestamp variable in /etc/bashrc\n\n"
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
 printf "${YELLOW}--backupdisc${NC}	# Description for mklinb missing\n\n"
 printf "${YELLOW}--auditdisc${NC}	# Description for misconfigured audit rules\n\n"
@@ -1251,6 +1253,14 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "EXT FS Check" "!!BAD!!" "FS Appear Unhealthy (Run 'bash mrpz.sh --badextfs')"
 fi
 
+local EXPECTED_FORMAT="%F %T "
+
+if [[ "${HISTTIMEFORMAT}" == "${EXPECTED_FORMAT}" ]]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "History Timestamp" "!!GOOD!!" "Variable Is Set"
+else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "History Timestamp" "!!BAD!!" "HISTTIMEFORMAT Variable Not Set (Run 'bash mrpz.sh --histtimestampfix')"
+fi
+
 printf "${GREEN}Check Complete!${NC}\n"
 }
 
@@ -1690,6 +1700,7 @@ printf "${MAGENTA}The newly collected information has been compressed into: ${NC
 }
 
 print_badextfs() {
+	check_root
     local BAD_FS=()
     local FSCK_BIN="/usr/sbin/fsck"
     local DEVICE MOUNT_POINT FS_TYPE REST
@@ -1714,6 +1725,28 @@ print_badextfs() {
 	fi
 }
 
+print_histtimestamp() {
+    check_root
+    confirm_action
+
+    if cp /etc/bashrc /etc/bashrc.bak; then
+        printf "${GREEN}Backup Of /etc/bashrc Made${NC}\n"
+    else
+        printf "${RED}ERROR: Failed to create backup of /etc/bashrc.${NC}\n" >&2
+        return 1 
+    fi
+
+    echo 'export HISTTIMEFORMAT="%F %T "' >> /etc/bashrc
+    if [ $? -eq 0 ]; then
+        printf "${GREEN}History Timestamp Has Been Enabled!${NC}\n"
+    else
+        printf "${RED}ERROR: Failed to write HISTTIMEFORMAT to /etc/bashrc.${NC}\n" >&2
+        return 1 
+    fi
+
+    printf "${GREEN}Complete!${NC}\n"
+}
+
 case "$1" in
 	--ver) print_version ;;
 	--help) print_help ;;
@@ -1730,6 +1763,7 @@ case "$1" in
   	--shortoscheck) print_shortoscheck ;;
    	--linfo) print_linfo ;;
 	--hugeusage) print_hugeusage ;;
+	--histtimestampfix) print_histtimestamp ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
