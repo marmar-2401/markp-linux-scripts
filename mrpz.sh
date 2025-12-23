@@ -108,7 +108,7 @@ linux_check() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.2.6 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.2.7 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -150,6 +150,7 @@ printf "${MAGENTA} 1.2.3 | 10/28/2025 | - Streamlined and added DB and APP serve
 printf "${MAGENTA} 1.2.4 | 11/24/2025 | - Added EXT FS checker to --oscheck and created --badextfs function${NC}\n"
 printf "${MAGENTA} 1.2.5 | 11/25/2025 | - Added History Time Stamp Fix Option${NC}\n"
 printf "${MAGENTA} 1.2.6 | 11/25/2025 | - Added History Time Stamp Checker${NC}\n"
+printf "${MAGENTA} 1.2.7 | 12/23/2025 | - Added coredump check and permission fix${NC}\n"
 }
 
 print_help() {
@@ -172,6 +173,7 @@ printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
 printf "${YELLOW}--devconsolefix${NC}	# Checks and corrects the /dev/console rules on system\n\n"
 printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on system\n\n"
 printf "${YELLOW}--histtimestampfix${NC}	# Corrects history timestamp variable in /etc/bashrc\n\n"
+printf "${YELLOW}--coredumpfix${NC}	# Corrects coredump permissions\n\n"
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
 printf "${YELLOW}--auditdisc${NC}	# Description for misconfigured audit rules\n\n"
 printf "${YELLOW}--listndisc${NC}	# Description for oracle listener issues\n\n"
@@ -1230,6 +1232,49 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "History Timestamp" "!!BAD!!" "Config Line NOT Found (Run 'bash mrpz.sh --histtimestampfix')"
 fi
 
+check_coredump_permissions() {
+
+    local CORE_PATTERN_FILE="/proc/sys/kernel/core_pattern"
+    local COREDUMP_BIN="/usr/lib/systemd/systemd-coredump"
+    local COREDUMP_DIR="/var/lib/systemd/coredump"
+    local GROUP="sccadm"
+
+    if ! grep -qF "$COREDUMP_BIN" "$CORE_PATTERN_FILE"; then
+
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
+            "Coredump Permissions" "!!GOOD!!" "Systemd-coredump not in use."
+        return 0
+
+    elif ! command -v gdb >/dev/null 2>&1; then
+
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+            "Coredump Permissions" "!!BAD!!" "gdb package not installed ('dnf install gdb -y')"
+        return 1
+
+    elif ! getfacl "$COREDUMP_DIR" 2>/dev/null | grep -q "^default:group:${GROUP}:r--"; then
+
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+            "Coredump Permissions" "!!BAD!!" "Permission issues (Run 'bash mrpz.sh --coredumpfix')"
+        return 1
+
+    else
+        for f in "$COREDUMP_DIR"/*; do
+            [ -e "$f" ] || break
+            if ! getfacl "$f" 2>/dev/null | grep -q "^group:${GROUP}:r--"; then
+                printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+                    "Coredump Permissions" "!!BAD!!" "Permission issues (Run 'bash mrpz.sh --coredumpfix')"
+                return 1
+            fi
+        done
+		
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
+            "Coredump Permissions" "!!GOOD!!" "systemd-coredump ACLs and gdb verified"
+        return 0
+    fi
+}
+
+
+
 printf "${GREEN}Check Complete!${NC}\n"
 }
 
@@ -1716,6 +1761,18 @@ print_histtimestamp() {
     printf "${GREEN}Complete!${NC}\n"
 }
 
+print_coredumpfix() {
+
+check_root
+confirm_action
+
+printf "${GREEN}Running Coredump Permission Fix...${NC}\n"
+setfacl -d -m g:sccadm:r /var/lib/systemd/coredump >/dev/null 2>&1
+setfacl -m g:sccadm:r /var/lib/systemd/coredump/*  >/dev/null 2>&1
+printf "${GREEN}Complete!${NC}\n"
+}
+
+
 case "$1" in
 	--ver) print_version ;;
 	--help) print_help ;;
@@ -1733,6 +1790,7 @@ case "$1" in
    	--linfo) print_linfo ;;
 	--hugeusage) print_hugeusage ;;
 	--histtimestampfix) print_histtimestamp ;;
+	--coredumpfix) print_coredumpfix ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
