@@ -173,7 +173,6 @@ printf "${YELLOW}--devconsolefix${NC}	# Checks and corrects the /dev/console rul
 printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on system\n\n"
 printf "${YELLOW}--histtimestampfix${NC}	# Corrects history timestamp variable in /etc/bashrc\n\n"
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
-printf "${YELLOW}--backupdisc${NC}	# Description for mklinb missing\n\n"
 printf "${YELLOW}--auditdisc${NC}	# Description for misconfigured audit rules\n\n"
 printf "${YELLOW}--listndisc${NC}	# Description for oracle listener issues\n\n"
 printf "\n"
@@ -461,7 +460,6 @@ fi
 }
 
 #Problem Decription Section
-
 print_auditdisc() {
 check_root
 check_dependencies "printf"
@@ -502,8 +500,8 @@ else
 fi
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Type" "${HARDTYPE} (${PLATFORM})"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Date/Time" "${SYSTEMTIME}"
-printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Reminder" "Check for System Backup"
-printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Reminder" "Run An OpenSCAP Report (openscap.sh -c & openscap.sh -m <email>)"
+printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Notice" "Check For A System Backup"
+printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Notice" "Run An OpenSCAP Report"
 
 
 local JAVA_OUTPUT=$(java -version 2>&1 | sed -n 's/.*version "\(.*\)"/\1/p')
