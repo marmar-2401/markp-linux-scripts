@@ -1239,7 +1239,7 @@ local GROUP="sccadm"
 
 if ! grep -qF "$COREDUMP_BIN" "$CORE_PATTERN_FILE"; then
 
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
             "Coredump Permissions" "!!GOOD!!" "Systemd-coredump not in use."
         return 0
 
@@ -1265,7 +1265,7 @@ else
             fi
 done
 		
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
             "Coredump Permissions" "!!GOOD!!" "systemd-coredump ACLs and gdb verified"
         return 0
 fi
