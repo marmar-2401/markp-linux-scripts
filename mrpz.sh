@@ -461,13 +461,6 @@ fi
 }
 
 #Problem Decription Section
-print_backupdisc() {
-check_root
-
-printf "${CYAN}Backup Missing Issues${NC}\n"
-printf "${CYAN}--------------------------${NC}\n\n"
-printf "${YELLOW}Run 'Problem with backup run '/SCCbackup/mklinb --compress --backup --lvsize=50 --path=/SCCbackup --force > /SCCbackup/up.out 2>&1 &' to create new mklinb backup!${NC}\n"
-}
 
 print_auditdisc() {
 check_root
@@ -509,6 +502,8 @@ else
 fi
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Type" "${HARDTYPE} (${PLATFORM})"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Date/Time" "${SYSTEMTIME}"
+printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Reminder" "Check for System Backup"
+printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Reminder" "Run An OpenSCAP Report (openscap.sh -c & openscap.sh -m <email>)"
 
 
 local JAVA_OUTPUT=$(java -version 2>&1 | sed -n 's/.*version "\(.*\)"/\1/p')
@@ -576,16 +571,6 @@ if ((DAYS_UP > 90)); then
 else
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Uptime" "!!GOOD!!" "${DAYS_UP} days"
 fi
-
-#May use in future after more relevant information is gathered 
-
-#local TERMTYPE="$TERM"
-
-#if [[ "${TERMTYPE}" != "vt220scc" ]]; then
-      #printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "TERM Of vt220scc" "!!BAD!!" "${TERMTYPE}"
-#else
-      #printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "TERM Of vt220scc" "!!GOOD!!" "${TERMTYPE}"
-#fi
 
 local CURRENT_SHELL="$SHELL"
 
@@ -790,23 +775,6 @@ if systemctl is-enabled --quiet oracle.service 2>/dev/null; then
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Oracle (Reboot)" "!!GOOD!!" "Survives reboot"
 else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle (Reboot)" "!!BAD!!" "Does not survive reboot"
-fi
-
-local BACKUP_EXISTS=false
-
-
-if find /SCCbackup -maxdepth 1 -type f -name "SCC_OS_UEFI_*.tar" -o -name "rear*.iso" 2>/dev/null | grep -q .; then
-	BACKUP_EXISTS=true
-fi
-
-if "${BACKUP_EXISTS}"; then
-	if find /SCCbackup -maxdepth 1 -type f -name "SCC_OS_UEFI_*.tar" -o -name "rear*.iso" -newermt "$(date -d '1 month ago' +%Y-%m-%d)" 2>/dev/null | grep -q .; then
-        	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "/SCCbackup" "!!GOOD!!" "There is a backup newer than a month"
-	else
-        	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "/SCCbackup" "!!BAD!!" "Problem with backup 'bash mrpz.sh --backupdisc'"
-	fi
-else
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "/SCCbackup" "!!BAD!!" "Problem with backup 'bash mrpz.sh --backupdisc'"
 fi
 
 if ! rpm -q rng-tools &>/dev/null; then
