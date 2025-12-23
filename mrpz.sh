@@ -1232,32 +1232,30 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "History Timestamp" "!!BAD!!" "Config Line NOT Found (Run 'bash mrpz.sh --histtimestampfix')"
 fi
 
-check_coredump_permissions() {
+local CORE_PATTERN_FILE="/proc/sys/kernel/core_pattern"
+local COREDUMP_BIN="/usr/lib/systemd/systemd-coredump"
+local COREDUMP_DIR="/var/lib/systemd/coredump"
+local GROUP="sccadm"
 
-    local CORE_PATTERN_FILE="/proc/sys/kernel/core_pattern"
-    local COREDUMP_BIN="/usr/lib/systemd/systemd-coredump"
-    local COREDUMP_DIR="/var/lib/systemd/coredump"
-    local GROUP="sccadm"
-
-    if ! grep -qF "$COREDUMP_BIN" "$CORE_PATTERN_FILE"; then
+if ! grep -qF "$COREDUMP_BIN" "$CORE_PATTERN_FILE"; then
 
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
             "Coredump Permissions" "!!GOOD!!" "Systemd-coredump not in use."
         return 0
 
-    elif ! command -v gdb >/dev/null 2>&1; then
+elif ! command -v gdb >/dev/null 2>&1; then
 
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
             "Coredump Permissions" "!!BAD!!" "gdb package not installed ('dnf install gdb -y')"
         return 1
 
-    elif ! getfacl "$COREDUMP_DIR" 2>/dev/null | grep -q "^default:group:${GROUP}:r--"; then
+elif ! getfacl "$COREDUMP_DIR" 2>/dev/null | grep -q "^default:group:${GROUP}:r--"; then
 
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
             "Coredump Permissions" "!!BAD!!" "Permission issues (Run 'bash mrpz.sh --coredumpfix')"
         return 1
 
-    else
+else
         for f in "$COREDUMP_DIR"/*; do
             [ -e "$f" ] || break
             if ! getfacl "$f" 2>/dev/null | grep -q "^group:${GROUP}:r--"; then
@@ -1265,15 +1263,12 @@ check_coredump_permissions() {
                     "Coredump Permissions" "!!BAD!!" "Permission issues (Run 'bash mrpz.sh --coredumpfix')"
                 return 1
             fi
-        done
+done
 		
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
             "Coredump Permissions" "!!GOOD!!" "systemd-coredump ACLs and gdb verified"
         return 0
-    fi
-}
-
-
+fi
 
 printf "${GREEN}Check Complete!${NC}\n"
 }
