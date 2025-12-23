@@ -500,8 +500,8 @@ else
 fi
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Type" "${HARDTYPE} (${PLATFORM})"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Date/Time" "${SYSTEMTIME}"
-printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Notice" "Check For A System Backup"
-printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Notice" "Run An OpenSCAP Report"
+printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Backup" "Check For A System Backup"
+printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "OpenSCAP" "Run An OpenSCAP Report"
 
 
 local JAVA_OUTPUT=$(java -version 2>&1 | sed -n 's/.*version "\(.*\)"/\1/p')
