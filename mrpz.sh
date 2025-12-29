@@ -1028,8 +1028,9 @@ local bc_cpu_usage="bc"
 if rpm -q "$bc_cpu_usage" > /dev/null 2>&1; then
 	
 	local CPU_THRESHOLD=70
-	local CPU_IDLE=$(top -bn2 | grep "Cpu(s)" | tail -n1 | awk '{print $8}' | cut -d'%' -f1)
-	local TOTAL_CPU_USAGE=$(echo "100 - ${CPU_IDLE}" | bc)
+	local CPU_IDLE=$(top -bn2 | grep "Cpu(s)" | tail -n1 | awk -F',' '{for(i=1;i<=NF;i++) if($i ~ /id/) print $i}' | awk '{print $1}')
+	if [ -z "$CPU_IDLE" ]; then CPU_IDLE=100; fi
+    local TOTAL_CPU_USAGE=$(echo "100 - ${CPU_IDLE}" | bc)
 
 	if (( $(echo "${TOTAL_CPU_USAGE} >= ${CPU_THRESHOLD}" | bc -l) )); then
 		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Total CPU Usage" "!!BAD!!" "CPU usage is over ${CPU_THRESHOLD}% (${TOTAL_CPU_USAGE}%)" 
