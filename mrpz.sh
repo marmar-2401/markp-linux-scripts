@@ -1803,33 +1803,35 @@ setfacl -m g:sccadm:r /var/lib/systemd/coredump/*  >/dev/null 2>&1
 printf "${GREEN}Complete!${NC}\n"
 }
 
-print_badxfsfs() { 
-check_root
-local PACKAGE="xfsprogs-xfs_scrub.x86_64"
+print_badxfsfs() {
+    check_root
+    local PACKAGE="xfsprogs-xfs_scrub.x86_64"
 
-if ! rpm -q "$PACKAGE" > /dev/null 2>&1; then
-    echo "Program $PACKAGE must be installed to run."
-    exit 1
-fi
-
-local BAD_DRIVES=""
-
-while read -r MNT DEV; do
-    [[ -z "$MNT" ]] && continue
-	xfs_scrub -n "$MNT" > /dev/null 2>&1
-    
-    if [ $? -ne 0 ]; then
-        BAD_DRIVES="${BAD_DRIVES}${DEV}\n"
+    if ! rpm -q "$PACKAGE" > /dev/null 2>&1; then
+        echo "Program $PACKAGE must be installed to run."
+        exit 1
     fi
-done < <(lsblk -rnp -o MOUNTPOINT,NAME,FSTYPE | grep 'xfs' | awk '{print $1" "$2}')
 
-if [ -z "$BAD_DRIVES" ]; then
-	printf "${GREEN}XFS Integrity Check Status: Clean${NC}\n"
-else
-    printf "${RED}XFS Integrity Check Status: BAD${NC}\n"
-    echo -e "$BAD_DRIVES" | sed '/^$/d'
-fi
+    local BAD_DRIVES=""
+
+    while read -r MNT; do
+        [[ -z "$MNT" ]] && continue
+
+        xfs_scrub -n "$MNT" > /dev/null 2>&1
+        RC=$?
+        if [ "$RC" -ne 0 ]; then
+            BAD_DRIVES="${BAD_DRIVES}${MNT}\n"
+        fi
+    done < <(findmnt -rn -t xfs -o TARGET)
+
+    if [ -z "$BAD_DRIVES" ]; then
+        printf "${GREEN}XFS Integrity Check Status: Clean${NC}\n"
+    else
+        printf "${RED}XFS Integrity Check Status: BAD${NC}\n"
+        echo -e "$BAD_DRIVES" | sed '/^$/d'
+    fi
 }
+
 
 case "$1" in
 	--ver) print_version ;;
