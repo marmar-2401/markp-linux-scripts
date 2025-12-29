@@ -1794,7 +1794,7 @@ setfacl -m g:sccadm:r /var/lib/systemd/coredump/*  >/dev/null 2>&1
 printf "${GREEN}Complete!${NC}\n"
 }
 
-print_badxfsfs { 
+print_badxfsfs() { 
 check_root
 local PACKAGE="xfsprogs-xfs_scrub.x86_64"
 
