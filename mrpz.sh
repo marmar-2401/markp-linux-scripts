@@ -108,7 +108,7 @@ linux_check() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.2.7 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.2.8 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -151,6 +151,7 @@ printf "${MAGENTA} 1.2.4 | 11/24/2025 | - Added EXT FS checker to --oscheck and 
 printf "${MAGENTA} 1.2.5 | 11/25/2025 | - Added History Time Stamp Fix Option${NC}\n"
 printf "${MAGENTA} 1.2.6 | 11/25/2025 | - Added History Time Stamp Checker${NC}\n"
 printf "${MAGENTA} 1.2.7 | 12/23/2025 | - Added coredump check and permission fix${NC}\n"
+printf "${MAGENTA} 1.2.8 | 12/29/2025 | - Added XFS Filesystem Checker ${NC}\n"
 }
 
 print_help() {
@@ -169,6 +170,7 @@ printf "${YELLOW}--bootreport <ENVUSER>${NC}	# Creates a report on commonly view
 printf "${YELLOW}--linfo${NC}	# Creates a system information archive with important details\n\n"
 printf "${YELLOW}--hugeusage${NC}	# Checks the details regarding the hughpage usage on system\n\n"
 printf "${YELLOW}--badextfs${NC}	# Gives you a list of corrupted EXT FS\n\n"
+printf "${YELLOW}--badxfsfs${NC}	# Gives you a list of corrupted XFS FS\n\n"
 printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
 printf "${YELLOW}--devconsolefix${NC}	# Checks and corrects the /dev/console rules on system\n\n"
 printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on system\n\n"
@@ -1221,6 +1223,31 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "EXT FS Check" "!!BAD!!" "FS Appear Unhealthy (Run 'bash mrpz.sh --badextfs')"
 fi
 
+local XFS_SCRUB_PKG_NAME="xfsprogs-xfs_scrub.x86_64"
+
+if rpm -q "$XFS_SCRUB_PKG_NAME" > /dev/null 2>&1; then
+	local XFS_SCRUB_STATUS="Good"
+    
+    while read -r MNT; do
+        [[ -z "$MNT" ]] && continue
+        
+        xfs_scrub -n "$MNT" > /dev/null 2>&1
+        
+        if [ $? -ne 0 ]; then
+            local XFS_SCRUB_STATUS="Bad"
+            break
+        fi
+    done < <(lsblk -rn -o MOUNTPOINT,FSTYPE | grep 'xfs' | awk '{print $1}')
+
+    if [ "$XFS_SCRUB_STATUS" = "Good" ]; then
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "XFS FS Check" "!!GOOD!!" "Filesystems Appear OK"
+    else
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "XFS FS Check" "!!BAD!!" "FS Appear Unhealthy (Run 'bash mrpz.sh --badxfsfs')"
+    fi
+else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "XFS FS Check" "!!BAD!!" "'xfsprogs-xfs_scrub.x86_64' Needs Installed"
+fi
+
 
 local SEARCH_LINE='export HISTTIMEFORMAT="%F %T "'
 local CONFIG_FILE='/etc/bashrc'
@@ -1280,7 +1307,7 @@ print_shortoscheck() {
 }
 
 print_hugeusage() {
-   # Threshold percentage (default 70%)
+# Threshold percentage (default 70%)
 threshold=${1:-70}
 
 # Get total memory in MB
@@ -1767,6 +1794,33 @@ setfacl -m g:sccadm:r /var/lib/systemd/coredump/*  >/dev/null 2>&1
 printf "${GREEN}Complete!${NC}\n"
 }
 
+print_badxfsfs { 
+check_root
+local PACKAGE="xfsprogs-xfs_scrub.x86_64"
+
+if ! rpm -q "$PACKAGE" > /dev/null 2>&1; then
+    echo "Program $PACKAGE must be installed to run."
+    exit 1
+fi
+
+local BAD_DRIVES=""
+
+while read -r MNT DEV; do
+    [[ -z "$MNT" ]] && continue
+	xfs_scrub -n "$MNT" > /dev/null 2>&1
+    
+    if [ $? -ne 0 ]; then
+        BAD_DRIVES="${BAD_DRIVES}${DEV}\n"
+    fi
+done < <(lsblk -rnp -o MOUNTPOINT,NAME,FSTYPE | grep 'xfs' | awk '{print $1" "$2}')
+
+if [ -z "$BAD_DRIVES" ]; then
+	printf "${GREEN}XFS Integrity Check Status: Clean${NC}\n"
+else
+    printf "${RED}XFS Integrity Check Status: BAD${NC}\n"
+    echo -e "$BAD_DRIVES" | sed '/^$/d'
+fi
+}
 
 case "$1" in
 	--ver) print_version ;;
@@ -1775,6 +1829,7 @@ case "$1" in
 	--devconsolefix) print_devconsolefix ;;
 	--oscheck) print_oscheck ;;
 	--badextfs) print_badextfs ;;
+	--badxfsfs) print_badxfsfs ;;
 	--harddetect) print_harddetect ;;
 	--mqfix) print_mqfix ;;
  	--backupdisc) print_backupdisc ;;
