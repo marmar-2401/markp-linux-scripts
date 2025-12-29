@@ -1807,7 +1807,7 @@ print_badxfsfs() {
     check_root
     local PACKAGE="xfsprogs-xfs_scrub.x86_64"
 
-    if ! rpm -q "$PACKAGE" > /dev/null 2>&1; then
+    if ! rpm -q "$PACKAGE" &>/dev/null; then
         echo "Program $PACKAGE must be installed to run."
         exit 1
     fi
@@ -1819,8 +1819,9 @@ print_badxfsfs() {
 
         xfs_scrub -n "$MNT" > /dev/null 2>&1
         RC=$?
+
         if [ "$RC" -ne 0 ]; then
-            BAD_DRIVES="${BAD_DRIVES}${MNT}\n"
+            BAD_DRIVES+="$MNT\n"
         fi
     done < <(findmnt -rn -t xfs -o TARGET)
 
@@ -1828,7 +1829,7 @@ print_badxfsfs() {
         printf "${GREEN}XFS Integrity Check Status: Clean${NC}\n"
     else
         printf "${RED}XFS Integrity Check Status: BAD${NC}\n"
-        echo -e "$BAD_DRIVES" | sed '/^$/d'
+        echo -e "$BAD_DRIVES"
     fi
 }
 
