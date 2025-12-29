@@ -104,6 +104,13 @@ linux_check() {
     fi
 }
 
+check_sccadm_group() {
+    if ! getent group sccadm >/dev/null 2>&1; then
+        printf "${RED}Error: Required group 'sccadm' does not exist on this system.${NC}\n"
+        exit 1
+    fi
+}
+
 
 
 print_version() {
@@ -1795,6 +1802,7 @@ print_histtimestamp() {
 print_coredumpfix() {
 
 check_root
+check_sccadm_group
 confirm_action
 
 printf "${GREEN}Running Coredump Permission Fix...${NC}\n"
