@@ -1261,7 +1261,7 @@ if rpm -q "$XFS_SCRUB_PKG_NAME" > /dev/null 2>&1; then
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "XFS FS Check" "!!BAD!!" "FS Appear Unhealthy (Run 'bash mrpz.sh --badxfsfs')"
     fi
 else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "XFS FS Check" "!!BAD!!" "'xfsprogs-xfs_scrub.x86_64' Needs Installed"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "XFS FS Check" "!!BAD!!" "'xfsprogs' Needs Installed (Must Be > Linux 9)"
 fi
 
 
@@ -1816,7 +1816,8 @@ check_root
 local PACKAGE="xfsprogs-xfs_scrub.x86_64"
 
 if ! rpm -q "$PACKAGE" > /dev/null 2>&1; then
-    echo "Program $PACKAGE must be installed to run."
+    echo "Program 'xfsprogs' with the command 'xfs_scrub' must be installed to run."
+	echo "Please note this only works on Linux 9 and newer."
     exit 1
 fi
 
