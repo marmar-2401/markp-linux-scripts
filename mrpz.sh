@@ -1316,14 +1316,14 @@ done
         return 0
 fi
 
-local SWAP_KB=$(grep SwapTotal /proc/meminfo | awk '{print $2}')
-local SWAP_GB=$((SWAP_KB / 1024 / 1024))
+#local SWAP_KB=$(grep SwapTotal /proc/meminfo | awk '{print $2}')
+#local SWAP_GB=$((SWAP_KB / 1024 / 1024))
 
-if [ "$SWAP_GB" -ge 16 ]; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!GOOD!!" "Swap size:$SWAP_GB"
-else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!BAD!!" "Swap is less than 16 GBs (Size:$SWAP_GB)"
-fi
+#if [ "$SWAP_GB" -ge 16 ]; then
+#    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!GOOD!!" "Swap size:$SWAP_GB"
+#else
+#    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!BAD!!" "Swap is less than 16 GBs (Size:$SWAP_GB)"
+#fi
 
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
 
