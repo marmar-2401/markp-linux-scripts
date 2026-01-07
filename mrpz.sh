@@ -115,7 +115,7 @@ check_sccadm_group() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.2.8 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.2.9 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -159,6 +159,7 @@ printf "${MAGENTA} 1.2.5 | 11/25/2025 | - Added History Time Stamp Fix Option${N
 printf "${MAGENTA} 1.2.6 | 11/25/2025 | - Added History Time Stamp Checker${NC}\n"
 printf "${MAGENTA} 1.2.7 | 12/23/2025 | - Added coredump check and permission fix${NC}\n"
 printf "${MAGENTA} 1.2.8 | 12/29/2025 | - Added XFS Filesystem Checker ${NC}\n"
+printf "${MAGENTA} 1.2.9 | 01/07/2026 | - Swap size checker added ${NC}\n"
 }
 
 print_help() {
@@ -511,8 +512,7 @@ else
 fi
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Hardware Type" "${HARDTYPE} (${PLATFORM})"
 printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Date/Time" "${SYSTEMTIME}"
-printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "Backup" "Check For A System Backup"
-printf "${MAGENTA}%-20s:${NC}${CYAN}%s${NC}\n" "OpenSCAP" "Run An OpenSCAP Report"
+
 
 
 local JAVA_OUTPUT=$(java -version 2>&1 | sed -n 's/.*version "\(.*\)"/\1/p')
@@ -974,13 +974,16 @@ else
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Service IP" "!!GOOD!!" "No Service IP"
 fi
 
-multipath -ll >/dev/null 2>&1
-local EXIT_STATUS=$?
+if ! [[ "${HARDTYPE}" == "AWS" || "${HARDTYPE}" == "Oracle" ]]; then
 
-if [ "${EXIT_STATUS}" -eq 0 ]; then
-  printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!ATTN!!" "SAN in use (Run 'lsscsi' & 'multipath -ll')"
-else
-  printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!GOOD!!" "No SAN"
+	multipath -ll >/dev/null 2>&1
+	local EXIT_STATUS=$?
+
+	if [ "${EXIT_STATUS}" -eq 0 ]; then
+		printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!ATTN!!" "SAN in use (Run 'lsscsi' & 'multipath -ll')"
+	else
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SAN" "!!GOOD!!" "No SAN"
+	fi
 fi
 
 local YUM_PLUGIN_PYTHON3="python3-yum-plugin-versionlock"
@@ -1312,6 +1315,19 @@ done
             "Coredump Permissions" "!!GOOD!!" "systemd-coredump ACLs and gdb verified"
         return 0
 fi
+
+local SWAP_KB=$(grep SwapTotal /proc/meminfo | awk '{print $2}')
+local SWAP_GB=$((SWAP_KB / 1024 / 1024))
+
+if [ "$SWAP_GB" -ge 16 ]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!GOOD!!" "Swap size:$SWAP_GB"
+else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!BAD!!" "Swap is less than 16 GBs (Size:$SWAP_GB)"
+fi
+
+printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
+
+printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Backup" "!!ATTN!!" "Ensure system as a current backup"
 
 printf "${GREEN}Check Complete!${NC}\n"
 }
