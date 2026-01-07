@@ -1287,19 +1287,14 @@ if ! grep -qF "$COREDUMP_BIN" "$CORE_PATTERN_FILE"; then
 
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
             "Coredump Permissions" "!!GOOD!!" "Systemd-coredump not in use."
-        return 0
-
 elif ! command -v gdb >/dev/null 2>&1; then
 
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
             "Coredump Permissions" "!!BAD!!" "gdb package not installed ('dnf install gdb -y')"
-        return 1
-
 elif ! getfacl "$COREDUMP_DIR" 2>/dev/null | grep -q "^default:group:${GROUP}:r--"; then
 
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
             "Coredump Permissions" "!!BAD!!" "Permission issues (Run 'bash mrpz.sh --coredumpfix')"
-        return 1
 
 else
         for f in "$COREDUMP_DIR"/*; do
@@ -1307,23 +1302,21 @@ else
             if ! getfacl "$f" 2>/dev/null | grep -q "^group:${GROUP}:r--"; then
                 printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
                     "Coredump Permissions" "!!BAD!!" "Permission issues (Run 'bash mrpz.sh --coredumpfix')"
-                return 1
             fi
 done
 		
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
             "Coredump Permissions" "!!GOOD!!" "systemd-coredump ACLs and gdb verified"
-        return 0
 fi
 
-#local SWAP_KB=$(grep SwapTotal /proc/meminfo | awk '{print $2}')
-#local SWAP_GB=$((SWAP_KB / 1024 / 1024))
+local SWAP_KB=$(grep SwapTotal /proc/meminfo | awk '{print $2}')
+local SWAP_GB=$((SWAP_KB / 1024 / 1024))
 
-#if [ "$SWAP_GB" -ge 16 ]; then
-#    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!GOOD!!" "Swap size:$SWAP_GB"
-#else
-#    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!BAD!!" "Swap is less than 16 GBs (Size:$SWAP_GB)"
-#fi
+if [ "$SWAP_GB" -ge 16 ]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!GOOD!!" "Swap size:$SWAP_GB"
+else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!BAD!!" "Swap is less than 16 GBs (Size:$SWAP_GB)"
+fi
 
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
 
