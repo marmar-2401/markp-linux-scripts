@@ -1320,7 +1320,7 @@ fi
 
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
 
-printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Backup" "!!ATTN!!" "Ensure system as a current backup"
+printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Backup" "!!ATTN!!" "Ensure system has a current backup"
 
 printf "${GREEN}Check Complete!${NC}\n"
 }
