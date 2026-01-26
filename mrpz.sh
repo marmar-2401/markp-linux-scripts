@@ -2036,7 +2036,17 @@ setup_clamav() {
     # Step 1: Install Packages
     # -----------------------------
     echo "[+] Installing ClamAV packages..."
-    dnf install -y clamav clamav-update clamd
+    if grep -qi oracle /etc/os-release; then
+    	dnf config-manager --enable ol$(rpm -E %rhel)_developer_EPEL
+	else
+    	dnf install -y epel-release
+	fi
+
+	dnf install -y \
+  	clamav \
+  	clamav-server \
+  	clamav-update \
+  	clamav-scanner-systemd
 
     # ---------------------------------
     # Step 2: Enable & start services
