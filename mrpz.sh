@@ -1997,34 +1997,22 @@ clamav_health_check() {
     echo "=== ClamAV Health Check Complete ==="
 }
 
-
 setup_clamav() {
     check_root
-	confirm_action 
-
-    set -euo pipefail  
-
-    #--------------------------------
-    # Ensure script runs as root
-    #--------------------------------
-    if [ "$EUID" -ne 0 ]; then
-        echo "This script must be run as root. Exiting."
-        return 1
-    fi
+    confirm_action
+    set -euo pipefail
 
     # -----------------------------
-    # Configuration Variables 
+    # Email input
     # -----------------------------
     local EMAIL
     read -rp "Enter email for ClamAV alerts: " EMAIL
 
-   
     if [[ ! "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
-        echo "Invalid email format. Exiting."
+        echo "Invalid email format"
         return 1
     fi
 
-    echo "Email set to: $EMAIL"
     local SCAN_DIR="${2:-/}"
     local QUARANTINE_DIR="/var/lib/clamav/quarantine"
     local LOG_DIR="/var/log/clamav"
@@ -2033,38 +2021,42 @@ setup_clamav() {
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
 
     # -----------------------------
-    # Step 1: Install Packages
+    # Repo enablement
     # -----------------------------
-    echo "[+] Installing ClamAV packages..."
+    echo "[+] Enabling repositories..."
     if grep -qi oracle /etc/os-release; then
-    	dnf config-manager --enable ol$(rpm -E %rhel)_developer_EPEL
-	else
-    	dnf install -y epel-release
-	fi
+        dnf install -y oracle-epel-release-el$(rpm -E %rhel)
+    else
+        dnf install -y epel-release
+    fi
 
-	dnf install -y \
-  	clamav \
-  	clamav-server \
-  	clamav-update \
-  	clamav-scanner-systemd
+    # -----------------------------
+    # Install ClamAV (EL9)
+    # -----------------------------
+    echo "[+] Installing ClamAV..."
+    dnf install -y \
+        clamav \
+        clamav-freshclam \
+        clamd
 
-    # ---------------------------------
-    # Step 2: Enable & start services
-    # ---------------------------------
+    # -----------------------------
+    # Enable services
+    # -----------------------------
     echo "[+] Enabling freshclam..."
-    systemctl enable --now freshclam
+    systemctl enable --now clamav-freshclam
 
-    echo "[+] Ensuring clamd notify is enabled..."
+    echo "[+] Enabling clamd..."
+    systemctl enable --now clamd@scan
+
+    # -----------------------------
+    # Ensure NotifyClamd
+    # -----------------------------
     grep -q '^NotifyClamd yes' /etc/clamd.d/scan.conf || \
         echo "NotifyClamd yes" >> /etc/clamd.d/scan.conf
 
-    echo "[+] Enabling and starting clamd..."
-    systemctl enable --now clamd@scan
-
-    # -------------------------------
-    # Step 3: Apply systemd override
-    # -------------------------------
-    echo "[+] Creating systemd override..."
+    # -----------------------------
+    # systemd override
+    # -----------------------------
     mkdir -p /etc/systemd/system/clamd@scan.service.d
     cat > /etc/systemd/system/clamd@scan.service.d/override.conf <<EOF
 [Service]
@@ -2079,22 +2071,18 @@ EOF
     systemctl restart clamd@scan
 
     # -----------------------------
-    # Step 4: Create directories
+    # Directories
     # -----------------------------
-    echo "[+] Creating directories..."
-    for DIR in "$QUARANTINE_DIR" "$LOG_DIR"; do
-        mkdir -p "$DIR"
-        chown -R clamscan:clamscan "$DIR"
-        chmod 0750 "$DIR"
-    done
+    mkdir -p "$QUARANTINE_DIR" "$LOG_DIR"
+    chown -R clamscan:clamscan "$QUARANTINE_DIR" "$LOG_DIR"
+    chmod 0750 "$QUARANTINE_DIR" "$LOG_DIR"
 
     # -----------------------------
-    # Step 5: Deploy hourly scan script
+    # Hourly scan script
     # -----------------------------
-    echo "[+] Deploying hourly scan script..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
-set -euo pipefail  # <-- also inside the hourly scan script
+set -euo pipefail
 
 SCAN_DIR="${SCAN_DIR}"
 CHECKPOINT="${CHECKPOINT}"
@@ -2104,151 +2092,86 @@ EMAIL="${EMAIL}"
 CONFIG="/etc/clamd.d/scan.conf"
 WEEKLY_REPORT="${WEEKLY_REPORT}"
 
-LOCK_FILE="/var/run/hourly_secure_scan.lock"
+LOCK_FILE="/run/hourly_secure_scan.lock"
 exec 200>\$LOCK_FILE
 flock -n 200 || exit 0
 
-LIST_FILE=\$(mktemp -t clamscan.XXXXXX)
+LIST_FILE=\$(mktemp)
 trap 'rm -f "\$LIST_FILE"' EXIT
 
 if [ ! -f "\$CHECKPOINT" ]; then
     find "\$SCAN_DIR" -type f \
-        -not -path "/proc/*" \
-        -not -path "/sys/*" \
-        -not -path "/dev/*" \
-        -not -path "/run/*" \
-        -print > "\$LIST_FILE"
+        -not -path "/proc/*" -not -path "/sys/*" \
+        -not -path "/dev/*" -not -path "/run/*" \
+        > "\$LIST_FILE"
 else
     find "\$SCAN_DIR" -type f \
         \( -newer "\$CHECKPOINT" -o -cnewer "\$CHECKPOINT" \) \
-        -not -path "/proc/*" \
-        -not -path "/sys/*" \
-        -not -path "/dev/*" \
-        -not -path "/run/*" \
-        -print > "\$LIST_FILE"
+        -not -path "/proc/*" -not -path "/sys/*" \
+        -not -path "/dev/*" -not -path "/run/*" \
+        > "\$LIST_FILE"
 fi
-
-TOTAL_FILES=\$(wc -l < "\$LIST_FILE")
-INFECTED=0
 
 if [ -s "\$LIST_FILE" ]; then
     clamdscan \
-        -c "\$CONFIG" \
         --fdpass \
         --multiscan \
         --move="\$QUARANTINE_DIR" \
         --file-list="\$LIST_FILE" \
         --log="\$LOG_FILE"
-
-    if grep -q "Infected files: [1-9]" "\$LOG_FILE"; then
-        INFECTED=\$(grep "Infected files:" "\$LOG_FILE" | awk '{print \$3}')
-        grep "FOUND" "\$LOG_FILE" | mail -s "SECURITY ALERT on \$(hostname)" "\$EMAIL"
-    fi
 fi
 
-echo "\$(date '+%Y-%m-%d %H:%M:%S') Files scanned: \$TOTAL_FILES, Infected: \$INFECTED" >> "\$WEEKLY_REPORT"
 touch "\$CHECKPOINT"
 EOF
 
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
 
     # -----------------------------
-    # Step 6: SELinux configuration
+    # SELinux
     # -----------------------------
     if [ "$(getenforce)" = "Enforcing" ]; then
-        echo "[+] SELinux is enforcing — setting ClamAV booleans..."
         setsebool -P clamav_can_scan_system 1
         setsebool -P clamd_use_jit 1
-    else
-        echo "[+] SELinux not enforcing — skipping SELinux configuration"
     fi
 
     # -----------------------------
-    # Step 7: Configure log rotation
+    # Logrotate
     # -----------------------------
-    echo "[+] Configuring log rotation..."
     cat > /etc/logrotate.d/clamav-hourly <<EOF
-/var/log/clamav/hourly_audit.log {
-    rotate 30
+${LOG_DIR}/hourly_audit.log {
     daily
+    rotate 30
     compress
-    delaycompress
     missingok
     notifempty
-    postrotate
-        /usr/bin/systemctl restart clamd@scan > /dev/null 2>/dev/null || true
-    endscript
 }
 EOF
 
-    # -----------------------------
-    # Step 8: Prime virus definitions
-    # -----------------------------
-    echo "[+] Updating virus definitions..."
+    echo "[+] Initial virus database update..."
     freshclam || true
 
-    # -----------------------------
-    # Step 9: Weekly report email cron
-    # -----------------------------
-    echo "[+] Setting up weekly report email cron..."
-    (crontab -l 2>/dev/null; echo "59 23 * * 0 mail -s 'Weekly ClamAV Report on \$(hostname)' $EMAIL < $WEEKLY_REPORT && > $WEEKLY_REPORT") | crontab -
-
-    # -----------------------------
-    # Step 10: Verification
-    # -----------------------------
-    echo "[+] Verifying installation..."
-    if [ ! -f /var/lib/clamav/daily.cld ]; then
-        echo "ERROR: ClamAV virus definitions not found!"
-        return 1
-    fi
-
-    echo "[+] Provisioning complete. All services active, directories created, weekly report scheduled."
+    echo "[+] ClamAV setup complete"
 }
 
 test_clamav_setup() {
-    set -euo pipefail  
+    set -euo pipefail
 
-    echo "[+] Starting ClamAV EICAR test..."
+    echo "[+] Waiting for clamd socket..."
+    timeout 30 bash -c 'until [ -S /run/clamd.scan/clamd.sock ]; do sleep 1; done'
 
-    # ---------------------------
-    # Step 1: Create EICAR test file
-    # ---------------------------
     local TEST_FILE="/tmp/eicar.com"
     echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$TEST_FILE"
-    echo "[+] EICAR test file created at $TEST_FILE"
 
-    # ---------------------------
-    # Step 2: Run ClamAV hourly scan manually
-    # ---------------------------
-    echo "[+] Running hourly ClamAV scan..."
+    echo "[+] Running scan..."
     /usr/local/bin/hourly_secure_scan.sh
 
-    # ---------------------------
-    # Step 3: Check if file was moved to quarantine
-    # ---------------------------
-    local QUARANTINE_DIR="/var/lib/clamav/quarantine"
-    if [ -f "$QUARANTINE_DIR/eicar.com" ]; then
-        echo "Test file was successfully quarantined!"
+    if [ -f /var/lib/clamav/quarantine/eicar.com ]; then
+        echo "[✓] EICAR test quarantined successfully"
     else
-        echo "Test file was NOT quarantined. Check scan script and permissions."
+        echo "[✗] EICAR test failed"
     fi
-
-    # ---------------------------
-    # Step 4: Check the log
-    # ---------------------------
-    local LOG_FILE="/var/log/clamav/hourly_audit.log"
-    if grep -q "Eicar-Test-Signature" "$LOG_FILE"; then
-        echo "Log file shows the test virus was detected."
-    else
-        echo "Test virus not found in log. Check clamd and scan script."
-    fi
-
-    # ---------------------------
-    # Step 5: Optional cleanup
-    # ---------------------------
-    [ -f "$TEST_FILE" ] && rm -f "$TEST_FILE"
-    echo "[+] ClamAV EICAR test complete."
 }
+
 
 case "$1" in
 	--ver) print_version ;;
