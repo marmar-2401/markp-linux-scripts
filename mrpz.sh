@@ -162,6 +162,7 @@ printf "${MAGENTA} 1.2.8 | 12/29/2025 | - Added XFS Filesystem Checker ${NC}\n"
 printf "${MAGENTA} 1.2.9 | 01/07/2026 | - Swap size checker added ${NC}\n"
 printf "${MAGENTA} 1.3.0 | 01/26/2026 | - ClamAV checker added ${NC}\n"
 printf "${MAGENTA} 1.3.1 | 01/26/2026 | - ClamAV setup option added ${NC}\n"
+printf "${MAGENTA} 1.3.2 | 01/26/2026 | - ClamAV scan tester was added ${NC}\n"
 }
 
 print_help() {
@@ -181,13 +182,14 @@ printf "${YELLOW}--linfo${NC}	# Creates a system information archive with import
 printf "${YELLOW}--hugeusage${NC}	# Checks the details regarding the hughpage usage on system\n\n"
 printf "${YELLOW}--badextfs${NC}	# Gives you a list of corrupted EXT FS\n\n"
 printf "${YELLOW}--badxfsfs${NC}	# Gives you a list of corrupted XFS FS\n\n"
-printf "${YELLOW}--clamavcheck${NC}	# Gives you overview of clamav\n\n"
+printf "${YELLOW}--clamavcheck${NC}	# Gives you status of clamav\n\n"
+printf "${YELLOW}--testclamav${NC}	# Makes sure clamav is configured correctly scanning\n\n"
 printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
 printf "${YELLOW}--devconsolefix${NC}	# Checks and corrects the /dev/console rules on system\n\n"
 printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on system\n\n"
 printf "${YELLOW}--histtimestampfix${NC}	# Corrects history timestamp variable in /etc/bashrc\n\n"
 printf "${YELLOW}--coredumpfix${NC}	# Corrects coredump permissions\n\n"
-printf "${YELLOW}--setupclamav${NC}	# Corrects coredump permissions\n\n"
+printf "${YELLOW}--setupclamav${NC}	# Configures ClamAV optimally\n\n"
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
 printf "${YELLOW}--auditdisc${NC}	# Description for misconfigured audit rules\n\n"
 printf "${YELLOW}--listndisc${NC}	# Description for oracle listener issues\n\n"
@@ -2195,9 +2197,50 @@ EOF
     echo "[+] Provisioning complete. All services active, directories created, weekly report scheduled."
 }
 
+test_clamav_setup() {
+    set -euo pipefail  
 
+    echo "[+] Starting ClamAV EICAR test..."
 
+    # ---------------------------
+    # Step 1: Create EICAR test file
+    # ---------------------------
+    local TEST_FILE="/tmp/eicar.com"
+    echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$TEST_FILE"
+    echo "[+] EICAR test file created at $TEST_FILE"
 
+    # ---------------------------
+    # Step 2: Run ClamAV hourly scan manually
+    # ---------------------------
+    echo "[+] Running hourly ClamAV scan..."
+    /usr/local/bin/hourly_secure_scan.sh
+
+    # ---------------------------
+    # Step 3: Check if file was moved to quarantine
+    # ---------------------------
+    local QUARANTINE_DIR="/var/lib/clamav/quarantine"
+    if [ -f "$QUARANTINE_DIR/eicar.com" ]; then
+        echo "[✅] Test file was successfully quarantined!"
+    else
+        echo "[❌] Test file was NOT quarantined. Check scan script and permissions."
+    fi
+
+    # ---------------------------
+    # Step 4: Check the log
+    # ---------------------------
+    local LOG_FILE="/var/log/clamav/hourly_audit.log"
+    if grep -q "Eicar-Test-Signature" "$LOG_FILE"; then
+        echo "[✅] Log file shows the test virus was detected."
+    else
+        echo "[❌] Test virus not found in log. Check clamd and scan script."
+    fi
+
+    # ---------------------------
+    # Step 5: Optional cleanup
+    # ---------------------------
+    [ -f "$TEST_FILE" ] && rm -f "$TEST_FILE"
+    echo "[+] ClamAV EICAR test complete."
+}
 
 case "$1" in
 	--ver) print_version ;;
@@ -2220,6 +2263,7 @@ case "$1" in
 	--coredumpfix) print_coredumpfix ;;
 	--clamavcheck) clamav_health_check ;;
 	--setupclamav) setup_clamav ;;
+	--testclamav) test_clamav_setup ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
