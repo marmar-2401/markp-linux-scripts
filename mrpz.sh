@@ -2003,76 +2003,66 @@ setup_clamav() {
     set -euo pipefail
 
     # -----------------------------
-    # Email input
+    # Email configuration
     # -----------------------------
     local EMAIL
     read -rp "Enter email for ClamAV alerts: " EMAIL
-
-    if [[ ! "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+    [[ "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || {
         echo "Invalid email format"
         return 1
-    fi
+    }
 
     local SCAN_DIR="${2:-/}"
     local QUARANTINE_DIR="/var/lib/clamav/quarantine"
     local LOG_DIR="/var/log/clamav"
     local CHECKPOINT="/var/lib/clamav/scan_checkpoint"
-    local MEMORY_LIMIT="4G"
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
+    local SOCKET_DIR="/run/clamd.scan"
+    local CONFIG="/etc/clamd.d/scan.conf"
 
     # -----------------------------
-    # Repo enablement
+    # Install packages (EL9)
     # -----------------------------
-    echo "[+] Enabling repositories..."
+    echo "[+] Installing ClamAV..."
     if grep -qi oracle /etc/os-release; then
-        dnf install -y oracle-epel-release-el$(rpm -E %rhel)
+        dnf config-manager --enable "ol$(rpm -E %rhel)_developer_EPEL"
     else
         dnf install -y epel-release
     fi
 
+    dnf install -y clamav clamav-freshclam clamd
+
     # -----------------------------
-    # Install ClamAV (EL9)
+    # Fix clamd configuration
     # -----------------------------
-    echo "[+] Installing ClamAV..."
-    dnf install -y \
-        clamav \
-        clamav-freshclam \
-        clamd
+    echo "[+] Hardening clamd config..."
+    sed -i \
+        -e 's/^Example.*/Example no/' \
+        -e 's|^#\?LocalSocket .*|LocalSocket /run/clamd.scan/clamd.sock|' \
+        -e 's/^#\?FixStaleSocket.*/FixStaleSocket yes/' \
+        -e 's/^#\?User.*/User clamscan/' \
+        "$CONFIG"
+
+    # -----------------------------
+    # Runtime socket directory (EL9 REQUIRED)
+    # -----------------------------
+    echo "[+] Creating runtime socket directory..."
+    mkdir -p "$SOCKET_DIR"
+    chown clamscan:clamscan "$SOCKET_DIR"
+    chmod 755 "$SOCKET_DIR"
 
     # -----------------------------
     # Enable services
     # -----------------------------
-    echo "[+] Enabling freshclam..."
-    systemctl enable --now clamav-freshclam
-
-    echo "[+] Enabling clamd..."
+    echo "[+] Enabling services..."
+    systemctl enable --now clamav-freshclam.service
+    systemctl daemon-reexec
     systemctl enable --now clamd@scan
-
-    # -----------------------------
-    # Ensure NotifyClamd
-    # -----------------------------
-    grep -q '^NotifyClamd yes' /etc/clamd.d/scan.conf || \
-        echo "NotifyClamd yes" >> /etc/clamd.d/scan.conf
-
-    # -----------------------------
-    # systemd override
-    # -----------------------------
-    mkdir -p /etc/systemd/system/clamd@scan.service.d
-    cat > /etc/systemd/system/clamd@scan.service.d/override.conf <<EOF
-[Service]
-CPUSchedulingPolicy=idle
-Nice=19
-IOSchedulingClass=idle
-IOSchedulingPriority=7
-MemoryMax=${MEMORY_LIMIT}
-EOF
-
-    systemctl daemon-reload
-    systemctl restart clamd@scan
 
     # -----------------------------
     # Directories
     # -----------------------------
+    echo "[+] Creating data directories..."
     mkdir -p "$QUARANTINE_DIR" "$LOG_DIR"
     chown -R clamscan:clamscan "$QUARANTINE_DIR" "$LOG_DIR"
     chmod 0750 "$QUARANTINE_DIR" "$LOG_DIR"
@@ -2084,13 +2074,13 @@ EOF
 #!/bin/bash
 set -euo pipefail
 
-SCAN_DIR="${SCAN_DIR}"
-CHECKPOINT="${CHECKPOINT}"
-LOG_FILE="${LOG_DIR}/hourly_audit.log"
-QUARANTINE_DIR="${QUARANTINE_DIR}"
-EMAIL="${EMAIL}"
-CONFIG="/etc/clamd.d/scan.conf"
-WEEKLY_REPORT="${WEEKLY_REPORT}"
+SCAN_DIR="$SCAN_DIR"
+CHECKPOINT="$CHECKPOINT"
+LOG_FILE="$LOG_DIR/hourly_audit.log"
+QUARANTINE_DIR="$QUARANTINE_DIR"
+EMAIL="$EMAIL"
+CONFIG="$CONFIG"
+WEEKLY_REPORT="$WEEKLY_REPORT"
 
 LOCK_FILE="/run/hourly_secure_scan.lock"
 exec 200>\$LOCK_FILE
@@ -2101,36 +2091,38 @@ trap 'rm -f "\$LIST_FILE"' EXIT
 
 if [ ! -f "\$CHECKPOINT" ]; then
     find "\$SCAN_DIR" -type f \
-        -not -path "/proc/*" -not -path "/sys/*" \
-        -not -path "/dev/*" -not -path "/run/*" \
-        > "\$LIST_FILE"
+      -not -path "/proc/*" -not -path "/sys/*" \
+      -not -path "/dev/*"  -not -path "/run/*" \
+      -print > "\$LIST_FILE"
 else
     find "\$SCAN_DIR" -type f \
-        \( -newer "\$CHECKPOINT" -o -cnewer "\$CHECKPOINT" \) \
-        -not -path "/proc/*" -not -path "/sys/*" \
-        -not -path "/dev/*" -not -path "/run/*" \
-        > "\$LIST_FILE"
+      \( -newer "\$CHECKPOINT" -o -cnewer "\$CHECKPOINT" \) \
+      -not -path "/proc/*" -not -path "/sys/*" \
+      -not -path "/dev/*"  -not -path "/run/*" \
+      -print > "\$LIST_FILE"
 fi
 
 if [ -s "\$LIST_FILE" ]; then
-    clamdscan \
-        --fdpass \
-        --multiscan \
-        --move="\$QUARANTINE_DIR" \
-        --file-list="\$LIST_FILE" \
-        --log="\$LOG_FILE"
+    clamdscan -c "\$CONFIG" \
+      --fdpass --multiscan \
+      --move="\$QUARANTINE_DIR" \
+      --file-list="\$LIST_FILE" \
+      --log="\$LOG_FILE"
+
+    grep "FOUND" "\$LOG_FILE" | mail -s "ClamAV ALERT on \$(hostname)" "\$EMAIL" || true
 fi
 
+echo "\$(date) Files scanned: \$(wc -l < "\$LIST_FILE")" >> "\$WEEKLY_REPORT"
 touch "\$CHECKPOINT"
 EOF
 
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
 
     # -----------------------------
-    # SELinux
+    # SELinux (EL9)
     # -----------------------------
-    if [ "$(getenforce)" = "Enforcing" ]; then
-        setsebool -P clamav_can_scan_system 1
+    if getenforce | grep -q Enforcing; then
+        setsebool -P antivirus_can_scan_system 1
         setsebool -P clamd_use_jit 1
     fi
 
@@ -2138,7 +2130,7 @@ EOF
     # Logrotate
     # -----------------------------
     cat > /etc/logrotate.d/clamav-hourly <<EOF
-${LOG_DIR}/hourly_audit.log {
+$LOG_DIR/hourly_audit.log {
     daily
     rotate 30
     compress
@@ -2147,30 +2139,39 @@ ${LOG_DIR}/hourly_audit.log {
 }
 EOF
 
-    echo "[+] Initial virus database update..."
+    # -----------------------------
+    # Definitions
+    # -----------------------------
+    echo "[+] Updating signatures..."
     freshclam || true
 
-    echo "[+] ClamAV setup complete"
+    echo "[+] ClamAV setup complete (EL9 compatible)"
 }
 
 test_clamav_setup() {
     set -euo pipefail
-
-    echo "[+] Waiting for clamd socket..."
-    timeout 30 bash -c 'until [ -S /run/clamd.scan/clamd.sock ]; do sleep 1; done'
+    echo "[+] Running ClamAV EICAR test..."
 
     local TEST_FILE="/tmp/eicar.com"
     echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$TEST_FILE"
 
-    echo "[+] Running scan..."
-    /usr/local/bin/hourly_secure_scan.sh
+    systemctl is-active --quiet clamd@scan || {
+        echo "clamd@scan is not running"
+        return 1
+    }
+
+    clamdscan "$TEST_FILE" || true
 
     if [ -f /var/lib/clamav/quarantine/eicar.com ]; then
-        echo "[✓] EICAR test quarantined successfully"
+        echo "[+] SUCCESS: File quarantined"
     else
-        echo "[✗] EICAR test failed"
+        echo "[!] FAILED: File not quarantined"
+        return 1
     fi
+
+    echo "[+] EICAR test complete"
 }
+
 
 
 case "$1" in
