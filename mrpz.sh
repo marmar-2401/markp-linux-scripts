@@ -2033,42 +2033,44 @@ setup_clamav() {
     dnf install -y clamav clamav-freshclam clamd
 
     # -----------------------------
-    # Fix clamd configuration
+    # Hardening clamd config
     # -----------------------------
-    echo "[+] Hardening clamd config..."
+    echo "[+] Configuring clamd..."
     sed -i \
         -e 's/^Example.*/Example no/' \
-        -e 's|^#\?LocalSocket .*|LocalSocket /run/clamd.scan/clamd.sock|' \
+        -e "s|^#\?LocalSocket .*|LocalSocket $SOCKET_DIR/clamd.sock|" \
         -e 's/^#\?FixStaleSocket.*/FixStaleSocket yes/' \
         -e 's/^#\?User.*/User clamscan/' \
         "$CONFIG"
 
     # -----------------------------
-    # Runtime socket directory (EL9 REQUIRED)
+    # Ensure runtime socket directory exists
     # -----------------------------
-    echo "[+] Creating runtime socket directory..."
+    echo "[+] Creating socket dir..."
     mkdir -p "$SOCKET_DIR"
     chown clamscan:clamscan "$SOCKET_DIR"
     chmod 755 "$SOCKET_DIR"
 
     # -----------------------------
+    # Ensure quarantine & log directories exist
+    # -----------------------------
+    echo "[+] Creating data directories..."
+    for DIR in "$QUARANTINE_DIR" "$LOG_DIR"; do
+        mkdir -p "$DIR"
+        chown -R clamscan:clamscan "$DIR"
+        chmod 0750 "$DIR"
+    done
+
+    # -----------------------------
     # Enable services
     # -----------------------------
     echo "[+] Enabling services..."
-    systemctl enable --now clamav-freshclam.service
     systemctl daemon-reexec
+    systemctl enable --now clamav-freshclam.service
     systemctl enable --now clamd@scan
 
     # -----------------------------
-    # Directories
-    # -----------------------------
-    echo "[+] Creating data directories..."
-    mkdir -p "$QUARANTINE_DIR" "$LOG_DIR"
-    chown -R clamscan:clamscan "$QUARANTINE_DIR" "$LOG_DIR"
-    chmod 0750 "$QUARANTINE_DIR" "$LOG_DIR"
-
-    # -----------------------------
-    # Hourly scan script
+    # Deploy hourly scan script
     # -----------------------------
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
@@ -2086,28 +2088,37 @@ LOCK_FILE="/run/hourly_secure_scan.lock"
 exec 200>\$LOCK_FILE
 flock -n 200 || exit 0
 
+# ensure quarantine exists
+mkdir -p "\$QUARANTINE_DIR"
+chown clamscan:clamscan "\$QUARANTINE_DIR"
+chmod 0750 "\$QUARANTINE_DIR"
+
 LIST_FILE=\$(mktemp)
 trap 'rm -f "\$LIST_FILE"' EXIT
 
 if [ ! -f "\$CHECKPOINT" ]; then
     find "\$SCAN_DIR" -type f \
-      -not -path "/proc/*" -not -path "/sys/*" \
-      -not -path "/dev/*"  -not -path "/run/*" \
-      -print > "\$LIST_FILE"
+        -not -path "/proc/*" \
+        -not -path "/sys/*" \
+        -not -path "/dev/*" \
+        -not -path "/run/*" \
+        -print > "\$LIST_FILE"
 else
     find "\$SCAN_DIR" -type f \
-      \( -newer "\$CHECKPOINT" -o -cnewer "\$CHECKPOINT" \) \
-      -not -path "/proc/*" -not -path "/sys/*" \
-      -not -path "/dev/*"  -not -path "/run/*" \
-      -print > "\$LIST_FILE"
+        \( -newer "\$CHECKPOINT" -o -cnewer "\$CHECKPOINT" \) \
+        -not -path "/proc/*" \
+        -not -path "/sys/*" \
+        -not -path "/dev/*" \
+        -not -path "/run/*" \
+        -print > "\$LIST_FILE"
 fi
 
 if [ -s "\$LIST_FILE" ]; then
     clamdscan -c "\$CONFIG" \
-      --fdpass --multiscan \
-      --move="\$QUARANTINE_DIR" \
-      --file-list="\$LIST_FILE" \
-      --log="\$LOG_FILE"
+        --fdpass --multiscan \
+        --move="\$QUARANTINE_DIR" \
+        --file-list="\$LIST_FILE" \
+        --log="\$LOG_FILE"
 
     grep "FOUND" "\$LOG_FILE" | mail -s "ClamAV ALERT on \$(hostname)" "\$EMAIL" || true
 fi
@@ -2119,7 +2130,7 @@ EOF
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
 
     # -----------------------------
-    # SELinux (EL9)
+    # SELinux configuration
     # -----------------------------
     if getenforce | grep -q Enforcing; then
         setsebool -P antivirus_can_scan_system 1
@@ -2127,7 +2138,7 @@ EOF
     fi
 
     # -----------------------------
-    # Logrotate
+    # Log rotation
     # -----------------------------
     cat > /etc/logrotate.d/clamav-hourly <<EOF
 $LOG_DIR/hourly_audit.log {
@@ -2140,12 +2151,12 @@ $LOG_DIR/hourly_audit.log {
 EOF
 
     # -----------------------------
-    # Definitions
+    # Update virus definitions
     # -----------------------------
-    echo "[+] Updating signatures..."
+    echo "[+] Updating ClamAV signatures..."
     freshclam || true
 
-    echo "[+] ClamAV setup complete (EL9 compatible)"
+    echo "[+] ClamAV setup complete."
 }
 
 test_clamav_setup() {
@@ -2155,14 +2166,11 @@ test_clamav_setup() {
     local TEST_FILE="/tmp/eicar.com"
     echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$TEST_FILE"
 
-    systemctl is-active --quiet clamd@scan || {
-        echo "clamd@scan is not running"
-        return 1
-    }
+    # run scan
+    /usr/local/bin/hourly_secure_scan.sh
 
-    clamdscan "$TEST_FILE" || true
-
-    if [ -f /var/lib/clamav/quarantine/eicar.com ]; then
+    local QUARANTINE_DIR="/var/lib/clamav/quarantine"
+    if [ -f "$QUARANTINE_DIR/eicar.com" ]; then
         echo "[+] SUCCESS: File quarantined"
     else
         echo "[!] FAILED: File not quarantined"
