@@ -115,7 +115,7 @@ check_sccadm_group() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.2.9 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.3.1 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -161,6 +161,7 @@ printf "${MAGENTA} 1.2.7 | 12/23/2025 | - Added coredump check and permission fi
 printf "${MAGENTA} 1.2.8 | 12/29/2025 | - Added XFS Filesystem Checker ${NC}\n"
 printf "${MAGENTA} 1.2.9 | 01/07/2026 | - Swap size checker added ${NC}\n"
 printf "${MAGENTA} 1.3.0 | 01/26/2026 | - ClamAV checker added ${NC}\n"
+printf "${MAGENTA} 1.3.1 | 01/26/2026 | - ClamAV setup option added ${NC}\n"
 }
 
 print_help() {
@@ -180,12 +181,13 @@ printf "${YELLOW}--linfo${NC}	# Creates a system information archive with import
 printf "${YELLOW}--hugeusage${NC}	# Checks the details regarding the hughpage usage on system\n\n"
 printf "${YELLOW}--badextfs${NC}	# Gives you a list of corrupted EXT FS\n\n"
 printf "${YELLOW}--badxfsfs${NC}	# Gives you a list of corrupted XFS FS\n\n"
-printf "${YELLOW}--clamavcheck${NC}	# Gives you overview of clamav\n\n
+printf "${YELLOW}--clamavcheck${NC}	# Gives you overview of clamav\n\n"
 printf "\n${MAGENTA}System Configuration Correction Options:${NC}\n"
 printf "${YELLOW}--devconsolefix${NC}	# Checks and corrects the /dev/console rules on system\n\n"
 printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on system\n\n"
 printf "${YELLOW}--histtimestampfix${NC}	# Corrects history timestamp variable in /etc/bashrc\n\n"
 printf "${YELLOW}--coredumpfix${NC}	# Corrects coredump permissions\n\n"
+printf "${YELLOW}--setupclamav${NC}	# Corrects coredump permissions\n\n"
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
 printf "${YELLOW}--auditdisc${NC}	# Description for misconfigured audit rules\n\n"
 printf "${YELLOW}--listndisc${NC}	# Description for oracle listener issues\n\n"
@@ -1994,6 +1996,209 @@ clamav_health_check() {
 }
 
 
+#!/bin/bash
+
+setup_clamav() {
+    check_root
+	confirm_action 
+
+    set -euo pipefail  
+
+    #--------------------------------
+    # Ensure script runs as root
+    #--------------------------------
+    if [ "$EUID" -ne 0 ]; then
+        echo "This script must be run as root. Exiting."
+        return 1
+    fi
+
+    # -----------------------------
+    # Configuration Variables 
+    # -----------------------------
+    local EMAIL
+    read -rp "Enter email for ClamAV alerts: " EMAIL
+
+   
+    if [[ ! "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+        echo "Invalid email format. Exiting."
+        return 1
+    fi
+
+    echo "Email set to: $EMAIL"
+    local SCAN_DIR="${2:-/}"
+    local QUARANTINE_DIR="/var/lib/clamav/quarantine"
+    local LOG_DIR="/var/log/clamav"
+    local CHECKPOINT="/var/lib/clamav/scan_checkpoint"
+    local MEMORY_LIMIT="4G"
+    local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
+
+    # -----------------------------
+    # Step 1: Install Packages
+    # -----------------------------
+    echo "[+] Installing ClamAV packages..."
+    dnf install -y clamav clamav-update clamd
+
+    # ---------------------------------
+    # Step 2: Enable & start services
+    # ---------------------------------
+    echo "[+] Enabling freshclam..."
+    systemctl enable --now freshclam
+
+    echo "[+] Ensuring clamd notify is enabled..."
+    grep -q '^NotifyClamd yes' /etc/clamd.d/scan.conf || \
+        echo "NotifyClamd yes" >> /etc/clamd.d/scan.conf
+
+    echo "[+] Enabling and starting clamd..."
+    systemctl enable --now clamd@scan
+
+    # -------------------------------
+    # Step 3: Apply systemd override
+    # -------------------------------
+    echo "[+] Creating systemd override..."
+    mkdir -p /etc/systemd/system/clamd@scan.service.d
+    cat > /etc/systemd/system/clamd@scan.service.d/override.conf <<EOF
+[Service]
+CPUSchedulingPolicy=idle
+Nice=19
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+MemoryMax=${MEMORY_LIMIT}
+EOF
+
+    systemctl daemon-reload
+    systemctl restart clamd@scan
+
+    # -----------------------------
+    # Step 4: Create directories
+    # -----------------------------
+    echo "[+] Creating directories..."
+    for DIR in "$QUARANTINE_DIR" "$LOG_DIR"; do
+        mkdir -p "$DIR"
+        chown -R clamscan:clamscan "$DIR"
+        chmod 0750 "$DIR"
+    done
+
+    # -----------------------------
+    # Step 5: Deploy hourly scan script
+    # -----------------------------
+    echo "[+] Deploying hourly scan script..."
+    cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
+#!/bin/bash
+set -euo pipefail  # <-- also inside the hourly scan script
+
+SCAN_DIR="${SCAN_DIR}"
+CHECKPOINT="${CHECKPOINT}"
+LOG_FILE="${LOG_DIR}/hourly_audit.log"
+QUARANTINE_DIR="${QUARANTINE_DIR}"
+EMAIL="${EMAIL}"
+CONFIG="/etc/clamd.d/scan.conf"
+WEEKLY_REPORT="${WEEKLY_REPORT}"
+
+LOCK_FILE="/var/run/hourly_secure_scan.lock"
+exec 200>\$LOCK_FILE
+flock -n 200 || exit 0
+
+LIST_FILE=\$(mktemp -t clamscan.XXXXXX)
+trap 'rm -f "\$LIST_FILE"' EXIT
+
+if [ ! -f "\$CHECKPOINT" ]; then
+    find "\$SCAN_DIR" -type f \
+        -not -path "/proc/*" \
+        -not -path "/sys/*" \
+        -not -path "/dev/*" \
+        -not -path "/run/*" \
+        -print > "\$LIST_FILE"
+else
+    find "\$SCAN_DIR" -type f \
+        \( -newer "\$CHECKPOINT" -o -cnewer "\$CHECKPOINT" \) \
+        -not -path "/proc/*" \
+        -not -path "/sys/*" \
+        -not -path "/dev/*" \
+        -not -path "/run/*" \
+        -print > "\$LIST_FILE"
+fi
+
+TOTAL_FILES=\$(wc -l < "\$LIST_FILE")
+INFECTED=0
+
+if [ -s "\$LIST_FILE" ]; then
+    clamdscan \
+        -c "\$CONFIG" \
+        --fdpass \
+        --multiscan \
+        --move="\$QUARANTINE_DIR" \
+        --file-list="\$LIST_FILE" \
+        --log="\$LOG_FILE"
+
+    if grep -q "Infected files: [1-9]" "\$LOG_FILE"; then
+        INFECTED=\$(grep "Infected files:" "\$LOG_FILE" | awk '{print \$3}')
+        grep "FOUND" "\$LOG_FILE" | mail -s "SECURITY ALERT on \$(hostname)" "\$EMAIL"
+    fi
+fi
+
+echo "\$(date '+%Y-%m-%d %H:%M:%S') Files scanned: \$TOTAL_FILES, Infected: \$INFECTED" >> "\$WEEKLY_REPORT"
+touch "\$CHECKPOINT"
+EOF
+
+    chmod 700 /usr/local/bin/hourly_secure_scan.sh
+
+    # -----------------------------
+    # Step 6: SELinux configuration
+    # -----------------------------
+    if [ "$(getenforce)" = "Enforcing" ]; then
+        echo "[+] SELinux is enforcing — setting ClamAV booleans..."
+        setsebool -P clamav_can_scan_system 1
+        setsebool -P clamd_use_jit 1
+    else
+        echo "[+] SELinux not enforcing — skipping SELinux configuration"
+    fi
+
+    # -----------------------------
+    # Step 7: Configure log rotation
+    # -----------------------------
+    echo "[+] Configuring log rotation..."
+    cat > /etc/logrotate.d/clamav-hourly <<EOF
+/var/log/clamav/hourly_audit.log {
+    rotate 30
+    daily
+    compress
+    delaycompress
+    missingok
+    notifempty
+    postrotate
+        /usr/bin/systemctl restart clamd@scan > /dev/null 2>/dev/null || true
+    endscript
+}
+EOF
+
+    # -----------------------------
+    # Step 8: Prime virus definitions
+    # -----------------------------
+    echo "[+] Updating virus definitions..."
+    freshclam || true
+
+    # -----------------------------
+    # Step 9: Weekly report email cron
+    # -----------------------------
+    echo "[+] Setting up weekly report email cron..."
+    (crontab -l 2>/dev/null; echo "59 23 * * 0 mail -s 'Weekly ClamAV Report on \$(hostname)' $EMAIL < $WEEKLY_REPORT && > $WEEKLY_REPORT") | crontab -
+
+    # -----------------------------
+    # Step 10: Verification
+    # -----------------------------
+    echo "[+] Verifying installation..."
+    if [ ! -f /var/lib/clamav/daily.cld ]; then
+        echo "ERROR: ClamAV virus definitions not found!"
+        return 1
+    fi
+
+    echo "[+] Provisioning complete. All services active, directories created, weekly report scheduled."
+}
+
+
+
+
+
 case "$1" in
 	--ver) print_version ;;
 	--help) print_help ;;
@@ -2014,6 +2219,7 @@ case "$1" in
 	--histtimestampfix) print_histtimestamp ;;
 	--coredumpfix) print_coredumpfix ;;
 	--clamavcheck) clamav_health_check ;;
+	--setupclamav) setup_clamav ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
