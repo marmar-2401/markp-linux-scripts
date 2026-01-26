@@ -1998,8 +1998,6 @@ clamav_health_check() {
 }
 
 
-#!/bin/bash
-
 setup_clamav() {
     check_root
 	confirm_action 
@@ -2220,9 +2218,9 @@ test_clamav_setup() {
     # ---------------------------
     local QUARANTINE_DIR="/var/lib/clamav/quarantine"
     if [ -f "$QUARANTINE_DIR/eicar.com" ]; then
-        echo "[✅] Test file was successfully quarantined!"
+        echo "Test file was successfully quarantined!"
     else
-        echo "[❌] Test file was NOT quarantined. Check scan script and permissions."
+        echo "Test file was NOT quarantined. Check scan script and permissions."
     fi
 
     # ---------------------------
@@ -2230,9 +2228,9 @@ test_clamav_setup() {
     # ---------------------------
     local LOG_FILE="/var/log/clamav/hourly_audit.log"
     if grep -q "Eicar-Test-Signature" "$LOG_FILE"; then
-        echo "[✅] Log file shows the test virus was detected."
+        echo "Log file shows the test virus was detected."
     else
-        echo "[❌] Test virus not found in log. Check clamd and scan script."
+        echo "Test virus not found in log. Check clamd and scan script."
     fi
 
     # ---------------------------
