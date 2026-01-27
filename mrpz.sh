@@ -1858,7 +1858,6 @@ fi
 setup_clamav() {
     check_root
     confirm_action
-    # set -e: exit on error, -u: error on unset variables, -o pipefail: catch errors in pipes
     set -euo pipefail
 
     local EMAIL
@@ -1887,7 +1886,7 @@ setup_clamav() {
     touch "$WEEKLY_REPORT" "$CHECKPOINT"
     chown -R "$CLAM_USER:$CLAM_GROUP" "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
 
-    echo "[+] Starting ClamAV Engine (clamd@scan)..."
+    echo "[+] Starting ClamAV Engine..."
     systemctl daemon-reload
     systemctl reset-failed clamd@scan >/dev/null 2>&1 || true
     systemctl enable --now clamd@scan >/dev/null 2>&1 || true
@@ -1908,19 +1907,20 @@ EMAIL_ADDR="$EMAIL"
 C_USER="$CLAM_USER"
 C_GROUP="$CLAM_GROUP"
 
+# 1. Gather files
 LIST=\$(mktemp)
-# Gather files (Differential Logic)
 nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" \\
      \$([ -f "\$CHK" ] && echo "-newer \$CHK") > "\$LIST" 2>/dev/null || true
 
 TOTAL=\$(wc -l < "\$LIST")
 
+# 2. Run scan if files found
 if [ "\$TOTAL" -gt 0 ]; then
-    # PERMISSION FIX 1: Allow ClamAV user to read the file list
+    # CRITICAL FIX 1: Allow ClamAV user to read the list created by root
     chmod 644 "\$LIST"
 
-    # PERMISSION FIX 2: --fdpass allows clamd to access files owned by root
+    # CRITICAL FIX 2: Use --fdpass to scan root-owned files as ClamAV user
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --fdpass --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null || true)
     
     # Alert Logic
@@ -1936,10 +1936,11 @@ else
     ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\nFiles scanned: 0 (No new files)\n-----------------------------------"
 fi
 
+# 3. Log results
 echo -e "\$ENTRY" >> "\$WEEKLY"
 echo -e "\$ENTRY" >> "\$HOURLY"
 
-# Hourly Log Rotation
+# 4. Hourly Log Rotation
 if [ \$(wc -l < "\$HOURLY") -gt 1000 ]; then
     tail -n 1000 "\$HOURLY" > "\$HOURLY.tmp" && mv -f "\$HOURLY.tmp" "\$HOURLY"
     chown "\$C_USER:\$C_GROUP" "\$HOURLY"
