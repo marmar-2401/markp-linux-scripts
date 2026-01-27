@@ -1930,9 +1930,8 @@ setup_clamav() {
     echo "[+] Deploying Secure Scan Script (Filtered Alerts)..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
-# FIX: Explicit PATH for Cron environment
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-set -u
+
 LOCKFILE="/run/clamd.scan/hourly_scan.lock"
 exec 200>\$LOCKFILE
 flock -n 200 || exit 1
@@ -1982,7 +1981,6 @@ EOF
     chown root:root /usr/local/bin/hourly_secure_scan.sh
     
     echo "[+] Configuring Cron Jobs..."
-    # FIX: Ensure a trailing newline so Cron picks up the last line
     ( crontab -l 2>/dev/null | grep -v -E 'hourly_secure_scan.sh|weekly_report.log' || true ; 
       echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ;
       echo "0 0 * * 1 mailx -s \"Weekly ClamAV Summary - \$(hostname)\" $EMAIL < $WEEKLY_REPORT && > $WEEKLY_REPORT" ;
