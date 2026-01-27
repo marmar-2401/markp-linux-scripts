@@ -1903,7 +1903,6 @@ setup_clamav() {
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
-# LOCKFILE PREVENTION
 LOCKFILE="/run/clamd.scan/hourly_scan.lock"
 exec 200>\$LOCKFILE
 flock -n 200 || exit 1
@@ -1913,7 +1912,6 @@ CHK="/var/lib/clamav/scan_checkpoint"
 Q_DIR="/var/lib/clamav/quarantine"
 EMAIL_ADDR="$EMAIL"
 
-# 1. Gather files (Nice/Ionice) - ALL ORIGINAL EXCLUSIONS PRESERVED
 LIST=\$(mktemp)
 nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" \\
@@ -1921,21 +1919,20 @@ nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -
 
 TOTAL=\$(wc -l < "\$LIST")
 
-# 2. Scan and Immediate Alert
 if [ "\$TOTAL" -gt 0 ]; then
-    # --quiet mutes OK files; 2>/dev/null mutes Access Denied errors
-    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --quiet --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
+    # We remove --quiet here to ensure the Summary is generated, then we filter it manually
+    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
     
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
         echo "\$SCAN_RESULTS" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
     fi
 
-    # 3. Force Logging (Cleaned Output)
     {
         echo "-----------------------------------"
         echo "Date: \$(date '+%Y-%m-%d %H:%M:%S')"
-        # EXPLICIT FILTER: Keep Summary Header, Infected files, and Timestamps. Ignore Errors/OK files.
-        echo "\$SCAN_RESULTS" | grep -E "FOUND|SCAN SUMMARY|Infected files|Time:|Start Date|End Date"
+        # This filter keeps the Summary, Infected count, and Timestamps. 
+        # It explicitly removes individual file paths (lines with OK/FOUND/ERROR at the end) and 'Total errors'
+        echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Infected files|Time:|Start Date|End Date" | grep -v "Total errors"
         echo "-----------------------------------"
     } >> "\$REPORT"
 else
@@ -1972,12 +1969,10 @@ clamav_health_check() {
     
     echo ""
     echo "=== Virus Definitions ==="
-    # Check physical database modification time
     if [ -f /var/lib/clamav/daily.cld ] || [ -f /var/lib/clamav/daily.cvd ]; then
         local DB_FILE=$(ls -1 /var/lib/clamav/daily.c* | head -n 1)
         echo "Last Database Update: $(stat -c %y "$DB_FILE" | cut -d'.' -f1)"
     fi
-    # Check journal for last connection check
     local LAST_CHECK=$(journalctl -u clamav-freshclam --since "24 hours ago" | grep "process started" | tail -n 1 | awk '{print $1,$2,$3}')
     echo "Last Update Check:   ${LAST_CHECK:-No check in last 24h}"
 
@@ -1995,7 +1990,6 @@ clamav_health_check() {
     echo "=== Weekly Stats ==="
     if [ -f "$REPORT" ]; then
         local SCANS=$(grep -c "SCAN SUMMARY" "$REPORT")
-        # FIXED: Only grep for Date: at the START of the line
         local LAST_SCAN=$(grep "^Date: " "$REPORT" | tail -n 1 | sed 's/Date: //')
         
         echo "Scans Logged This Week: $SCANS"
@@ -2004,6 +1998,8 @@ clamav_health_check() {
         echo "Report not found"
     fi
 }
+
+
 test_clamav_setup() {
     echo "[+] Running ClamAV EICAR test..."
     local TEST_FILE="/tmp/eicar.com"
