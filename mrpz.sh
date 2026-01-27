@@ -1978,7 +1978,9 @@ clamav_health_check() {
     echo "=== ClamAV Health Check Complete ==="
 }
 
-
+# ==========================================
+# ClamAV Setup Script
+# ==========================================
 setup_clamav() {
     check_root
     confirm_action
@@ -2003,7 +2005,7 @@ setup_clamav() {
     local CONFIG="/etc/clamd.d/scan.conf"
 
     # -----------------------------
-    # Install packages (EL9)
+    # Install packages (EL)
     # -----------------------------
     echo "[+] Installing ClamAV..."
     if grep -qi oracle /etc/os-release; then
@@ -2011,11 +2013,10 @@ setup_clamav() {
     else
         dnf install -y epel-release
     fi
-
     dnf install -y clamav clamav-freshclam clamd
 
     # -----------------------------
-    # Hardening clamd config
+    # Configure clamd
     # -----------------------------
     echo "[+] Configuring clamd..."
     sed -i \
@@ -2026,7 +2027,7 @@ setup_clamav() {
         "$CONFIG"
 
     # -----------------------------
-    # Ensure runtime socket directory exists
+    # Create socket directory
     # -----------------------------
     echo "[+] Creating socket dir..."
     mkdir -p "$SOCKET_DIR"
@@ -2034,7 +2035,7 @@ setup_clamav() {
     chmod 755 "$SOCKET_DIR"
 
     # -----------------------------
-    # Ensure quarantine & log directories exist
+    # Create data directories
     # -----------------------------
     echo "[+] Creating data directories..."
     for DIR in "$QUARANTINE_DIR" "$LOG_DIR"; do
@@ -2052,7 +2053,7 @@ setup_clamav() {
     systemctl enable --now clamd@scan
 
     # -----------------------------
-    # Deploy updated hourly scan script
+    # Deploy hourly scan script
     # -----------------------------
     cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
@@ -2070,7 +2071,6 @@ LOCK_FILE="/run/hourly_secure_scan.lock"
 exec 200>"$LOCK_FILE"
 flock -n 200 || exit 0
 
-# ensure quarantine exists
 mkdir -p "$QUARANTINE_DIR"
 chown clamscan:clamscan "$QUARANTINE_DIR"
 chmod 0750 "$QUARANTINE_DIR"
@@ -2078,7 +2078,6 @@ chmod 0750 "$QUARANTINE_DIR"
 LIST_FILE=$(mktemp)
 trap 'rm -f "$LIST_FILE"' EXIT
 
-# Build file list
 if [ ! -f "$CHECKPOINT" ]; then
     find "$SCAN_DIR" -type f \
         -not -path "/proc/*" -not -path "/sys/*" \
@@ -2095,7 +2094,6 @@ fi
 TOTAL_FILES=$(wc -l < "$LIST_FILE")
 INFECTED_FILES=()
 
-# Run scan silently
 if [ -s "$LIST_FILE" ]; then
     clamdscan -c "$CONFIG" \
         --fdpass --multiscan \
@@ -2104,10 +2102,8 @@ if [ -s "$LIST_FILE" ]; then
         --log="$LOG_DIR/hourly_audit.log" \
         >/dev/null 2>&1
 
-    # Ensure quarantined files have correct permissions
     find "$QUARANTINE_DIR" -type f -exec chmod 0640 {} \; -exec chown clamscan:clamscan {} \;
 
-    # Extract infected files
     while read -r FILE; do
         INFECTED_FILES+=("$FILE")
     done < <(grep "FOUND" "$LOG_DIR/hourly_audit.log" | awk '{print $1}')
@@ -2115,12 +2111,10 @@ fi
 
 INFECTED=${#INFECTED_FILES[@]}
 
-# Send email if infected files found
 if [ "$INFECTED" -gt 0 ]; then
     printf "%s\n" "${INFECTED_FILES[@]}" | mail -s "ClamAV ALERT on $(hostname)" "$EMAIL"
 fi
 
-# Echo only summary
 echo "=== ClamAV Scan Summary ==="
 echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "Total files scanned: $TOTAL_FILES"
@@ -2131,7 +2125,6 @@ if [ "$INFECTED" -gt 0 ]; then
 fi
 echo "==========================="
 
-# Append summary to weekly report
 {
     echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "Files scanned: $TOTAL_FILES"
@@ -2158,7 +2151,25 @@ EOF
 
     # -----------------------------
     # Log rotation
+    # -----------------------------
+    cat > /etc/logrotate.d/clamav-hourly <<EOF
+$LOG_DIR/hourly_audit.log {
+    daily
+    rotate 30
+    compress
+    missingok
+    notifempty
+}
+EOF
 
+    # -----------------------------
+    # Update virus definitions
+    # -----------------------------
+    echo "[+] Updating ClamAV signatures..."
+    freshclam || true
+
+    echo "[+] ClamAV setup complete."
+} 
 
 test_clamav_setup() {
     set -euo pipefail
