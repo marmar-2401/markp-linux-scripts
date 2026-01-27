@@ -1879,7 +1879,6 @@ setup_clamav() {
     echo "[+] Detecting ClamAV User..."
     local CLAM_USER=$(stat -c '%U' /var/lib/clamav)
     local CLAM_GROUP=$(stat -c '%G' /var/lib/clamav)
-    echo "[+] Detected Service Account: $CLAM_USER:$CLAM_GROUP"
 
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
@@ -1888,10 +1887,9 @@ setup_clamav() {
 
     echo "[+] Starting ClamAV Engine..."
     systemctl daemon-reload
-    systemctl reset-failed clamd@scan >/dev/null 2>&1 || true
     systemctl enable --now clamd@scan >/dev/null 2>&1 || true
 
-    echo "[+] Deploying Secure Scan Script (Filtered Alerts)..."
+    echo "[+] Deploying Secure Scan Script..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -1909,7 +1907,8 @@ C_GROUP="$CLAM_GROUP"
 
 # 1. Gather files
 LIST=\$(mktemp)
-nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
+# If no checkpoint exists, scan /tmp and /home as a fallback to ensure we find things
+find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" \\
      \$([ -f "\$CHK" ] && echo "-newer \$CHK") > "\$LIST" 2>/dev/null || true
 
@@ -1917,26 +1916,33 @@ TOTAL=\$(wc -l < "\$LIST")
 
 # 2. Run scan if files found
 if [ "\$TOTAL" -gt 0 ]; then
-    # CRITICAL FIX 1: Allow ClamAV user to read the list created by root
+    # FIX: Allow ClamAV to read the list
     chmod 644 "\$LIST"
 
-    # CRITICAL FIX 2: Use --fdpass to scan root-owned files as ClamAV user
-    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --fdpass --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null || true)
+    # FIX: Captured output properly and used --fdpass
+    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --fdpass --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>&1 || true)
     
-    # Alert Logic
-    if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
-        ALERT_BODY=\$(echo "\$SCAN_RESULTS" | grep -E "FOUND|SCAN SUMMARY|Infected files|Total errors|Time:")
-        echo -e "Virus(es) detected on \$(hostname):\n\n\$ALERT_BODY" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
+    # Check if scan actually ran (Summary only appears if it worked)
+    if echo "\$SCAN_RESULTS" | grep -q "SCAN SUMMARY"; then
+        # ONLY touch the checkpoint if the scan actually executed successfully
+        touch "\$CHK"
+        
+        # Alert Logic
+        if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
+            ALERT_BODY=\$(echo "\$SCAN_RESULTS" | grep -E "FOUND|SCAN SUMMARY|Infected files|Total errors|Time:")
+            # Added -r to satisfy corporate mail relays
+            echo -e "Virus(es) detected on \$(hostname):\n\n\$ALERT_BODY" | mailx -r "clamav-alerts@softcomputer.com" -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
+        fi
+        
+        CLEAN_SUMMARY=\$(echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Infected files|Time:|Start Date|End Date" | grep -v "Total errors")
+        ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\n\$CLEAN_SUMMARY\n-----------------------------------"
+    else
+        ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\nERROR: Scan failed to execute properly. Results were empty.\n-----------------------------------"
     fi
-
-    # Logging Logic
-    CLEAN_SUMMARY=\$(echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Infected files|Time:|Start Date|End Date" | grep -v "Total errors")
-    ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\n\$CLEAN_SUMMARY\n-----------------------------------"
 else
     ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\nFiles scanned: 0 (No new files)\n-----------------------------------"
 fi
 
-# 3. Log results
 echo -e "\$ENTRY" >> "\$WEEKLY"
 echo -e "\$ENTRY" >> "\$HOURLY"
 
@@ -1946,14 +1952,13 @@ if [ \$(wc -l < "\$HOURLY") -gt 1000 ]; then
     chown "\$C_USER:\$C_GROUP" "\$HOURLY"
 fi
 
-touch "\$CHK"
 rm -f "\$LIST"
 EOF
 
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
     chown root:root /usr/local/bin/hourly_secure_scan.sh
 
-    echo "[+] Configuring Cron Jobs..."
+    echo "[+] Configuring Cron..."
     ( crontab -l 2>/dev/null | grep -v -E 'hourly_secure_scan.sh|weekly_report.log' || true ; 
       echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ;
       echo "0 0 * * 1 mailx -s \"Weekly ClamAV Summary - \$(hostname)\" $EMAIL < $WEEKLY_REPORT && > $WEEKLY_REPORT"
