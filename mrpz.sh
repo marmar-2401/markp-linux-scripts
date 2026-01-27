@@ -1898,27 +1898,25 @@ setup_clamav() {
 
     set -euo pipefail
 
-    echo "[+] Hardening Configuration Files & Setting Log Limits..."
-    if [ -f /etc/freshclam.conf ]; then
-        sed -i '/^Example/d' /etc/freshclam.conf
-        sed -i "s|^#UpdateLogFile.*|UpdateLogFile $LOG_DIR/freshclam.log|" /etc/freshclam.conf
-        sed -i 's|^#LogTime .*|LogTime yes|' /etc/freshclam.conf
-        sed -i 's|^#LogFileMaxSize .*|LogFileMaxSize 2M|' /etc/freshclam.conf
-        touch "$LOG_DIR/freshclam.log"
-        chown clamupdate:clamupdate "$LOG_DIR/freshclam.log"
-    fi
+    echo "[+] Hardening Configuration Files..."
+    # Apply standard configs and log limits
+    for cfg in /etc/freshclam.conf /etc/clamd.d/scan.conf; do
+        if [ -f "$cfg" ]; then
+            sed -i '/^Example/d' "$cfg"
+            sed -i 's|^#LogTime .*|LogTime yes|' "$cfg"
+            sed -i 's|^#LogFileMaxSize .*|LogFileMaxSize 2M|' "$cfg"
+        fi
+    done
+    
+    # Specific file pointers
+    sed -i "s|^#UpdateLogFile.*|UpdateLogFile $LOG_DIR/freshclam.log|" /etc/freshclam.conf
+    sed -i 's|^#LocalSocket .*|LocalSocket /run/clamd.scan/clamd.sock|' /etc/clamd.d/scan.conf
+    sed -i 's|^#User .*|User clamscan|' /etc/clamd.d/scan.conf
+    sed -i "s|^#LogFile .*|LogFile $LOG_DIR/clamd.log|" /etc/clamd.d/scan.conf
 
-    if [ -f /etc/clamd.d/scan.conf ]; then
-        sed -i '/^Example/d' /etc/clamd.d/scan.conf
-        sed -i 's|^#LocalSocket .*|LocalSocket /run/clamd.scan/clamd.sock|' /etc/clamd.d/scan.conf
-        sed -i 's|^#FixStaleSocket .*|FixStaleSocket yes|' /etc/clamd.d/scan.conf
-        sed -i 's|^#User .*|User clamscan|' /etc/clamd.d/scan.conf
-        sed -i "s|^#LogFile .*|LogFile $LOG_DIR/clamd.log|" /etc/clamd.d/scan.conf
-        sed -i 's|^#LogTime .*|LogTime yes|' /etc/clamd.d/scan.conf
-        sed -i 's|^#LogFileMaxSize .*|LogFileMaxSize 2M|' /etc/clamd.d/scan.conf
-        touch "$LOG_DIR/clamd.log"
-        chown clamscan:clamscan "$LOG_DIR/clamd.log"
-    fi
+    touch "$LOG_DIR/freshclam.log" "$LOG_DIR/clamd.log"
+    chown clamupdate:clamupdate "$LOG_DIR/freshclam.log"
+    chown clamscan:clamscan "$LOG_DIR/clamd.log"
 
     echo "[+] Configuring Log Rotation..."
     cat > /etc/logrotate.d/clamav <<EOF
@@ -1926,39 +1924,28 @@ $LOG_DIR/*.log {
     weekly
     rotate 4
     compress
-    delaycompress
     missingok
     notifempty
     create 0644 clamupdate clamav
-    sharedscripts
     postrotate
         /usr/bin/systemctl reload clamd@scan 2>/dev/null || true
-        /usr/bin/systemctl reload clamav-freshclam 2>/dev/null || true
     endscript
 }
 EOF
 
-    echo "[+] Configuring SELinux Policies & Contexts..."
+    echo "[+] Configuring SELinux..."
     setsebool -P antivirus_can_scan_system 1 >/dev/null 2>&1 || true
     setsebool -P clamd_use_jit 1 >/dev/null 2>&1 || true
     semanage fcontext -a -t clamav_var_lib_t "/var/lib/clamav(/.*)?" 2>/dev/null || true
     semanage fcontext -a -t antivirus_log_t "$LOG_DIR(/.*)?" 2>/dev/null || true
-    restorecon -Rv /var/lib/clamav >/dev/null 2>&1
-    restorecon -Rv "$LOG_DIR" >/dev/null 2>&1
+    restorecon -Rv /var/lib/clamav "$LOG_DIR" >/dev/null 2>&1
 
-    echo "[+] Activating Freshclam & Downloading Database..."
+    echo "[+] Starting Services..."
     systemctl enable --now clamav-freshclam >/dev/null 2>&1 || true
-    if [ ! -f /var/lib/clamav/main.cvd ] && [ ! -f /var/lib/clamav/main.cld ]; then
-        echo "[!] Database missing. Performing initial download (please wait)..."
-        freshclam || true
-    fi
-
-    echo "[+] Starting ClamAV Engine (clamd@scan)..."
     systemctl reset-failed clamd@scan >/dev/null 2>&1
-    systemctl enable clamd@scan >/dev/null 2>&1 || true
-    systemctl start clamd@scan >/dev/null 2>&1 || true
+    systemctl enable --now clamd@scan >/dev/null 2>&1 || true
 
-    echo "[+] Deploying Secure Scan Script (Count-Corrected Reporting)..."
+    echo "[+] Deploying Clean-Report Scan Script..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -1967,56 +1954,57 @@ exec 200>\$LOCKFILE
 flock -n 200 || exit 1
 
 SCAN_START_MARKER=\$(mktemp /tmp/clamscan_ts.XXXXXX)
-WEEKLY="$WEEKLY_REPORT"
-HOURLY="$LOG_DIR/hourly_audit.log"
-CHK="$CHECKPOINT"
 Q_DIR="$QUARANTINE_DIR"
 EMAIL_ADDR="$EMAIL"
+CHK="$CHECKPOINT"
 NOW=\$(date '+%Y-%m-%d %H:%M:%S')
 
 LIST=\$(mktemp)
-# Generate list of new/modified files, excluding core system mounts and quarantine
 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" -not -path "$LOG_DIR/*" \\
      -not -path "\$Q_DIR/*" \\
      \$([ -f "\$CHK" ] && echo "-newer \$CHK") > "\$LIST" 2>/dev/null || true
 
-# Manually count files for reliable reporting
 FILES_TO_SCAN=\$(wc -l < "\$LIST")
 
 if [ "\$FILES_TO_SCAN" -gt 0 ]; then
+    # Perform scan
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
+    
+    # Process findings
+    INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep -c "FOUND" || echo 0)
+    SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep "Time:" | awk -F: '{print \$2}' | xargs)
 
-    if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
-        INFECTED_LIST=\$(echo "\$SCAN_RESULTS" | grep "FOUND" | awk -F: '{print \$1}')
-        REPORT_BODY="Detection Date: \$NOW\n"
-        REPORT_BODY+="Actual Files Checked: \$FILES_TO_SCAN\n"
-        REPORT_BODY+="Virus(es) detected on \$(hostname) and moved to quarantine:\n\n"
+    if [ "\$INFECTED_COUNT" -gt 0 ]; then
+        # Build Report
+        REPORT="Detection Date: \$NOW\n"
+        REPORT+="-------------------------------------------\n"
+        REPORT+="Virus(es) detected on \$(hostname):\n\n"
         
         while read -r FILE; do
             [ -z "\$FILE" ] && continue
             FILENAME=\$(basename "\$FILE")
-            REPORT_BODY+="Original Path: \$FILE\n"
-            REPORT_BODY+="Quarantine Path: \$Q_DIR/\$FILENAME\n"
-            REPORT_BODY+="-----------------------------------\n"
-        done <<< "\$INFECTED_LIST"
+            REPORT+="Original Path:   \$FILE\n"
+            REPORT+="Quarantine Path: \$Q_DIR/\$FILENAME\n"
+            REPORT+="-------------------------------------------\n"
+        done <<< "\$(echo "\$SCAN_RESULTS" | grep "FOUND" | awk -F: '{print \$1}')"
 
-        SUMMARY_STATS=\$(echo "\$SCAN_RESULTS" | grep -E "Infected files|Time:")
-        echo -e "\$REPORT_BODY\n\n----------- SCAN SUMMARY -----------\nInfected files: \$(echo "\$INFECTED_LIST" | wc -l)\n\$SUMMARY_STATS" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
+        REPORT+="\n----------- SCAN SUMMARY -----------\n"
+        REPORT+="Files Checked:  \$FILES_TO_SCAN\n"
+        REPORT+="Infected Files: \$INFECTED_COUNT\n"
+        REPORT+="Scan Time:      \$SCAN_TIME\n"
+        REPORT+="------------------------------------"
+
+        echo -e "\$REPORT" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
     fi
 
-    ENTRY="-----------------------------------\nDate: \$NOW\nFiles Checked: \$FILES_TO_SCAN\n\$(echo "\$SCAN_RESULTS" | grep -E "Infected files|Time:")\n-----------------------------------"
-else
-    ENTRY="-----------------------------------\nDate: \$NOW\nFiles Checked: 0 (No new files)\n-----------------------------------"
+    # Log the result
+    ENTRY="Date: \$NOW | Files: \$FILES_TO_SCAN | Infected: \$INFECTED_COUNT | Time: \$SCAN_TIME"
+    echo "\$ENTRY" >> "$WEEKLY_REPORT"
+    echo "\$ENTRY" >> "$LOG_DIR/hourly_audit.log"
 fi
 
-echo -e "\$ENTRY" >> "\$WEEKLY"
-echo -e "\$ENTRY" >> "\$HOURLY"
-
-if [ -f "\$HOURLY" ] && [ \$(wc -l < "\$HOURLY") -gt 1000 ]; then
-    tail -n 1000 "\$HOURLY" > "\$HOURLY.tmp" && mv -f "\$HOURLY.tmp" "\$HOURLY"
-fi
-
+# Cleanup
 mv "\$SCAN_START_MARKER" "\$CHK"
 chown clamscan:clamscan "\$CHK"
 rm -f "\$LIST"
@@ -2025,7 +2013,7 @@ EOF
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
     chown root:root /usr/local/bin/hourly_secure_scan.sh
 
-    echo "[+] Configuring Cron Jobs..."
+    echo "[+] Configuring Cron..."
     ( crontab -l 2>/dev/null | grep -v -E 'hourly_secure_scan.sh|weekly_report.log' || true ;
       echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ;
       echo "0 0 * * 1 mailx -s \"Weekly ClamAV Summary - \$(hostname)\" $EMAIL < $WEEKLY_REPORT && > $WEEKLY_REPORT"
