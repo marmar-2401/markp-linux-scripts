@@ -1887,7 +1887,10 @@ setup_clamav() {
         dnf install -q -y s-nail
     fi
     
-    echo "[+] Activating Virus Definition Auto-Updates..."
+    echo "[+] Activating Services & Configuring Logs..."
+    # Force freshclam to write to the physical log file you created
+    [ -f /etc/freshclam.conf ] && sed -i 's/^#UpdateLogFile.*/UpdateLogFile \/var\/log\/clamav\/freshclam.log/' /etc/freshclam.conf
+    
     systemctl enable --now clamav-freshclam >/dev/null 2>&1
     systemctl enable --now clamd@scan >/dev/null 2>&1
 
@@ -1900,6 +1903,7 @@ setup_clamav() {
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
+# LOCKFILE PREVENTION
 LOCKFILE="/run/clamd.scan/hourly_scan.lock"
 exec 200>\$LOCKFILE
 flock -n 200 || exit 1
@@ -1909,6 +1913,7 @@ CHK="/var/lib/clamav/scan_checkpoint"
 Q_DIR="/var/lib/clamav/quarantine"
 EMAIL_ADDR="$EMAIL"
 
+# 1. Gather files (Nice/Ionice) - Preserving all your specific exclusions
 LIST=\$(mktemp)
 nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" \\
@@ -1916,22 +1921,22 @@ nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -
 
 TOTAL=\$(wc -l < "\$LIST")
 
+# 2. Scan and Immediate Alert
 if [ "\$TOTAL" -gt 0 ]; then
-    # --quiet: Prevents printing 'OK' files
-    # --no-summary: We use the manual filter instead for better control
-    # 2>/dev/null: Mutes system level errors
+    # --quiet: Removes individual 'OK' file listings
+    # 2>/dev/null: Removes 'Access denied' system errors
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --quiet --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
     
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
         echo "\$SCAN_RESULTS" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
     fi
 
+    # 3. Force Logging (Clean Format)
     {
         echo "-----------------------------------"
         echo "Date: \$(date '+%Y-%m-%d %H:%M:%S')"
-        # This specific grep ONLY allows the FOUND line and the final summary block.
-        # It ignores anything with 'ERROR' or 'OK'.
-        echo "\$SCAN_RESULTS" | grep -E "FOUND|----------- SCAN SUMMARY -----------|^Infected|^Total|^Time|^Start|^End" | grep -v "ERROR"
+        # Filters: Keeps summary & infections. Removes file list & "Total errors" line.
+        echo "\$SCAN_RESULTS" | grep -E "FOUND|----------- SCAN SUMMARY -----------|^Infected|^Time|^Start|^End" | grep -v "Total errors"
         echo "-----------------------------------"
     } >> "\$REPORT"
 else
@@ -1968,31 +1973,38 @@ clamav_health_check() {
     
     echo ""
     echo "=== Virus Definitions ==="
-    if [ -f /var/lib/clamav/main.cvd ]; then
-        echo "Database Last Sync: $(stat -c %y /var/lib/clamav/main.cvd | cut -d'.' -f1)"
+    # Checks the timestamp of the actual active signature database
+    if [ -f /var/lib/clamav/daily.cld ] || [ -f /var/lib/clamav/daily.cvd ]; then
+        local DB_FILE=$(ls -1 /var/lib/clamav/daily.c* | head -n 1)
+        echo "Database Last Sync: $(stat -c %y "$DB_FILE" | cut -d'.' -f1)"
     else
-        echo "[FAIL] Database missing"
+        echo "[FAIL] Database missing from /var/lib/clamav"
     fi
 
     echo ""
     echo "=== Resource & Reporting ==="
-    [ -f /var/log/clamav/freshclam.log ] && echo "[OK] Physical freshclam.log exists" || echo "[FAIL] Log missing"
+    [ -s /var/log/clamav/freshclam.log ] && echo "[OK] freshclam.log exists and has data" || echo "[WARN] freshclam.log is empty"
     [ -f /var/lib/clamav/scan_checkpoint ] && echo "[OK] Checkpoint is active" || echo "[WARN] Checkpoint missing"
 
     echo ""
     echo "=== Quarantine ==="
     local Q_COUNT=$(find /var/lib/clamav/quarantine -mindepth 1 -type f | wc -l)
     echo "Items in Quarantine: $Q_COUNT"
+    echo "Location: /var/lib/clamav/quarantine"
 
     echo ""
     echo "=== Weekly Stats ==="
     if [ -f "$REPORT" ]; then
         local SCANS=$(grep -c "SCAN SUMMARY" "$REPORT")
-        # FIXED: Only grep for lines STARTING with Date:
+        # FIXED: Only grep for lines starting with 'Date:' to avoid 'Start Date' inside the summary
         local LAST_SCAN=$(grep "^Date:" "$REPORT" | tail -n 1 | sed 's/Date: //')
         
         echo "Scans Logged This Week: $SCANS"
-        echo "Last Successful Scan: ${LAST_SCAN:-Never}"
+        if [ -n "$LAST_SCAN" ]; then
+            echo "Last Successful Scan: $LAST_SCAN"
+        else
+            echo "Last Successful Scan: Never (Log format issue)"
+        fi
     else
         echo "Report not found"
     fi
