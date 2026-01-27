@@ -1964,6 +1964,7 @@ EOF
 }
 
 clamav_health_check() {
+    check_root
     local REPORT="/var/log/clamav/weekly_report.log"
     echo "=== ClamAV Health Check ==="
     echo ""
