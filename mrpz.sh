@@ -1868,11 +1868,6 @@ setup_clamav() {
     local CHECKPOINT="/var/lib/clamav/scan_checkpoint"
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
 
-    echo "[+] Preparing Environment..."
-    mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
-    touch "$WEEKLY_REPORT" "$CHECKPOINT"
-    chown -R clamscan:clamscan "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
-
     echo "[+] Configuring EPEL & Installing Components..."
     if grep -q "Oracle Linux" /etc/os-release; then
         dnf install -y oracle-epel-release-el$(rpm -E %rhel) >/dev/null 2>&1
@@ -1880,6 +1875,17 @@ setup_clamav() {
         dnf install -y epel-release >/dev/null 2>&1
     fi
     dnf install -q -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
+
+    echo "[+] Detecting ClamAV User..."
+    # Dynamically detect the user based on the database directory owner (universal for RHEL/Oracle)
+    local CLAM_USER=$(stat -c '%U' /var/lib/clamav)
+    local CLAM_GROUP=$(stat -c '%G' /var/lib/clamav)
+    echo "[+] Detected Service Account: $CLAM_USER:$CLAM_GROUP"
+
+    echo "[+] Preparing Environment..."
+    mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
+    touch "$WEEKLY_REPORT" "$CHECKPOINT"
+    chown -R "$CLAM_USER:$CLAM_GROUP" "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
 
     echo "[+] Installing Mail Utility..."
     if dnf list available mailx >/dev/null 2>&1; then
@@ -1892,9 +1898,9 @@ setup_clamav() {
     # Fix Freshclam Config
     if [ -f /etc/freshclam.conf ]; then
         sed -i '/^Example/d' /etc/freshclam.conf
-        sed -i 's|^#UpdateLogFile.*|UpdateLogFile /var/log/clamav/freshclam.log|' /etc/freshclam.conf
-        touch /var/log/clamav/freshclam.log
-        chown clamscan:clamscan /var/log/clamav/freshclam.log
+        sed -i "s|^#UpdateLogFile.*|UpdateLogFile $LOG_DIR/freshclam.log|" /etc/freshclam.conf
+        touch "$LOG_DIR/freshclam.log"
+        chown "$CLAM_USER:$CLAM_GROUP" "$LOG_DIR/freshclam.log"
     fi
 
     # Fix Clamd Scan Config (Critical for clamd@scan service)
@@ -1902,10 +1908,10 @@ setup_clamav() {
         sed -i '/^Example/d' /etc/clamd.d/scan.conf
         sed -i 's|^#LocalSocket .*|LocalSocket /run/clamd.scan/clamd.sock|' /etc/clamd.d/scan.conf
         sed -i 's|^#FixStaleSocket .*|FixStaleSocket yes|' /etc/clamd.d/scan.conf
-        sed -i 's|^#User .*|User clamscan|' /etc/clamd.d/scan.conf
-        sed -i 's|^#LogFile .*|LogFile /var/log/clamav/clamd.log|' /etc/clamd.d/scan.conf
-        touch /var/log/clamav/clamd.log
-        chown clamscan:clamscan /var/log/clamav/clamd.log
+        sed -i "s|^#User .*|User $CLAM_USER|" /etc/clamd.d/scan.conf
+        sed -i "s|^#LogFile .*|LogFile $LOG_DIR/clamd.log|" /etc/clamd.d/scan.conf
+        touch "$LOG_DIR/clamd.log"
+        chown "$CLAM_USER:$CLAM_GROUP" "$LOG_DIR/clamd.log"
     fi
 
     echo "[+] Configuring SELinux Policies..."
@@ -1936,6 +1942,8 @@ HOURLY="/var/log/clamav/hourly_audit.log"
 CHK="/var/lib/clamav/scan_checkpoint"
 Q_DIR="/var/lib/clamav/quarantine"
 EMAIL_ADDR="$EMAIL"
+C_USER="$CLAM_USER"
+C_GROUP="$CLAM_GROUP"
 
 # 1. Gather files (Differential Logic)
 LIST=\$(mktemp)
@@ -1955,7 +1963,7 @@ if [ "\$TOTAL" -gt 0 ]; then
         echo -e "Virus(es) detected on \$(hostname):\n\n\$ALERT_BODY" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
     fi
 
-    # Logging Logic: Keep the clean summary for audit trails
+    # Logging Logic
     CLEAN_SUMMARY=\$(echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Infected files|Time:|Start Date|End Date" | grep -v "Total errors")
     ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\n\$CLEAN_SUMMARY\n-----------------------------------"
 else
@@ -1969,7 +1977,7 @@ echo -e "\$ENTRY" >> "\$HOURLY"
 # 4. Hourly Log Rotation (Keep last 1000 lines)
 if [ \$(wc -l < "\$HOURLY") -gt 1000 ]; then
     tail -n 1000 "\$HOURLY" > "\$HOURLY.tmp" && mv -f "\$HOURLY.tmp" "\$HOURLY"
-    chown clamscan:clamscan "\$HOURLY"
+    chown "\$C_USER:\$C_GROUP" "\$HOURLY"
 fi
 
 touch "\$CHK"
