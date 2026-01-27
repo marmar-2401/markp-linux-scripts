@@ -1899,7 +1899,7 @@ setup_clamav() {
     echo "[+] Deploying Hardened Scan Script..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
-# Removed -e to handle clamdscan exit codes manually
+# Handled manually to ensure logging always occurs
 set -uo pipefail
 
 # Configuration
@@ -1912,7 +1912,7 @@ WEEKLY_REPORT="/var/log/clamav/weekly_report.log"
 AUDIT_LOG="/var/log/clamav/hourly_audit.log"
 LOCK_FILE="/run/clamd.scan/hourly_scan.lock"
 
-# Ensure lock directory exists (handles reboots)
+# Ensure lock directory exists
 mkdir -p /run/clamd.scan
 exec 200>"$LOCK_FILE"
 if ! flock -n 200; then exit 0; fi
@@ -1932,11 +1932,11 @@ TOTAL_FILES=$(wc -l < "$LIST_FILE")
 INFECTED_FILES=()
 
 if [ "$TOTAL_FILES" -gt 0 ]; then
-    # We allow exit codes 0 (clean) and 1 (infected) to continue
+    # Run scan - clamdscan returns 1 if virus found; we continue anyway
     nice -n 19 ionice -c 3 clamdscan -c "$CONFIG" --quiet --multiscan \
         --move="$QUARANTINE_DIR" --file-list="$LIST_FILE" --log="$AUDIT_LOG" >/dev/null 2>&1
     
-    # Extract findings even if clamdscan returned exit code 1
+    # Extract findings
     while read -r line; do
         [ -n "$line" ] && INFECTED_FILES+=("$line")
     done < <(grep "FOUND" "$AUDIT_LOG" | awk -F: '{print $1}')
@@ -1945,7 +1945,7 @@ fi
 INFECTED=${#INFECTED_FILES[@]}
 DURATION=$(($(date +%s) - START_TIME))
 
-# Log results to weekly report
+# --- LOGGING BLOCK (Moved outside the IF to ensure counter always increases) ---
 {
     echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "Files scanned: $TOTAL_FILES | Duration: ${DURATION}s"
@@ -1954,7 +1954,7 @@ DURATION=$(($(date +%s) - START_TIME))
     echo "-----------------------------------"
 } >> "$WEEKLY_REPORT"
 
-# Critical: Always update checkpoint on successful script completion
+# Update checkpoint
 touch "$CHECKPOINT"
 EOF
 
