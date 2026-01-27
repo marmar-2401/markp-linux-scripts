@@ -1856,146 +1856,128 @@ fi
 }
 
 clamav_health_check() {
-    # -----------------------------
-    # Enable strict mode locally
-    # -----------------------------
     set -euo pipefail
 
-    # -----------------------------
-    # Configuration (can be overridden via function arguments)
-    # -----------------------------
     local CLAMD_SERVICE="${1:-clamd@scan}"
     local FRESHCLAM_SERVICE="${2:-freshclam}"
-    local SCAN_SCRIPT="${3:-/usr/local/bin/hourly_clamav_scan.sh}"
+    local SCAN_SCRIPT="${3:-/usr/local/bin/hourly_secure_scan.sh}"
     local CHECKPOINT="${4:-/var/lib/clamav/scan_checkpoint}"
     local LOG_DIR="${5:-/var/log/clamav}"
     local QUARANTINE_DIR="${6:-/var/lib/clamav/quarantine}"
     local WEEKLY_REPORT="${7:-$LOG_DIR/weekly_report.log}"
 
-    # -----------------------------
-    # Helper function for service checks
-    # -----------------------------
-    local status_check
-    status_check() {
-        if systemctl is-active --quiet "$1"; then
-            echo "[OK] Service $1 is running"
-        else
-            echo "[FAIL] Service $1 is NOT running"
-        fi
-    }
-
     echo "=== ClamAV Health Check ==="
     echo ""
 
     # -----------------------------
-    # 1. Check services
+    # 1. Service check
     # -----------------------------
-    echo "=== ClamAV Services ==="
-    status_check "$CLAMD_SERVICE"
-    status_check "$FRESHCLAM_SERVICE"
-    echo ""
-
-    # -----------------------------
-    # 2. SELinux booleans (if enforcing)
-    # -----------------------------
-    local SELINUX_MODE
-    SELINUX_MODE=$(getenforce)
-    if [ "$SELINUX_MODE" = "Enforcing" ]; then
-        echo "=== SELinux ==="
-        for BOOL in clamav_can_scan_system clamd_use_jit; do
-            local VALUE
-            VALUE=$(getsebool "$BOOL" | awk '{print $3}')
-            echo "[INFO] $BOOL = $VALUE"
-        done
-        echo ""
-    else
-        echo "[INFO] SELinux not enforcing — skipping boolean checks"
-        echo ""
-    fi
-
-    # -----------------------------
-    # 3. Directory checks
-    # -----------------------------
-    echo "=== Directory Checks ==="
-    for DIR in "$LOG_DIR" "$QUARANTINE_DIR"; do
-        if [ -d "$DIR" ]; then
-            local PERM OWNER
-            PERM=$(stat -c "%a" "$DIR")
-            OWNER=$(stat -c "%U:%G" "$DIR")
-            echo "[OK] $DIR exists, permissions $PERM, owner $OWNER"
+    echo "=== Services ==="
+    for svc in "$CLAMD_SERVICE" "$FRESHCLAM_SERVICE"; do
+        if systemctl is-active --quiet "$svc"; then
+            echo "[OK] $svc is running"
         else
-            echo "[FAIL] $DIR does NOT exist"
+            echo "[FAIL] $svc is NOT running"
         fi
     done
     echo ""
 
     # -----------------------------
-    # 4. Hourly scan script check
+    # 2. SELinux check
     # -----------------------------
-    echo "=== Hourly Scan Script ==="
-    if [ -x "$SCAN_SCRIPT" ]; then
-        echo "[OK] $SCAN_SCRIPT exists and is executable"
+    local SELINUX_MODE
+    SELINUX_MODE=$(getenforce 2>/dev/null || echo "Disabled")
+    echo "=== SELinux ==="
+    if [ "$SELINUX_MODE" = "Enforcing" ]; then
+        for BOOL in antivirus_can_scan_system clamd_use_jit; do
+            local VALUE
+            VALUE=$(getsebool "$BOOL" 2>/dev/null | awk '{print $3}' || echo "unknown")
+            echo "$BOOL = $VALUE"
+        done
     else
-        echo "[FAIL] $SCAN_SCRIPT missing or not executable"
+        echo "SELinux mode: $SELINUX_MODE — skipping boolean checks"
     fi
     echo ""
 
     # -----------------------------
-    # 5. Last scan checkpoint
+    # 3. Directory & script checks
+    # -----------------------------
+    echo "=== Directories & Scan Script ==="
+    for DIR in "$LOG_DIR" "$QUARANTINE_DIR"; do
+        if [ -d "$DIR" ]; then
+            local PERM OWNER
+            PERM=$(stat -c "%a" "$DIR")
+            OWNER=$(stat -c "%U:%G" "$DIR")
+            echo "$DIR exists — permissions $PERM, owner $OWNER"
+        else
+            echo "$DIR does NOT exist"
+        fi
+    done
+
+    if [ -x "$SCAN_SCRIPT" ]; then
+        echo "Scan script exists: $SCAN_SCRIPT"
+    else
+        echo "Scan script missing or not executable: $SCAN_SCRIPT"
+    fi
+    echo ""
+
+    # -----------------------------
+    # 4. Last checkpoint
     # -----------------------------
     echo "=== Last Scan Checkpoint ==="
     if [ -f "$CHECKPOINT" ]; then
         local LAST_SCAN
         LAST_SCAN=$(stat -c "%y" "$CHECKPOINT")
-        echo "[OK] Checkpoint exists, last scan: $LAST_SCAN"
+        echo "Last scan: $LAST_SCAN"
     else
-        echo "[FAIL] Checkpoint file $CHECKPOINT does not exist"
+        echo "Checkpoint file missing: $CHECKPOINT"
     fi
     echo ""
 
     # -----------------------------
-    # 6. Virus definitions
+    # 5. Virus definitions
     # -----------------------------
     echo "=== Virus Definitions ==="
     local DB_DATE
-    DB_DATE=$(freshclam --show-database 2>/dev/null | grep "main.cvd" | awk '{print $2, $3}' || true)
+    DB_DATE=$(freshclam --show-database 2>/dev/null | grep "main.cvd" | awk '{print $2, $3}' || echo "")
     if [ -n "$DB_DATE" ]; then
-        echo "[OK] Virus database last updated: $DB_DATE"
+        echo "Database last updated: $DB_DATE"
     else
-        echo "[FAIL] Unable to determine virus database date"
+        echo "Unable to determine virus database date"
     fi
     echo ""
 
     # -----------------------------
-    # 7. Quarantine folder stats
+    # 6. Quarantine stats
     # -----------------------------
-    echo "=== Quarantine Folder ==="
+    echo "=== Quarantine ==="
     if [ -d "$QUARANTINE_DIR" ]; then
         local FILE_COUNT
-        FILE_COUNT=$(find "$QUARANTINE_DIR" -type f | wc -l)
-        echo "[INFO] Quarantine folder contains $FILE_COUNT file(s)"
+        FILE_COUNT=$(find "$QUARANTINE_DIR" -type f 2>/dev/null | wc -l || echo 0)
+        echo "Quarantine contains $FILE_COUNT file(s)"
     else
-        echo "[FAIL] Quarantine folder does not exist"
+        echo "Quarantine directory missing"
     fi
     echo ""
 
     # -----------------------------
-    # 8. Scan statistics from weekly report
+    # 7. Weekly report stats
     # -----------------------------
-    echo "=== Scan Statistics ==="
+    echo "=== Weekly Scan Stats ==="
     if [ -f "$WEEKLY_REPORT" ]; then
         local TOTAL_SCANS TOTAL_INFECTED
         TOTAL_SCANS=$(grep -c "Files scanned:" "$WEEKLY_REPORT" || echo 0)
-        TOTAL_INFECTED=$(awk -F'Infected: ' '{sum += $2} END {print sum}' "$WEEKLY_REPORT" || echo 0)
-        echo "[INFO] Total hourly scans logged: $TOTAL_SCANS"
-        echo "[INFO] Total infected files detected: $TOTAL_INFECTED"
+        TOTAL_INFECTED=$(grep "Infected:" "$WEEKLY_REPORT" | awk -F'Infected: ' '{sum += $2} END {print sum}' || echo 0)
+        echo "Total hourly scans logged: $TOTAL_SCANS"
+        echo "Total infected files detected: $TOTAL_INFECTED"
     else
-        echo "[INFO] Weekly report file not found — no scan stats available"
+        echo "Weekly report missing — no scan stats"
     fi
     echo ""
 
     echo "=== ClamAV Health Check Complete ==="
 }
+
 
 setup_clamav() {
     check_root
@@ -2122,6 +2104,9 @@ if [ -s "$LIST_FILE" ]; then
         --log="$LOG_DIR/hourly_audit.log" \
         >/dev/null 2>&1
 
+    # Ensure quarantined files have correct permissions
+    find "$QUARANTINE_DIR" -type f -exec chmod 0640 {} \; -exec chown clamscan:clamscan {} \;
+
     # Extract infected files
     while read -r FILE; do
         INFECTED_FILES+=("$FILE")
@@ -2173,25 +2158,6 @@ EOF
 
     # -----------------------------
     # Log rotation
-    # -----------------------------
-    cat > /etc/logrotate.d/clamav-hourly <<EOF
-$LOG_DIR/hourly_audit.log {
-    daily
-    rotate 30
-    compress
-    missingok
-    notifempty
-}
-EOF
-
-    # -----------------------------
-    # Update virus definitions
-    # -----------------------------
-    echo "[+] Updating ClamAV signatures..."
-    freshclam || true
-
-    echo "[+] ClamAV setup complete."
-}
 
 
 test_clamav_setup() {
