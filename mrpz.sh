@@ -1870,6 +1870,15 @@ setup_clamav() {
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR"
     
+    # Critical for OL9: Ensure the log directory is accessible to both service users
+    # We use the 'clamav' group which usually exists on these systems
+    groupadd -f clamav
+    usermod -aG clamav clamupdate
+    usermod -aG clamav clamscan
+    
+    chown -R clamupdate:clamav "$LOG_DIR"
+    chmod 775 "$LOG_DIR"
+
     # Ensure /run/clamd.scan persists across reboots
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
@@ -1890,7 +1899,7 @@ setup_clamav() {
         dnf install -y s-nail >/dev/null 2>&1 || true
     fi
 
-    # Enable strict mode for the configuration logic
+    # Enable strict mode now that installs are done
     set -euo pipefail
 
     echo "[+] Hardening Configuration Files..."
@@ -1899,7 +1908,6 @@ setup_clamav() {
         sed -i "s|^#UpdateLogFile.*|UpdateLogFile $LOG_DIR/freshclam.log|" /etc/freshclam.conf
         touch "$LOG_DIR/freshclam.log"
         chown clamupdate:clamupdate "$LOG_DIR/freshclam.log"
-        chown -R clamupdate:clamupdate /var/lib/clamav
     fi
 
     if [ -f /etc/clamd.d/scan.conf ]; then
@@ -1912,12 +1920,17 @@ setup_clamav() {
         chown clamscan:clamscan "$LOG_DIR/clamd.log"
     fi
 
-    echo "[+] Configuring SELinux Policies..."
+    echo "[+] Configuring SELinux Policies & Contexts..."
     setsebool -P antivirus_can_scan_system 1 >/dev/null 2>&1 || true
     setsebool -P clamd_use_jit 1 >/dev/null 2>&1 || true
+    
+    # Fix contexts so ClamAV can actually 'chown' its own logs
+    semanage fcontext -a -t clamav_var_lib_t "/var/lib/clamav(/.*)?" 2>/dev/null || true
+    semanage fcontext -a -t antivirus_log_t "$LOG_DIR(/.*)?" 2>/dev/null || true
+    restorecon -Rv /var/lib/clamav >/dev/null 2>&1
+    restorecon -Rv "$LOG_DIR" >/dev/null 2>&1
 
     echo "[+] Activating Freshclam & Downloading Database..."
-    chown -R clamupdate:clamupdate "$LOG_DIR"
     systemctl enable --now clamav-freshclam >/dev/null 2>&1 || true
     
     if [ ! -f /var/lib/clamav/main.cvd ] && [ ! -f /var/lib/clamav/main.cld ]; then
@@ -1927,7 +1940,6 @@ setup_clamav() {
 
     echo "[+] Starting ClamAV Engine (clamd@scan)..."
     systemctl reset-failed clamd@scan >/dev/null 2>&1
-    # Use '|| true' because clamd often reports failure until the DB is fully loaded
     systemctl enable clamd@scan >/dev/null 2>&1 || true
     systemctl start clamd@scan >/dev/null 2>&1 || true
 
@@ -1951,9 +1963,7 @@ find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" -not -path "$LOG_DIR/*" \\
      \$([ -f "\$CHK" ] && echo "-newer \$CHK") > "\$LIST" 2>/dev/null || true
 
-TOTAL=\$(wc -l < "\$LIST")
-
-if [ "\$TOTAL" -gt 0 ]; then
+if [ -s "\$LIST" ]; then
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
 
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
