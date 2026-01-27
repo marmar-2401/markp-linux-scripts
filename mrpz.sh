@@ -1861,35 +1861,17 @@ setup_clamav() {
     set -euo pipefail
 
     local EMAIL
-    read -rp "Enter email for ClamAV alerts and weekly reports: " EMAIL
-
-    local LOG_DIR="/var/log/clamav"
-    local QUARANTINE_DIR="/var/lib/clamav/quarantine"
-    local CHECKPOINT="/var/lib/clamav/scan_checkpoint"
-    local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
-
-    echo "[+] Installing and Configuring ClamAV..."
-    if grep -q "Oracle Linux" /etc/os-release; then
-        dnf install -y oracle-epel-release-el$(rpm -E %rhel) >/dev/null 2>&1
-    else
-        dnf install -y epel-release >/dev/null 2>&1
-    fi
-    dnf install -q -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
+    read -rp "Enter email for ClamAV alerts: " EMAIL
 
     local CLAM_USER=$(stat -c '%U' /var/lib/clamav)
     local CLAM_GROUP=$(stat -c '%G' /var/lib/clamav)
 
-    echo "[+] Ensuring Directories and Permissions..."
-    mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
-    touch "$WEEKLY_REPORT" "$CHECKPOINT"
-    chown -R "$CLAM_USER:$CLAM_GROUP" "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
-    chmod 750 "$QUARANTINE_DIR"
+    # 1. Ensure the socket directory is reachable
+    # On Oracle 9, clamd needs specific permissions to create the socket
+    mkdir -p /run/clamd.scan
+    chown "$CLAM_USER:$CLAM_GROUP" /run/clamd.scan
+    chmod 755 /run/clamd.scan
 
-    echo "[+] Starting ClamAV Service..."
-    systemctl daemon-reload
-    systemctl enable --now clamd@scan >/dev/null 2>&1 || true
-
-    echo "[+] Deploying Script with Socket Fix..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -1897,10 +1879,9 @@ LOCKFILE="/run/clamd.scan/hourly_scan.lock"
 exec 200>\$LOCKFILE
 flock -n 200 || exit 1
 
-WEEKLY="$WEEKLY_REPORT"
-HOURLY="$LOG_DIR/hourly_audit.log"
-CHK="$CHECKPOINT"
-Q_DIR="$QUARANTINE_DIR"
+LOG="/var/log/clamav/hourly_audit.log"
+CHK="/var/lib/clamav/scan_checkpoint"
+Q_DIR="/var/lib/clamav/quarantine"
 EMAIL_ADDR="$EMAIL"
 
 # 1. Gather files
@@ -1914,48 +1895,37 @@ TOTAL=\$(wc -l < "\$LIST")
 if [ "\$TOTAL" -gt 0 ]; then
     chmod 644 "\$LIST"
     
-    # THE CRITICAL FIX: Explicit socket path and fdpass for Oracle 9
-    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --config-file=/etc/clamd.d/scan.conf --socket=/run/clamd.scan/clamd.sock --fdpass --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>&1 || true)
+    # DEBUGGED COMMAND: Added explicit socket, config, and captured stderr
+    # Redirecting 2>&1 ensures that if it fails to connect, we SEE why in the logs
+    SCAN_RESULTS=\$(/usr/bin/clamdscan --config-file=/etc/clamd.d/scan.conf --socket=/run/clamd.scan/clamd.sock --fdpass --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>&1)
     
-    # 2. Only update checkpoint if the scan actually produced a summary (didn't fail)
+    # 2. Check if we got a real scan or an error
     if echo "\$SCAN_RESULTS" | grep -q "SCAN SUMMARY"; then
         touch "\$CHK"
-        
-        # 3. Handle Virus Detection
+        # Only send mail if FOUND is in the results
         if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
-            ALERT_BODY=\$(echo "\$SCAN_RESULTS" | grep -E "FOUND|SCAN SUMMARY|Infected files|Total errors|Time:")
-            echo -e "Virus(es) detected on \$(hostname):\n\n\$ALERT_BODY" | mailx -r "clamav-alerts@softcomputer.com" -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
+             # VERBOSE MAIL: -v shows the SMTP handshake in your terminal for debugging
+             echo -e "ClamAV Alert on \$(hostname)\n\n\$SCAN_RESULTS" | mailx -v -r "clamav-alerts@softcomputer.com" -s "CRITICAL: Virus Detected" "\$EMAIL_ADDR"
         fi
-
-        CLEAN_SUMMARY=\$(echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Infected files|Time:|Start Date|End Date" | grep -v "Total errors")
-        ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\n\$CLEAN_SUMMARY"
+        ENTRY="Date: \$(date)\nFiles: \$TOTAL\n\$(echo "\$SCAN_RESULTS" | grep "Infected files")"
     else
-        ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\nERROR: clamdscan failed to connect to socket at /run/clamd.scan/clamd.sock"
+        # This will now capture the 'Could not connect' error in your audit log
+        ENTRY="Date: \$(date)\nERROR: clamdscan failed.\nOutput: \$SCAN_RESULTS"
+        
+        # ALERT: Send a mail even on failure so you know the script is broken
+        echo -e "ClamAV Script Error on \$(hostname)\n\n\$SCAN_RESULTS" | mailx -s "ClamAV Script Error" "\$EMAIL_ADDR"
     fi
 else
-    ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\nFiles scanned: 0 (No new files)"
+    ENTRY="Date: \$(date)\nFiles scanned: 0"
 fi
 
-echo -e "\$ENTRY\n-----------------------------------" >> "\$HOURLY"
-echo -e "\$ENTRY\n-----------------------------------" >> "\$WEEKLY"
-
-# Log Rotation (keeps hourly log manageable)
-if [ \$(wc -l < "\$HOURLY") -gt 2000 ]; then
-    tail -n 1000 "\$HOURLY" > "\$HOURLY.tmp" && mv -f "\$HOURLY.tmp" "\$HOURLY"
-fi
-
+echo -e "-----------------------------------\n\$ENTRY\n-----------------------------------" >> "\$LOG"
 rm -f "\$LIST"
 EOF
 
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
-    
-    echo "[+] Updating Cron..."
-    ( crontab -l 2>/dev/null | grep -v -E 'hourly_secure_scan.sh|weekly_report.log' || true ; 
-      echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ;
-      echo "0 0 * * 1 mailx -s \"Weekly ClamAV Summary - \$(hostname)\" $EMAIL < $WEEKLY_REPORT && > $WEEKLY_REPORT"
-    ) | crontab -
-
-    echo "[+] Setup Complete. Verify with: ls -l /run/clamd.scan/clamd.sock"
+    systemctl restart clamd@scan
+    echo "[+] Setup Updated. Run it now to see the error or the success."
 }
 
 clamav_health_check() {
