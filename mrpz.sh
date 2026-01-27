@@ -1880,7 +1880,7 @@ setup_clamav() {
     fi
     dnf install -q -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
 
-    echo "[+] Installing Mail Utility (mailx/s-nail)..."
+    echo "[+] Installing Mail Utility..."
     if dnf list available mailx >/dev/null 2>&1; then
         dnf install -q -y mailx
     else
@@ -1888,7 +1888,10 @@ setup_clamav() {
     fi
     
     echo "[+] Activating Services & Configuring Logs..."
-    [ -f /etc/freshclam.conf ] && sed -i 's/^#UpdateLogFile.*/UpdateLogFile \/var\/log\/clamav\/freshclam.log/' /etc/freshclam.conf
+    if [ -f /etc/freshclam.conf ]; then
+        sed -i 's/^#UpdateLogFile.*/UpdateLogFile \/var\/log\/clamav\/freshclam.log/' /etc/freshclam.conf
+        sed -i 's/^UpdateLogFile.*/UpdateLogFile \/var\/log\/clamav\/freshclam.log/' /etc/freshclam.conf
+    fi
     
     systemctl restart clamav-freshclam >/dev/null 2>&1
     systemctl enable --now clamav-freshclam >/dev/null 2>&1
@@ -1899,7 +1902,7 @@ setup_clamav() {
     restorecon -Rv "$LOG_DIR" >/dev/null 2>&1 || true
     setsebool -P antivirus_can_scan_system 1 >/dev/null 2>&1 || true
 
-    echo "[+] Deploying Secure Scan Script (Priority, Lockfile, & Alerts)..."
+    echo "[+] Deploying Secure Scan Script (Rotating Audit Logs)..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -1907,11 +1910,13 @@ LOCKFILE="/run/clamd.scan/hourly_scan.lock"
 exec 200>\$LOCKFILE
 flock -n 200 || exit 1
 
-REPORT="/var/log/clamav/weekly_report.log"
+WEEKLY="/var/log/clamav/weekly_report.log"
+HOURLY="/var/log/clamav/hourly_audit.log"
 CHK="/var/lib/clamav/scan_checkpoint"
 Q_DIR="/var/lib/clamav/quarantine"
 EMAIL_ADDR="$EMAIL"
 
+# 1. Gather files (Preserving original exclusions)
 LIST=\$(mktemp)
 nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" \\
@@ -1919,29 +1924,28 @@ nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -
 
 TOTAL=\$(wc -l < "\$LIST")
 
+# 2. Extract results and filter noise
 if [ "\$TOTAL" -gt 0 ]; then
-    # We remove --quiet here to ensure the Summary is generated, then we filter it manually
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
     
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
         echo "\$SCAN_RESULTS" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
     fi
 
-    {
-        echo "-----------------------------------"
-        echo "Date: \$(date '+%Y-%m-%d %H:%M:%S')"
-        # This filter keeps the Summary, Infected count, and Timestamps. 
-        # It explicitly removes individual file paths (lines with OK/FOUND/ERROR at the end) and 'Total errors'
-        echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Infected files|Time:|Start Date|End Date" | grep -v "Total errors"
-        echo "-----------------------------------"
-    } >> "\$REPORT"
+    CLEAN_SUMMARY=\$(echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Infected files|Time:|Start Date|End Date" | grep -v "Total errors")
+    ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\n\$CLEAN_SUMMARY\n-----------------------------------"
 else
-    {
-        echo "-----------------------------------"
-        echo "Date: \$(date '+%Y-%m-%d %H:%M:%S')"
-        echo "Files scanned: 0 (No new files)"
-        echo "-----------------------------------"
-    } >> "\$REPORT"
+    ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\nFiles scanned: 0 (No new files)\n-----------------------------------"
+fi
+
+# 3. Log to both (Append mode)
+echo -e "\$ENTRY" >> "\$WEEKLY"
+echo -e "\$ENTRY" >> "\$HOURLY"
+
+# 4. Simple Server-Side Rotation for HOURLY (Keep last 1000 lines)
+if [ \$(wc -l < "\$HOURLY") -gt 1000 ]; then
+    tail -n 1000 "\$HOURLY" > "\$HOURLY.tmp" && mv -f "\$HOURLY.tmp" "\$HOURLY"
+    chown clamscan:clamscan "\$HOURLY"
 fi
 
 touch "\$CHK"
@@ -1991,14 +1995,12 @@ clamav_health_check() {
     if [ -f "$REPORT" ]; then
         local SCANS=$(grep -c "SCAN SUMMARY" "$REPORT")
         local LAST_SCAN=$(grep "^Date: " "$REPORT" | tail -n 1 | sed 's/Date: //')
-        
         echo "Scans Logged This Week: $SCANS"
         echo "Last Successful Scan: ${LAST_SCAN:-Never}"
     else
         echo "Report not found"
     fi
 }
-
 
 test_clamav_setup() {
     echo "[+] Running ClamAV EICAR test..."
