@@ -1858,7 +1858,7 @@ fi
 setup_clamav() {
     check_root
     confirm_action
-    set -euo pipefail
+    set -e
 
     local EMAIL
     read -rp "Enter email for ClamAV alerts and weekly reports: " EMAIL
@@ -1930,8 +1930,6 @@ setup_clamav() {
     echo "[+] Deploying Secure Scan Script (Filtered Alerts)..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
-PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-
 LOCKFILE="/run/clamd.scan/hourly_scan.lock"
 exec 200>\$LOCKFILE
 flock -n 200 || exit 1
@@ -1988,7 +1986,7 @@ EOF
     ) | crontab -
 
     echo "[+] Setup Complete."
-}
+}    
 
 clamav_health_check() {
     check_root
