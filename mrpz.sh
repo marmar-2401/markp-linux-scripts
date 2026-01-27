@@ -1881,16 +1881,14 @@ setup_clamav() {
     dnf install -q -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
 
     echo "[+] Installing Mail Utility (mailx/s-nail)..."
-	if dnf list available mailx >/dev/null 2>&1; then
-    	dnf install -q -y mailx
-	else
-    	dnf install -q -y s-nail
-	fi
-	
+    if dnf list available mailx >/dev/null 2>&1; then
+        dnf install -q -y mailx
+    else
+        dnf install -q -y s-nail
+    fi
+    
     echo "[+] Activating Virus Definition Auto-Updates..."
-    # Ensure the freshclam service is enabled and running
     systemctl enable --now clamav-freshclam >/dev/null 2>&1
-    # Ensure the clamd scan service is enabled
     systemctl enable --now clamd@scan >/dev/null 2>&1
 
     echo "[+] Fixing SELinux & Permissions..."
@@ -1902,7 +1900,6 @@ setup_clamav() {
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
-# LOCKFILE PREVENTION
 LOCKFILE="/run/clamd.scan/hourly_scan.lock"
 exec 200>\$LOCKFILE
 flock -n 200 || exit 1
@@ -1912,7 +1909,6 @@ CHK="/var/lib/clamav/scan_checkpoint"
 Q_DIR="/var/lib/clamav/quarantine"
 EMAIL_ADDR="$EMAIL"
 
-# 1. Gather files (Nice/Ionice)
 LIST=\$(mktemp)
 nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" \\
@@ -1920,21 +1916,29 @@ nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -
 
 TOTAL=\$(wc -l < "\$LIST")
 
-# 2. Scan and Immediate Alert
 if [ "\$TOTAL" -gt 0 ]; then
-    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>&1)
+    # Redirect 2>/dev/null to hide errors; capture results to filter output
+    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
     
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
         echo "\$SCAN_RESULTS" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
     fi
-fi
 
-# 3. Force Logging
-{
-    echo "Date: \$(date '+%Y-%m-%d %H:%M:%S')"
-    echo "Files scanned: \$TOTAL"
-    echo "-----------------------------------"
-} >> "\$REPORT"
+    {
+        echo "-----------------------------------"
+        echo "Date: \$(date '+%Y-%m-%d %H:%M:%S')"
+        # Log ONLY the summary block and infected lines (hides individual OK files)
+        echo "\$SCAN_RESULTS" | grep -E "FOUND|----------- SCAN SUMMARY -----------|^Infected|^Total|^Time|^Start|^End"
+        echo "-----------------------------------"
+    } >> "\$REPORT"
+else
+    {
+        echo "-----------------------------------"
+        echo "Date: \$(date '+%Y-%m-%d %H:%M:%S')"
+        echo "Files scanned: 0 (No new files)"
+        echo "-----------------------------------"
+    } >> "\$REPORT"
+fi
 
 touch "\$CHK"
 rm -f "\$LIST"
@@ -1961,7 +1965,6 @@ clamav_health_check() {
     
     echo ""
     echo "=== Virus Definitions ==="
-    # Restored: Checks actual database file sync time
     if [ -f /var/lib/clamav/main.cvd ]; then
         echo "Database Last Sync: $(stat -c %y /var/lib/clamav/main.cvd | cut -d'.' -f1)"
     else
@@ -1970,7 +1973,6 @@ clamav_health_check() {
 
     echo ""
     echo "=== Resource & Reporting ==="
-    # Restored: Checks for physical log and checkpoint existence
     [ -f /var/log/clamav/freshclam.log ] && echo "[OK] Physical freshclam.log exists" || echo "[FAIL] Log missing"
     [ -f /var/lib/clamav/scan_checkpoint ] && echo "[OK] Checkpoint is active" || echo "[WARN] Checkpoint missing"
 
@@ -1983,8 +1985,8 @@ clamav_health_check() {
     echo ""
     echo "=== Weekly Stats ==="
     if [ -f "$REPORT" ]; then
-        # FIXED: Added -- to prevent grep from thinking dashes are options
-        local SCANS=$(grep -c -- "-----------------------------------" "$REPORT")
+        # Count the SCAN SUMMARY headers to avoid counting idle runs
+        local SCANS=$(grep -c "SCAN SUMMARY" "$REPORT")
         local LAST_SCAN=$(grep "Date:" "$REPORT" | tail -n 1 | sed 's/Date: //')
         
         echo "Scans Logged This Week: $SCANS"
