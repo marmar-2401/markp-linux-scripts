@@ -1960,18 +1960,39 @@ clamav_health_check() {
     systemctl is-active --quiet clamav-freshclam && echo "[OK] freshclam updater is running" || echo "[FAIL] freshclam is NOT running"
     
     echo ""
+    echo "=== Virus Definitions ==="
+    # Restored: Checks actual database file sync time
+    if [ -f /var/lib/clamav/main.cvd ]; then
+        echo "Database Last Sync: $(stat -c %y /var/lib/clamav/main.cvd | cut -d'.' -f1)"
+    else
+        echo "[FAIL] Database missing"
+    fi
+
+    echo ""
+    echo "=== Resource & Reporting ==="
+    # Restored: Checks for physical log and checkpoint existence
+    [ -f /var/log/clamav/freshclam.log ] && echo "[OK] Physical freshclam.log exists" || echo "[FAIL] Log missing"
+    [ -f /var/lib/clamav/scan_checkpoint ] && echo "[OK] Checkpoint is active" || echo "[WARN] Checkpoint missing"
+
+    echo ""
     echo "=== Quarantine ==="
     local Q_COUNT=$(find /var/lib/clamav/quarantine -mindepth 1 -type f | wc -l)
     echo "Items in Quarantine: $Q_COUNT"
+    echo "Location: /var/lib/clamav/quarantine"
 
     echo ""
     echo "=== Weekly Stats ==="
     if [ -f "$REPORT" ]; then
-        local SCANS=$(grep -c "-----------------------------------" "$REPORT")
+        # FIXED: Added -- to prevent grep from thinking dashes are options
+        local SCANS=$(grep -c -- "-----------------------------------" "$REPORT")
         local LAST_SCAN=$(grep "Date:" "$REPORT" | tail -n 1 | sed 's/Date: //')
         
         echo "Scans Logged This Week: $SCANS"
-        echo "Last Successful Scan: ${LAST_SCAN:-Never}"
+        if [ -n "$LAST_SCAN" ]; then
+            echo "Last Successful Scan: $LAST_SCAN"
+        else
+            echo "Last Successful Scan: Never (Log format issue)"
+        fi
     else
         echo "Report not found"
     fi
