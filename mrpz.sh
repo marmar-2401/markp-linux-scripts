@@ -1877,7 +1877,6 @@ setup_clamav() {
     dnf install -q -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
 
     echo "[+] Detecting ClamAV User..."
-    # Dynamically detect the user (fixes the RHEL 'clamupdate' vs Oracle 'clamscan' issue)
     local CLAM_USER=$(stat -c '%U' /var/lib/clamav)
     local CLAM_GROUP=$(stat -c '%G' /var/lib/clamav)
     echo "[+] Detected Service Account: $CLAM_USER:$CLAM_GROUP"
@@ -1895,7 +1894,6 @@ setup_clamav() {
     fi
     
     echo "[+] Hardening Configuration Files..."
-    # Fix Freshclam Config
     if [ -f /etc/freshclam.conf ]; then
         sed -i '/^Example/d' /etc/freshclam.conf
         sed -i "s|^#UpdateLogFile.*|UpdateLogFile $LOG_DIR/freshclam.log|" /etc/freshclam.conf
@@ -1903,7 +1901,6 @@ setup_clamav() {
         chown "$CLAM_USER:$CLAM_GROUP" "$LOG_DIR/freshclam.log"
     fi
 
-    # Fix Clamd Scan Config (Critical for clamd@scan service)
     if [ -f /etc/clamd.d/scan.conf ]; then
         sed -i '/^Example/d' /etc/clamd.d/scan.conf
         sed -i 's|^#LocalSocket .*|LocalSocket /run/clamd.scan/clamd.sock|' /etc/clamd.d/scan.conf
@@ -1926,7 +1923,6 @@ setup_clamav() {
     fi
 
     echo "[+] Starting ClamAV Engine (clamd@scan)..."
-    # Added reload and || true to prevent RHEL from exiting the script if the service takes too long to load
     systemctl daemon-reload
     systemctl reset-failed clamd@scan >/dev/null 2>&1 || true
     systemctl enable --now clamd@scan >/dev/null 2>&1 || true
@@ -1934,6 +1930,8 @@ setup_clamav() {
     echo "[+] Deploying Secure Scan Script (Filtered Alerts)..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
+# FIX: Explicit PATH for Cron environment
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 set -u
 LOCKFILE="/run/clamd.scan/hourly_scan.lock"
 exec 200>\$LOCKFILE
@@ -1947,7 +1945,6 @@ EMAIL_ADDR="$EMAIL"
 C_USER="$CLAM_USER"
 C_GROUP="$CLAM_GROUP"
 
-# 1. Gather files (Differential Logic)
 LIST=\$(mktemp)
 nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" \\
@@ -1955,28 +1952,23 @@ nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -
 
 TOTAL=\$(wc -l < "\$LIST")
 
-# 2. Run scan if files found
 if [ "\$TOTAL" -gt 0 ]; then
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
     
-    # Alert Logic: Only email the infections and the summary
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
         ALERT_BODY=\$(echo "\$SCAN_RESULTS" | grep -E "FOUND|SCAN SUMMARY|Infected files|Total errors|Time:")
         echo -e "Virus(es) detected on \$(hostname):\n\n\$ALERT_BODY" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
     fi
 
-    # Logging Logic
     CLEAN_SUMMARY=\$(echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Infected files|Time:|Start Date|End Date" | grep -v "Total errors")
     ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\n\$CLEAN_SUMMARY\n-----------------------------------"
 else
     ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\nFiles scanned: 0 (No new files)\n-----------------------------------"
 fi
 
-# 3. Log results
 echo -e "\$ENTRY" >> "\$WEEKLY"
 echo -e "\$ENTRY" >> "\$HOURLY"
 
-# 4. Hourly Log Rotation (Keep last 1000 lines)
 if [ \$(wc -l < "\$HOURLY") -gt 1000 ]; then
     tail -n 1000 "\$HOURLY" > "\$HOURLY.tmp" && mv -f "\$HOURLY.tmp" "\$HOURLY"
     chown "\$C_USER:\$C_GROUP" "\$HOURLY"
@@ -1990,9 +1982,11 @@ EOF
     chown root:root /usr/local/bin/hourly_secure_scan.sh
     
     echo "[+] Configuring Cron Jobs..."
+    # FIX: Ensure a trailing newline so Cron picks up the last line
     ( crontab -l 2>/dev/null | grep -v -E 'hourly_secure_scan.sh|weekly_report.log' || true ; 
       echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ;
-      echo "0 0 * * 1 mailx -s \"Weekly ClamAV Summary - \$(hostname)\" $EMAIL < $WEEKLY_REPORT && > $WEEKLY_REPORT"
+      echo "0 0 * * 1 mailx -s \"Weekly ClamAV Summary - \$(hostname)\" $EMAIL < $WEEKLY_REPORT && > $WEEKLY_REPORT" ;
+      echo "" 
     ) | crontab -
 
     echo "[+] Setup Complete."
