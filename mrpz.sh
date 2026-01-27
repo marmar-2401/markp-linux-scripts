@@ -1858,6 +1858,7 @@ fi
 setup_clamav() {
     check_root
     confirm_action
+    # set -e: exit on error, -u: error on unset variables, -o pipefail: catch errors in pipes
     set -euo pipefail
 
     local EMAIL
@@ -1877,18 +1878,16 @@ setup_clamav() {
     dnf install -q -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
 
     echo "[+] Detecting ClamAV User..."
-    # Dynamically detect the user based on the database directory owner (universal for RHEL/Oracle)
-    # Dynamically detect the user (fixes the RHEL 'clamupdate' vs Oracle 'clamscan' issue)
     local CLAM_USER=$(stat -c '%U' /var/lib/clamav)
     local CLAM_GROUP=$(stat -c '%G' /var/lib/clamav)
     echo "[+] Detected Service Account: $CLAM_USER:$CLAM_GROUP"
-@@ -1926,155 +1926,157 @@
-    fi
+
+    echo "[+] Preparing Environment..."
+    mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
+    touch "$WEEKLY_REPORT" "$CHECKPOINT"
+    chown -R "$CLAM_USER:$CLAM_GROUP" "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
 
     echo "[+] Starting ClamAV Engine (clamd@scan)..."
-    systemctl reset-failed clamd@scan >/dev/null 2>&1
-    systemctl enable --now clamd@scan >/dev/null 2>&1
-    # Added reload and || true to prevent RHEL from exiting the script if the service takes too long to load
     systemctl daemon-reload
     systemctl reset-failed clamd@scan >/dev/null 2>&1 || true
     systemctl enable --now clamd@scan >/dev/null 2>&1 || true
@@ -1909,19 +1908,22 @@ EMAIL_ADDR="$EMAIL"
 C_USER="$CLAM_USER"
 C_GROUP="$CLAM_GROUP"
 
-# 1. Gather files (Differential Logic)
 LIST=\$(mktemp)
+# Gather files (Differential Logic)
 nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" \\
      \$([ -f "\$CHK" ] && echo "-newer \$CHK") > "\$LIST" 2>/dev/null || true
 
 TOTAL=\$(wc -l < "\$LIST")
 
-# 2. Run scan if files found
 if [ "\$TOTAL" -gt 0 ]; then
-    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
+    # PERMISSION FIX 1: Allow ClamAV user to read the file list
+    chmod 644 "\$LIST"
+
+    # PERMISSION FIX 2: --fdpass allows clamd to access files owned by root
+    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --fdpass --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null || true)
     
-    # Alert Logic: Only email the infections and the summary
+    # Alert Logic
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
         ALERT_BODY=\$(echo "\$SCAN_RESULTS" | grep -E "FOUND|SCAN SUMMARY|Infected files|Total errors|Time:")
         echo -e "Virus(es) detected on \$(hostname):\n\n\$ALERT_BODY" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
@@ -1934,11 +1936,10 @@ else
     ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\nFiles scanned: 0 (No new files)\n-----------------------------------"
 fi
 
-# 3. Log results
 echo -e "\$ENTRY" >> "\$WEEKLY"
 echo -e "\$ENTRY" >> "\$HOURLY"
 
-# 4. Hourly Log Rotation (Keep last 1000 lines)
+# Hourly Log Rotation
 if [ \$(wc -l < "\$HOURLY") -gt 1000 ]; then
     tail -n 1000 "\$HOURLY" > "\$HOURLY.tmp" && mv -f "\$HOURLY.tmp" "\$HOURLY"
     chown "\$C_USER:\$C_GROUP" "\$HOURLY"
