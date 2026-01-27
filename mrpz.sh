@@ -1878,7 +1878,7 @@ setup_clamav() {
     else
         dnf install -y epel-release >/dev/null 2>&1
     fi
-    dnf install -q -y clamav clamav-freshclam clamd mailx policycoreutils-python-utils >/dev/null 2>&1
+    dnf install -q -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
 
     echo "[+] Activating Virus Definition Auto-Updates..."
     # Ensure the freshclam service is enabled and running
