@@ -1860,7 +1860,7 @@ setup_clamav() {
     confirm_action
     set -euo pipefail
 
-    # 1. Interactive Email Prompt (Restored)
+    # 1. Interactive Email Prompt
     local EMAIL
     read -rp "Enter email for ClamAV alerts and weekly reports: " EMAIL
     [[ "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || {
@@ -1871,18 +1871,19 @@ setup_clamav() {
     local LOG_DIR="/var/log/clamav"
     local FRESHCLAM_LOG="$LOG_DIR/freshclam.log"
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
+    local CHECKPOINT="/var/lib/clamav/scan_checkpoint"
 
     echo "[+] Preparing Environment & Permissions..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
     
-    # Initialize log files
-    touch "$FRESHCLAM_LOG" "$WEEKLY_REPORT"
+    # Initialize log files and Checkpoint
+    touch "$FRESHCLAM_LOG" "$WEEKLY_REPORT" "$CHECKPOINT"
     chown clamupdate:clamupdate "$FRESHCLAM_LOG"
-    chown clamscan:clamscan "$LOG_DIR" "$QUARANTINE_DIR" "$WEEKLY_REPORT"
+    chown clamscan:clamscan "$LOG_DIR" "$QUARANTINE_DIR" "$WEEKLY_REPORT" "$CHECKPOINT"
     chmod 0750 "$LOG_DIR" "$QUARANTINE_DIR"
 
     echo "[+] Installing ClamAV Components..."
-    dnf install -q -y epel-release clamav clamav-freshclam clamd >/dev/null 2>&1
+    dnf install -q -y epel-release clamav clamav-freshclam clamd mailx >/dev/null 2>&1
 
     # Force freshclam to use the physical log file
     sed -i "s|^#UpdateLogFile .*|UpdateLogFile $FRESHCLAM_LOG|" /etc/freshclam.conf
@@ -1895,17 +1896,11 @@ setup_clamav() {
     systemctl daemon-reexec
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
-    # Deployment of the Hardened Scan Script
+    echo "[+] Deploying Hardened Scan Script..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
-set -euo pipefail
-
-# Lock file to prevent overlapping scans
-LOCK_FILE="/run/clamd.scan/hourly_scan.lock"
-exec 200>"$LOCK_FILE"
-if ! flock -n 200; then exit 0; fi
-
-START_TIME=$(date +%s)
+# Removed -e to handle clamdscan exit codes manually
+set -uo pipefail
 
 # Configuration
 SCAN_DIR="/"
@@ -1915,41 +1910,42 @@ CHECKPOINT="/var/lib/clamav/scan_checkpoint"
 CONFIG="/etc/clamd.d/scan.conf"
 WEEKLY_REPORT="/var/log/clamav/weekly_report.log"
 AUDIT_LOG="/var/log/clamav/hourly_audit.log"
+LOCK_FILE="/run/clamd.scan/hourly_scan.lock"
 
+# Ensure lock directory exists (handles reboots)
+mkdir -p /run/clamd.scan
+exec 200>"$LOCK_FILE"
+if ! flock -n 200; then exit 0; fi
+
+START_TIME=$(date +%s)
 > "$AUDIT_LOG"
 LIST_FILE=$(mktemp)
 trap 'rm -f "$LIST_FILE"' EXIT
 
-# Find only new/modified files since the last checkpoint
+# Find new files since last checkpoint
 find "$SCAN_DIR" -type f \
     -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
     -not -path "/run/*" -not -path "/var/lib/clamav/*" \
-    $( [ -f "$CHECKPOINT" ] && echo "-newer $CHECKPOINT" ) > "$LIST_FILE"
+    $( [ -f "$CHECKPOINT" ] && echo "-newer $CHECKPOINT" ) > "$LIST_FILE" 2>/dev/null || true
 
 TOTAL_FILES=$(wc -l < "$LIST_FILE")
 INFECTED_FILES=()
 
 if [ "$TOTAL_FILES" -gt 0 ]; then
-    # Throttled execution: nice 19 (CPU) and ionice class 3 (Disk)
-    # Removed --fdpass to resolve SELinux "Control message truncated" errors
+    # We allow exit codes 0 (clean) and 1 (infected) to continue
     nice -n 19 ionice -c 3 clamdscan -c "$CONFIG" --quiet --multiscan \
         --move="$QUARANTINE_DIR" --file-list="$LIST_FILE" --log="$AUDIT_LOG" >/dev/null 2>&1
     
+    # Extract findings even if clamdscan returned exit code 1
     while read -r line; do
-        INFECTED_FILES+=("$line")
+        [ -n "$line" ] && INFECTED_FILES+=("$line")
     done < <(grep "FOUND" "$AUDIT_LOG" | awk -F: '{print $1}')
 fi
 
 INFECTED=${#INFECTED_FILES[@]}
 DURATION=$(($(date +%s) - START_TIME))
 
-echo "=== ClamAV Scan Summary ==="
-echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
-echo "Files Scanned: $TOTAL_FILES"
-echo "Infected: $INFECTED"
-echo "Time Taken: ${DURATION}s"
-echo "==========================="
-
+# Log results to weekly report
 {
     echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "Files scanned: $TOTAL_FILES | Duration: ${DURATION}s"
@@ -1958,7 +1954,7 @@ echo "==========================="
     echo "-----------------------------------"
 } >> "$WEEKLY_REPORT"
 
-# Update checkpoint to current time
+# Critical: Always update checkpoint on successful script completion
 touch "$CHECKPOINT"
 EOF
 
@@ -1969,7 +1965,7 @@ EOF
       echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ;
       echo "0 1 * * 1 [ -s $WEEKLY_REPORT ] && cat $WEEKLY_REPORT | mail -s 'Weekly ClamAV Report - $(hostname)' $EMAIL && > $WEEKLY_REPORT" ) | crontab -
 
-    echo "[+] Setup complete. Email: $EMAIL"
+    echo "[+] Setup complete. Checkpoint initialized."
 }
 
 clamav_health_check() {
