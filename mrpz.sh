@@ -2070,61 +2070,95 @@ setup_clamav() {
     systemctl enable --now clamd@scan
 
     # -----------------------------
-    # Deploy hourly scan script
+    # Deploy updated hourly scan script
     # -----------------------------
-    cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
+    cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
 set -euo pipefail
 
-SCAN_DIR="$SCAN_DIR"
-CHECKPOINT="$CHECKPOINT"
-LOG_FILE="$LOG_DIR/hourly_audit.log"
-QUARANTINE_DIR="$QUARANTINE_DIR"
-EMAIL="$EMAIL"
-CONFIG="$CONFIG"
-WEEKLY_REPORT="$WEEKLY_REPORT"
+SCAN_DIR="${SCAN_DIR:-/}"
+CHECKPOINT="${CHECKPOINT:-/var/lib/clamav/scan_checkpoint}"
+LOG_DIR="${LOG_DIR:-/var/log/clamav}"
+QUARANTINE_DIR="${QUARANTINE_DIR:-/var/lib/clamav/quarantine}"
+EMAIL="${EMAIL:-admin@example.com}"
+CONFIG="${CONFIG:-/etc/clamd.d/scan.conf}"
+WEEKLY_REPORT="${WEEKLY_REPORT:-$LOG_DIR/weekly_report.log}"
 
 LOCK_FILE="/run/hourly_secure_scan.lock"
-exec 200>\$LOCK_FILE
+exec 200>"$LOCK_FILE"
 flock -n 200 || exit 0
 
 # ensure quarantine exists
-mkdir -p "\$QUARANTINE_DIR"
-chown clamscan:clamscan "\$QUARANTINE_DIR"
-chmod 0750 "\$QUARANTINE_DIR"
+mkdir -p "$QUARANTINE_DIR"
+chown clamscan:clamscan "$QUARANTINE_DIR"
+chmod 0750 "$QUARANTINE_DIR"
 
-LIST_FILE=\$(mktemp)
-trap 'rm -f "\$LIST_FILE"' EXIT
+LIST_FILE=$(mktemp)
+trap 'rm -f "$LIST_FILE"' EXIT
 
-if [ ! -f "\$CHECKPOINT" ]; then
-    find "\$SCAN_DIR" -type f \
-        -not -path "/proc/*" \
-        -not -path "/sys/*" \
-        -not -path "/dev/*" \
-        -not -path "/run/*" \
-        -print > "\$LIST_FILE"
+# Build file list
+if [ ! -f "$CHECKPOINT" ]; then
+    find "$SCAN_DIR" -type f \
+        -not -path "/proc/*" -not -path "/sys/*" \
+        -not -path "/dev/*" -not -path "/run/*" \
+        -print > "$LIST_FILE"
 else
-    find "\$SCAN_DIR" -type f \
-        \( -newer "\$CHECKPOINT" -o -cnewer "\$CHECKPOINT" \) \
-        -not -path "/proc/*" \
-        -not -path "/sys/*" \
-        -not -path "/dev/*" \
-        -not -path "/run/*" \
-        -print > "\$LIST_FILE"
+    find "$SCAN_DIR" -type f \
+        \( -newer "$CHECKPOINT" -o -cnewer "$CHECKPOINT" \) \
+        -not -path "/proc/*" -not -path "/sys/*" \
+        -not -path "/dev/*" -not -path "/run/*" \
+        -print > "$LIST_FILE"
 fi
 
-if [ -s "\$LIST_FILE" ]; then
-    clamdscan -c "\$CONFIG" \
+TOTAL_FILES=$(wc -l < "$LIST_FILE")
+INFECTED_FILES=()
+
+# Run scan silently
+if [ -s "$LIST_FILE" ]; then
+    clamdscan -c "$CONFIG" \
         --fdpass --multiscan \
-        --move="\$QUARANTINE_DIR" \
-        --file-list="\$LIST_FILE" \
-        --log="\$LOG_FILE"
+        --move="$QUARANTINE_DIR" \
+        --file-list="$LIST_FILE" \
+        --log="$LOG_DIR/hourly_audit.log" \
+        >/dev/null 2>&1
 
-    grep "FOUND" "\$LOG_FILE" | mail -s "ClamAV ALERT on \$(hostname)" "\$EMAIL" || true
+    # Extract infected files
+    while read -r FILE; do
+        INFECTED_FILES+=("$FILE")
+    done < <(grep "FOUND" "$LOG_DIR/hourly_audit.log" | awk '{print $1}')
 fi
 
-echo "\$(date) Files scanned: \$(wc -l < "\$LIST_FILE")" >> "\$WEEKLY_REPORT"
-touch "\$CHECKPOINT"
+INFECTED=${#INFECTED_FILES[@]}
+
+# Send email if infected files found
+if [ "$INFECTED" -gt 0 ]; then
+    printf "%s\n" "${INFECTED_FILES[@]}" | mail -s "ClamAV ALERT on $(hostname)" "$EMAIL"
+fi
+
+# Echo only summary
+echo "=== ClamAV Scan Summary ==="
+echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "Total files scanned: $TOTAL_FILES"
+echo "Infected files: $INFECTED"
+if [ "$INFECTED" -gt 0 ]; then
+    echo "List of infected files:"
+    printf "%s\n" "${INFECTED_FILES[@]}"
+fi
+echo "==========================="
+
+# Append summary to weekly report
+{
+    echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "Files scanned: $TOTAL_FILES"
+    echo "Infected: $INFECTED"
+    if [ "$INFECTED" -gt 0 ]; then
+        echo "Infected files:"
+        printf "%s\n" "${INFECTED_FILES[@]}"
+    fi
+    echo ""
+} >> "$WEEKLY_REPORT"
+
+touch "$CHECKPOINT"
 EOF
 
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
@@ -2158,6 +2192,7 @@ EOF
 
     echo "[+] ClamAV setup complete."
 }
+
 
 test_clamav_setup() {
     set -euo pipefail
