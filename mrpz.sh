@@ -1956,7 +1956,7 @@ EOF
     systemctl enable clamd@scan >/dev/null 2>&1 || true
     systemctl start clamd@scan >/dev/null 2>&1 || true
 
-    echo "[+] Deploying Secure Scan Script (Enhanced Reporting)..."
+    echo "[+] Deploying Secure Scan Script (Enhanced Reporting v2)..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -1970,6 +1970,7 @@ HOURLY="$LOG_DIR/hourly_audit.log"
 CHK="$CHECKPOINT"
 Q_DIR="$QUARANTINE_DIR"
 EMAIL_ADDR="$EMAIL"
+NOW=\$(date '+%Y-%m-%d %H:%M:%S')
 
 LIST=\$(mktemp)
 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
@@ -1982,7 +1983,8 @@ if [ -s "\$LIST" ]; then
 
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
         INFECTED_LIST=\$(echo "\$SCAN_RESULTS" | grep "FOUND" | awk -F: '{print \$1}')
-        REPORT_BODY="Virus(es) detected on \$(hostname) and moved to quarantine:\n\n"
+        REPORT_BODY="Detection Date: \$NOW\n"
+        REPORT_BODY+="Virus(es) detected on \$(hostname) and moved to quarantine:\n\n"
         
         while read -r FILE; do
             [ -z "\$FILE" ] && continue
@@ -1992,14 +1994,16 @@ if [ -s "\$LIST" ]; then
             REPORT_BODY+="-----------------------------------\n"
         done <<< "\$INFECTED_LIST"
 
-        SUMMARY_STATS=\$(echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Infected files|Total errors|Time:")
+        # Filtered Summary: Added Scanned Files, Removed Total Errors
+        SUMMARY_STATS=\$(echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Known viruses|Engine version|Scanned files|Infected files|Time:")
         echo -e "\$REPORT_BODY\n\n\$SUMMARY_STATS" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
     fi
 
-    CLEAN_SUMMARY=\$(echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Infected files|Time:|Start Date|End Date" | grep -v "Total errors")
-    ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\n\$CLEAN_SUMMARY\n-----------------------------------"
+    # Weekly/Hourly Log Entry
+    CLEAN_SUMMARY=\$(echo "\$SCAN_RESULTS" | grep -E "Known viruses|Engine version|Scanned files|Infected files|Time:")
+    ENTRY="-----------------------------------\nDate: \$NOW\n\$CLEAN_SUMMARY\n-----------------------------------"
 else
-    ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\nFiles scanned: 0 (No new files)\n-----------------------------------"
+    ENTRY="-----------------------------------\nDate: \$NOW\nFiles scanned: 0 (No new files)\n-----------------------------------"
 fi
 
 echo -e "\$ENTRY" >> "\$WEEKLY"
@@ -2025,6 +2029,7 @@ EOF
 
     echo "[+] Setup Complete."
 }
+
 clamav_health_check() {
     check_root
     local REPORT="/var/log/clamav/weekly_report.log"
