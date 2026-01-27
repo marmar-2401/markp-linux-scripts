@@ -1880,6 +1880,13 @@ setup_clamav() {
     fi
     dnf install -q -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
 
+    echo "[+] Installing Mail Utility (mailx/s-nail)..."
+	if dnf list available mailx >/dev/null 2>&1; then
+    	dnf install -q -y mailx
+	else
+    	dnf install -q -y s-nail
+	fi
+	
     echo "[+] Activating Virus Definition Auto-Updates..."
     # Ensure the freshclam service is enabled and running
     systemctl enable --now clamav-freshclam >/dev/null 2>&1
