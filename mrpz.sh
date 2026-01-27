@@ -1855,9 +1855,8 @@ else
 fi
 }
 
-
-clamav_health_check() {	
-	set -euo pipefail
+clamav_health_check() {
+    set -euo pipefail
 
     local CLAMD_SERVICE="${1:-clamd@scan}"
     local FRESHCLAM_SERVICE="${2:-freshclam}"
@@ -1916,50 +1915,19 @@ clamav_health_check() {
     fi
     echo ""
 
-    # 4. Last checkpoint
-    echo "=== Last Scan Checkpoint ==="
-    if [ -f "$CHECKPOINT" ]; then
-        local LAST_SCAN
-        LAST_SCAN=$(stat -c "%y" "$CHECKPOINT")
-        echo "Last scan: $LAST_SCAN"
-    else
-        echo "Checkpoint file missing: $CHECKPOINT"
-    fi
-    echo ""
-
-    # 5. Virus definitions
-    echo "=== Virus Definitions ==="
-    local DB_DATE
-    DB_DATE=$(freshclam --show-database 2>/dev/null | grep "main.cvd" | awk '{print $2, $3}' || echo "")
-    if [ -n "$DB_DATE" ]; then
-        echo "Database last updated: $DB_DATE"
-    else
-        echo "Unable to determine virus database date"
-    fi
-    echo ""
-
-    # 6. Quarantine stats
-    echo "=== Quarantine ==="
+    # 4. Last scan summary
+    echo "=== Quarantine & Stats ==="
     if [ -d "$QUARANTINE_DIR" ]; then
         local FILE_COUNT
         FILE_COUNT=$(find "$QUARANTINE_DIR" -type f 2>/dev/null | wc -l || echo 0)
-        echo "Quarantine contains $FILE_COUNT file(s)"
-        echo "Location: $QUARANTINE_DIR"
-    else
-        echo "Quarantine directory missing"
+        echo "Quarantine Location: $QUARANTINE_DIR"
+        echo "Current Infected Files: $FILE_COUNT"
     fi
-    echo ""
 
-    # 7. Weekly report stats
-    echo "=== Weekly Scan Stats ==="
     if [ -f "$WEEKLY_REPORT" ]; then
-        local TOTAL_SCANS TOTAL_INFECTED
+        local TOTAL_SCANS
         TOTAL_SCANS=$(grep -c "Files scanned:" "$WEEKLY_REPORT" || echo 0)
-        TOTAL_INFECTED=$(grep "Infected:" "$WEEKLY_REPORT" | awk -F'Infected: ' '{sum += $2} END {print sum}' || echo 0)
-        echo "Total hourly scans logged: $TOTAL_SCANS"
-        echo "Total infected files detected: $TOTAL_INFECTED"
-    else
-        echo "Weekly report missing — no scan stats"
+        echo "Total scans in weekly report: $TOTAL_SCANS"
     fi
     echo ""
 
@@ -1967,10 +1935,8 @@ clamav_health_check() {
 }
 
 setup_clamav() {
-
-	check_root
-	confirm_action
-	
+    check_root
+    confirm_action
     set -euo pipefail
 
     # -----------------------------
@@ -1992,15 +1958,15 @@ setup_clamav() {
     local CONFIG="/etc/clamd.d/scan.conf"
 
     # -----------------------------
-    # Install packages (EL)
+    # Install packages (Silenced)
     # -----------------------------
-    echo "[+] Installing ClamAV..."
+    echo "[+] Installing ClamAV (Quiet Mode)..."
     if grep -qi oracle /etc/os-release; then
-        dnf config-manager --enable "ol$(rpm -E %rhel)_developer_EPEL"
+        dnf config-manager --enable "ol$(rpm -E %rhel)_developer_EPEL" >/dev/null 2>&1
     else
-        dnf install -y epel-release
+        dnf install -q -y epel-release >/dev/null 2>&1
     fi
-    dnf install -y clamav clamav-freshclam clamd
+    dnf install -q -y clamav clamav-freshclam clamd >/dev/null 2>&1
 
     # -----------------------------
     # Configure clamd
@@ -2025,12 +1991,14 @@ setup_clamav() {
     # Enable services
     # -----------------------------
     systemctl daemon-reexec
-    systemctl enable --now clamav-freshclam.service
-    systemctl enable --now clamd@scan
+    systemctl enable --now clamav-freshclam.service >/dev/null 2>&1
+    systemctl enable --now clamd@scan >/dev/null 2>&1
 
     # -----------------------------
     # Deploy hourly scan script
     # -----------------------------
+    # Note: Variables starting with \$ are literal in the script.
+    # Variables starting with $ are evaluated now during setup.
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -euo pipefail
@@ -2060,7 +2028,6 @@ TOTAL_FILES=\$(wc -l < "\$LIST_FILE")
 INFECTED_FILES=()
 
 if [ "\$TOTAL_FILES" -gt 0 ]; then
-    # Hide individual file scan output
     clamdscan -c "\$CONFIG" --fdpass --multiscan --no-summary --move="\$QUARANTINE_DIR" --file-list="\$LIST_FILE" --log="\$LOG_DIR/hourly_audit.log" >/dev/null 2>&1
 
     while read -r FILE; do
@@ -2098,15 +2065,14 @@ EOF
     # Update Crontab as root
     # -----------------------------
     echo "[+] Updating root crontab..."
-    # Robust update: extract current cron (ignoring script), append new line, load back
     ( crontab -l 2>/dev/null | grep -v 'hourly_secure_scan.sh' || true ; echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ) | crontab -
 
     # -----------------------------
     # Final touches
     # -----------------------------
     if getenforce | grep -q Enforcing; then
-        setsebool -P antivirus_can_scan_system 1
-        setsebool -P clamd_use_jit 1
+        setsebool -P antivirus_can_scan_system 1 >/dev/null 2>&1
+        setsebool -P clamd_use_jit 1 >/dev/null 2>&1
     fi
 
     echo "[+] ClamAV setup complete."
@@ -2125,6 +2091,7 @@ test_clamav_setup() {
     local QUARANTINE_DIR="/var/lib/clamav/quarantine"
     if [ -f "$QUARANTINE_DIR/eicar.com" ]; then
         echo "[+] SUCCESS: File quarantined"
+        rm -f "$QUARANTINE_DIR/eicar.com"
     else
         echo "[!] FAILED: File not quarantined"
         return 1
