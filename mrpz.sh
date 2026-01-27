@@ -1950,7 +1950,7 @@ nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -
 TOTAL=\$(wc -l < "\$LIST")
 
 if [ "\$TOTAL" -gt 0 ]; then
-    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
+    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
     
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
         ALERT_BODY=\$(echo "\$SCAN_RESULTS" | grep -E "FOUND|SCAN SUMMARY|Infected files|Total errors|Time:")
@@ -1986,7 +1986,7 @@ EOF
     ) | crontab -
 
     echo "[+] Setup Complete."
-}    
+}  
 
 clamav_health_check() {
     check_root
