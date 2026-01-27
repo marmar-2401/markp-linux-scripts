@@ -1871,7 +1871,6 @@ setup_clamav() {
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
     touch "$WEEKLY_REPORT" "$CHECKPOINT"
-    # Ensure clamscan user owns these early
     chown -R clamscan:clamscan "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
 
     echo "[+] Configuring EPEL & Installing Components..."
@@ -1890,7 +1889,7 @@ setup_clamav() {
     fi
     
     echo "[+] Hardening Configuration Files..."
-    # 1. Fix Freshclam Config (Removes Example, Sets Log)
+    # Fix Freshclam Config
     if [ -f /etc/freshclam.conf ]; then
         sed -i '/^Example/d' /etc/freshclam.conf
         sed -i 's|^#UpdateLogFile.*|UpdateLogFile /var/log/clamav/freshclam.log|' /etc/freshclam.conf
@@ -1898,7 +1897,7 @@ setup_clamav() {
         chown clamscan:clamscan /var/log/clamav/freshclam.log
     fi
 
-    # 2. Fix Clamd Scan Config (Critical for clamd@scan service)
+    # Fix Clamd Scan Config (Critical for clamd@scan service)
     if [ -f /etc/clamd.d/scan.conf ]; then
         sed -i '/^Example/d' /etc/clamd.d/scan.conf
         sed -i 's|^#LocalSocket .*|LocalSocket /run/clamd.scan/clamd.sock|' /etc/clamd.d/scan.conf
@@ -1915,8 +1914,6 @@ setup_clamav() {
 
     echo "[+] Activating Freshclam & Downloading Database..."
     systemctl enable --now clamav-freshclam >/dev/null 2>&1
-    
-    # Wait for database or force a download so clamd doesn't crash on start
     if [ ! -f /var/lib/clamav/main.cvd ] && [ ! -f /var/lib/clamav/main.cld ]; then
         echo "[!] Database missing. Performing initial download (please wait)..."
         freshclam || true
@@ -1926,7 +1923,7 @@ setup_clamav() {
     systemctl reset-failed clamd@scan >/dev/null 2>&1
     systemctl enable --now clamd@scan >/dev/null 2>&1
 
-    echo "[+] Deploying Secure Scan Script..."
+    echo "[+] Deploying Secure Scan Script (Filtered Alerts)..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -1952,10 +1949,13 @@ TOTAL=\$(wc -l < "\$LIST")
 if [ "\$TOTAL" -gt 0 ]; then
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
     
+    # Alert Logic: Only email the infections and the summary
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
-        echo "\$SCAN_RESULTS" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
+        ALERT_BODY=\$(echo "\$SCAN_RESULTS" | grep -E "FOUND|SCAN SUMMARY|Infected files|Total errors|Time:")
+        echo -e "Virus(es) detected on \$(hostname):\n\n\$ALERT_BODY" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
     fi
 
+    # Logging Logic: Keep the clean summary for audit trails
     CLEAN_SUMMARY=\$(echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Infected files|Time:|Start Date|End Date" | grep -v "Total errors")
     ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\n\$CLEAN_SUMMARY\n-----------------------------------"
 else
