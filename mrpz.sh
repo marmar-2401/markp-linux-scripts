@@ -1880,12 +1880,18 @@ setup_clamav() {
     fi
     dnf install -q -y clamav clamav-freshclam clamd mailx policycoreutils-python-utils >/dev/null 2>&1
 
+    echo "[+] Activating Virus Definition Auto-Updates..."
+    # Ensure the freshclam service is enabled and running
+    systemctl enable --now clamav-freshclam >/dev/null 2>&1
+    # Ensure the clamd scan service is enabled
+    systemctl enable --now clamd@scan >/dev/null 2>&1
+
     echo "[+] Fixing SELinux & Permissions..."
     chown -R clamscan:clamscan "$LOG_DIR" "$QUARANTINE_DIR" "$CHECKPOINT"
     restorecon -Rv "$LOG_DIR" >/dev/null 2>&1 || true
     setsebool -P antivirus_can_scan_system 1 >/dev/null 2>&1 || true
 
-    echo "[+] Deploying Secure Scan Script (Priority, Lockfile, & Real-time Alerts)..."
+    echo "[+] Deploying Secure Scan Script (Priority, Lockfile, & Alerts)..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -1909,16 +1915,14 @@ TOTAL=\$(wc -l < "\$LIST")
 
 # 2. Scan and Immediate Alert
 if [ "\$TOTAL" -gt 0 ]; then
-    # Run scan with low priority and capture output
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>&1)
     
-    # IMMEDIATE ALERT: If "FOUND" is in the output, mail it now
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
         echo "\$SCAN_RESULTS" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
     fi
 fi
 
-# 3. Force Logging (For the Weekly Report and Health Check)
+# 3. Force Logging
 {
     echo "Date: \$(date '+%Y-%m-%d %H:%M:%S')"
     echo "Files scanned: \$TOTAL"
@@ -1931,7 +1935,7 @@ EOF
 
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
     
-    echo "[+] Configuring Cron Jobs (Hourly Scan & Weekly Email)..."
+    echo "[+] Configuring Cron Jobs..."
     ( crontab -l 2>/dev/null | grep -v -E 'hourly_secure_scan.sh|weekly_report.log' || true ; 
       echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ;
       echo "0 0 * * 1 mailx -s \"Weekly ClamAV Summary - \$(hostname)\" $EMAIL < $WEEKLY_REPORT && > $WEEKLY_REPORT"
