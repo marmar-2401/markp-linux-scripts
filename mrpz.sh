@@ -1860,7 +1860,13 @@ setup_clamav() {
     confirm_action
     set -euo pipefail
 
-    local EMAIL="marmar2401@icloud.com"
+    # 1. Interactive Email Prompt (Restored)
+    local EMAIL
+    read -rp "Enter email for ClamAV alerts and weekly reports: " EMAIL
+    [[ "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || {
+        echo "Invalid email format"; return 1
+    }
+
     local QUARANTINE_DIR="/var/lib/clamav/quarantine"
     local LOG_DIR="/var/log/clamav"
     local FRESHCLAM_LOG="$LOG_DIR/freshclam.log"
@@ -1869,7 +1875,7 @@ setup_clamav() {
     echo "[+] Preparing Environment & Permissions..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
     
-    # Initialize logs with specific ownership
+    # Initialize log files
     touch "$FRESHCLAM_LOG" "$WEEKLY_REPORT"
     chown clamupdate:clamupdate "$FRESHCLAM_LOG"
     chown clamscan:clamscan "$LOG_DIR" "$QUARANTINE_DIR" "$WEEKLY_REPORT"
@@ -1878,7 +1884,7 @@ setup_clamav() {
     echo "[+] Installing ClamAV Components..."
     dnf install -q -y epel-release clamav clamav-freshclam clamd >/dev/null 2>&1
 
-    # Force physical logging for tailing capabilities
+    # Force freshclam to use the physical log file
     sed -i "s|^#UpdateLogFile .*|UpdateLogFile $FRESHCLAM_LOG|" /etc/freshclam.conf
 
     echo "[+] Adjusting SELinux Booleans..."
@@ -1889,12 +1895,12 @@ setup_clamav() {
     systemctl daemon-reexec
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
-    # Deployment of the Master Scan Script
+    # Deployment of the Hardened Scan Script
     cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
 set -euo pipefail
 
-# 1. LOCK FILE: Prevent overlapping scans
+# Lock file to prevent overlapping scans
 LOCK_FILE="/run/clamd.scan/hourly_scan.lock"
 exec 200>"$LOCK_FILE"
 if ! flock -n 200; then exit 0; fi
@@ -1910,13 +1916,11 @@ CONFIG="/etc/clamd.d/scan.conf"
 WEEKLY_REPORT="/var/log/clamav/weekly_report.log"
 AUDIT_LOG="/var/log/clamav/hourly_audit.log"
 
-# 2. Reset the audit log for this run
 > "$AUDIT_LOG"
-
-# 3. Identify files (Delta only via Checkpoint)
 LIST_FILE=$(mktemp)
 trap 'rm -f "$LIST_FILE"' EXIT
 
+# Find only new/modified files since the last checkpoint
 find "$SCAN_DIR" -type f \
     -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
     -not -path "/run/*" -not -path "/var/lib/clamav/*" \
@@ -1925,8 +1929,9 @@ find "$SCAN_DIR" -type f \
 TOTAL_FILES=$(wc -l < "$LIST_FILE")
 INFECTED_FILES=()
 
-# 4. Perform Throttled Scan (Removed --fdpass to resolve SELinux truncation errors)
 if [ "$TOTAL_FILES" -gt 0 ]; then
+    # Throttled execution: nice 19 (CPU) and ionice class 3 (Disk)
+    # Removed --fdpass to resolve SELinux "Control message truncated" errors
     nice -n 19 ionice -c 3 clamdscan -c "$CONFIG" --quiet --multiscan \
         --move="$QUARANTINE_DIR" --file-list="$LIST_FILE" --log="$AUDIT_LOG" >/dev/null 2>&1
     
@@ -1936,10 +1941,8 @@ if [ "$TOTAL_FILES" -gt 0 ]; then
 fi
 
 INFECTED=${#INFECTED_FILES[@]}
-END_TIME=$(date +%s)
-DURATION=$((END_TIME - START_TIME))
+DURATION=$(($(date +%s) - START_TIME))
 
-# 5. Output Summary to Terminal/Cron
 echo "=== ClamAV Scan Summary ==="
 echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "Files Scanned: $TOTAL_FILES"
@@ -1947,7 +1950,6 @@ echo "Infected: $INFECTED"
 echo "Time Taken: ${DURATION}s"
 echo "==========================="
 
-# 6. Append to Weekly Stats
 {
     echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "Files scanned: $TOTAL_FILES | Duration: ${DURATION}s"
@@ -1956,18 +1958,18 @@ echo "==========================="
     echo "-----------------------------------"
 } >> "$WEEKLY_REPORT"
 
-# 7. Update Touch File Checkpoint
+# Update checkpoint to current time
 touch "$CHECKPOINT"
 EOF
 
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
 
-    echo "[+] Updating Crontab (Hourly Scan & Weekly Email)..."
+    echo "[+] Updating Crontab..."
     ( crontab -l 2>/dev/null | grep -v 'hourly_secure_scan.sh' | grep -v 'weekly_report' || true ; 
       echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ;
       echo "0 1 * * 1 [ -s $WEEKLY_REPORT ] && cat $WEEKLY_REPORT | mail -s 'Weekly ClamAV Report - $(hostname)' $EMAIL && > $WEEKLY_REPORT" ) | crontab -
 
-    echo "[+] Setup complete."
+    echo "[+] Setup complete. Email: $EMAIL"
 }
 
 clamav_health_check() {
