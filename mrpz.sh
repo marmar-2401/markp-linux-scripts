@@ -1986,7 +1986,7 @@ EOF
     ) | crontab -
 
     echo "[+] Setup Complete."
-}  
+}
 
 clamav_health_check() {
     check_root
