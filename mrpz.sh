@@ -1856,10 +1856,13 @@ fi
 }
 
 clamav_health_check() {
+
+	check_root
     set -euo pipefail
 
+    # Updated to the correct daemon name for your OS
     local CLAMD_SERVICE="${1:-clamd@scan}"
-    local FRESHCLAM_SERVICE="${2:-freshclam}"
+    local FRESHCLAM_SERVICE="${2:-clamav-freshclam}"
     local SCAN_SCRIPT="${3:-/usr/local/bin/hourly_secure_scan.sh}"
     local CHECKPOINT="${4:-/var/lib/clamav/scan_checkpoint}"
     local LOG_DIR="${5:-/var/log/clamav}"
@@ -1873,9 +1876,9 @@ clamav_health_check() {
     echo "=== Services ==="
     for svc in "$CLAMD_SERVICE" "$FRESHCLAM_SERVICE"; do
         if systemctl is-active --quiet "$svc"; then
-            echo "[OK] $svc is running"
+            echo "[OK] $svc daemon is running"
         else
-            echo "[FAIL] $svc is NOT running"
+            echo "[FAIL] $svc daemon is NOT running"
         fi
     done
     echo ""
@@ -1915,19 +1918,50 @@ clamav_health_check() {
     fi
     echo ""
 
-    # 4. Last scan summary
-    echo "=== Quarantine & Stats ==="
+    # 4. Last checkpoint
+    echo "=== Last Scan Checkpoint ==="
+    if [ -f "$CHECKPOINT" ]; then
+        local LAST_SCAN
+        LAST_SCAN=$(stat -c "%y" "$CHECKPOINT")
+        echo "Last scan: $LAST_SCAN"
+    else
+        echo "Checkpoint file missing: $CHECKPOINT"
+    fi
+    echo ""
+
+    # 5. Virus definitions (Daemon Status)
+    echo "=== Virus Definitions ==="
+    local DB_DATE
+    DB_DATE=$(freshclam --show-database 2>/dev/null | grep "main.cvd" | awk '{print $2, $3}' || echo "")
+    if [ -n "$DB_DATE" ]; then
+        echo "Database last updated: $DB_DATE"
+    else
+        echo "Unable to determine virus database date"
+    fi
+    echo ""
+
+    # 6. Quarantine stats
+    echo "=== Quarantine ==="
     if [ -d "$QUARANTINE_DIR" ]; then
         local FILE_COUNT
         FILE_COUNT=$(find "$QUARANTINE_DIR" -type f 2>/dev/null | wc -l || echo 0)
-        echo "Quarantine Location: $QUARANTINE_DIR"
-        echo "Current Infected Files: $FILE_COUNT"
+        echo "Quarantine contains $FILE_COUNT file(s)"
+        echo "Location: $QUARANTINE_DIR"
+    else
+        echo "Quarantine directory missing"
     fi
+    echo ""
 
+    # 7. Weekly report stats
+    echo "=== Weekly Scan Stats ==="
     if [ -f "$WEEKLY_REPORT" ]; then
-        local TOTAL_SCANS
+        local TOTAL_SCANS TOTAL_INFECTED
         TOTAL_SCANS=$(grep -c "Files scanned:" "$WEEKLY_REPORT" || echo 0)
-        echo "Total scans in weekly report: $TOTAL_SCANS"
+        TOTAL_INFECTED=$(grep "Infected:" "$WEEKLY_REPORT" | awk -F'Infected: ' '{sum += $2} END {print sum}' || echo 0)
+        echo "Total hourly scans logged: $TOTAL_SCANS"
+        echo "Total infected files detected: $TOTAL_INFECTED"
+    else
+        echo "Weekly report missing — no scan stats"
     fi
     echo ""
 
@@ -1939,9 +1973,6 @@ setup_clamav() {
     confirm_action
     set -euo pipefail
 
-    # -----------------------------
-    # Email configuration
-    # -----------------------------
     local EMAIL
     read -rp "Enter email for ClamAV alerts: " EMAIL
     [[ "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || {
@@ -1957,20 +1988,10 @@ setup_clamav() {
     local SOCKET_DIR="/run/clamd.scan"
     local CONFIG="/etc/clamd.d/scan.conf"
 
-    # -----------------------------
-    # Install packages (Silenced)
-    # -----------------------------
-    echo "[+] Installing ClamAV (Quiet Mode)..."
-    if grep -qi oracle /etc/os-release; then
-        dnf config-manager --enable "ol$(rpm -E %rhel)_developer_EPEL" >/dev/null 2>&1
-    else
-        dnf install -q -y epel-release >/dev/null 2>&1
-    fi
+    echo "[+] Installing ClamAV (Quiet)..."
+    dnf install -q -y epel-release >/dev/null 2>&1
     dnf install -q -y clamav clamav-freshclam clamd >/dev/null 2>&1
 
-    # -----------------------------
-    # Configure clamd
-    # -----------------------------
     echo "[+] Configuring clamd..."
     sed -i \
         -e 's/^Example.*/Example no/' \
@@ -1979,26 +2000,17 @@ setup_clamav() {
         -e 's/^#\?User.*/User clamscan/' \
         "$CONFIG"
 
-    # -----------------------------
-    # Create directories
-    # -----------------------------
     mkdir -p "$SOCKET_DIR" "$QUARANTINE_DIR" "$LOG_DIR"
     chown clamscan:clamscan "$SOCKET_DIR" "$QUARANTINE_DIR" "$LOG_DIR"
     chmod 755 "$SOCKET_DIR"
     chmod 0750 "$QUARANTINE_DIR" "$LOG_DIR"
 
-    # -----------------------------
-    # Enable services
-    # -----------------------------
+    echo "[+] Enabling Daemons..."
     systemctl daemon-reexec
+    # Explicitly enable the freshclam daemon
     systemctl enable --now clamav-freshclam.service >/dev/null 2>&1
     systemctl enable --now clamd@scan >/dev/null 2>&1
 
-    # -----------------------------
-    # Deploy hourly scan script
-    # -----------------------------
-    # Note: Variables starting with \$ are literal in the script.
-    # Variables starting with $ are evaluated now during setup.
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -euo pipefail
@@ -2061,15 +2073,9 @@ EOF
 
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
 
-    # -----------------------------
-    # Update Crontab as root
-    # -----------------------------
     echo "[+] Updating root crontab..."
     ( crontab -l 2>/dev/null | grep -v 'hourly_secure_scan.sh' || true ; echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ) | crontab -
 
-    # -----------------------------
-    # Final touches
-    # -----------------------------
     if getenforce | grep -q Enforcing; then
         setsebool -P antivirus_can_scan_system 1 >/dev/null 2>&1
         setsebool -P clamd_use_jit 1 >/dev/null 2>&1
