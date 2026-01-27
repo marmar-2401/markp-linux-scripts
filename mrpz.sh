@@ -1856,11 +1856,7 @@ fi
 }
 
 
-clamav_health_check() {
-
-	check_root
-	confirm_action 
-	
+clamav_health_check() {	
 	set -euo pipefail
 
     local CLAMD_SERVICE="${1:-clamd@scan}"
@@ -1971,6 +1967,10 @@ clamav_health_check() {
 }
 
 setup_clamav() {
+
+	check_root
+	confirm_action
+	
     set -euo pipefail
 
     # -----------------------------
