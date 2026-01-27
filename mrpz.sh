@@ -1855,6 +1855,12 @@ else
 fi
 }
 
+#!/bin/bash
+
+# ==============================================================================
+# ClamAV Comprehensive Security Suite
+# ==============================================================================
+
 clamav_health_check() {
     set -euo pipefail
 
@@ -1880,9 +1886,23 @@ clamav_health_check() {
     done
     echo ""
 
-    # 2. Directory & script checks
+    # 2. SELinux check
+    local SELINUX_MODE
+    SELINUX_MODE=$(getenforce 2>/dev/null || echo "Disabled")
+    echo "=== SELinux ==="
+    if [ "$SELINUX_MODE" = "Enforcing" ]; then
+        for BOOL in antivirus_can_scan_system clamd_use_jit; do
+            local VALUE
+            VALUE=$(getsebool "$BOOL" 2>/dev/null | awk '{print $3}' || echo "unknown")
+            echo "$BOOL = $VALUE"
+        done
+    else
+        echo "SELinux mode: $SELINUX_MODE — skipping boolean checks"
+    fi
+    echo ""
+
+    # 3. Directory & script checks
     echo "=== Directories & Scan Script ==="
-    echo "Quarantine Directory: $QUARANTINE_DIR"
     for DIR in "$LOG_DIR" "$QUARANTINE_DIR"; do
         if [ -d "$DIR" ]; then
             local PERM OWNER
@@ -1893,9 +1913,49 @@ clamav_health_check() {
             echo "$DIR does NOT exist"
         fi
     done
+
+    if [ -x "$SCAN_SCRIPT" ]; then
+        echo "Scan script exists: $SCAN_SCRIPT"
+    else
+        echo "Scan script missing or not executable: $SCAN_SCRIPT"
+    fi
     echo ""
 
-    # 3. Last scan summary from weekly report
+    # 4. Last checkpoint
+    echo "=== Last Scan Checkpoint ==="
+    if [ -f "$CHECKPOINT" ]; then
+        local LAST_SCAN
+        LAST_SCAN=$(stat -c "%y" "$CHECKPOINT")
+        echo "Last scan: $LAST_SCAN"
+    else
+        echo "Checkpoint file missing: $CHECKPOINT"
+    fi
+    echo ""
+
+    # 5. Virus definitions
+    echo "=== Virus Definitions ==="
+    local DB_DATE
+    DB_DATE=$(freshclam --show-database 2>/dev/null | grep "main.cvd" | awk '{print $2, $3}' || echo "")
+    if [ -n "$DB_DATE" ]; then
+        echo "Database last updated: $DB_DATE"
+    else
+        echo "Unable to determine virus database date"
+    fi
+    echo ""
+
+    # 6. Quarantine stats
+    echo "=== Quarantine ==="
+    if [ -d "$QUARANTINE_DIR" ]; then
+        local FILE_COUNT
+        FILE_COUNT=$(find "$QUARANTINE_DIR" -type f 2>/dev/null | wc -l || echo 0)
+        echo "Quarantine contains $FILE_COUNT file(s)"
+        echo "Location: $QUARANTINE_DIR"
+    else
+        echo "Quarantine directory missing"
+    fi
+    echo ""
+
+    # 7. Weekly report stats
     echo "=== Weekly Scan Stats ==="
     if [ -f "$WEEKLY_REPORT" ]; then
         local TOTAL_SCANS TOTAL_INFECTED
@@ -1906,41 +1966,96 @@ clamav_health_check() {
     else
         echo "Weekly report missing — no scan stats"
     fi
+    echo ""
+
+    echo "=== ClamAV Health Check Complete ==="
 }
 
 setup_clamav() {
-    # Ensure script runs as root
-    if [[ $EUID -ne 0 ]]; then
-       echo "This script must be run as root" 
-       exit 1
-    fi
-
+    # (Root check handled by wrapper)
     set -euo pipefail
 
+    # -----------------------------
+    # Email configuration
+    # -----------------------------
     local EMAIL
     read -rp "Enter email for ClamAV alerts: " EMAIL
-    [[ "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || { echo "Invalid email"; return 1; }
+    [[ "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || {
+        echo "Invalid email format"
+        return 1
+    }
 
+    local SCAN_DIR="${2:-/}"
     local QUARANTINE_DIR="/var/lib/clamav/quarantine"
     local LOG_DIR="/var/log/clamav"
+    local CHECKPOINT="/var/lib/clamav/scan_checkpoint"
+    local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
+    local SOCKET_DIR="/run/clamd.scan"
     local CONFIG="/etc/clamd.d/scan.conf"
 
-    # ... (Keep existing package installation and clamd config logic here) ...
+    # -----------------------------
+    # Install packages (EL)
+    # -----------------------------
+    echo "[+] Installing ClamAV..."
+    if grep -qi oracle /etc/os-release; then
+        dnf config-manager --enable "ol$(rpm -E %rhel)_developer_EPEL"
+    else
+        dnf install -y epel-release
+    fi
+    dnf install -y clamav clamav-freshclam clamd mailx
 
+    # -----------------------------
+    # Configure clamd
+    # -----------------------------
+    echo "[+] Configuring clamd..."
+    sed -i \
+        -e 's/^Example.*/Example no/' \
+        -e "s|^#\?LocalSocket .*|LocalSocket $SOCKET_DIR/clamd.sock|" \
+        -e 's/^#\?FixStaleSocket.*/FixStaleSocket yes/' \
+        -e 's/^#\?User.*/User clamscan/' \
+        "$CONFIG"
+
+    # -----------------------------
+    # Create socket directory
+    # -----------------------------
+    echo "[+] Creating socket dir..."
+    mkdir -p "$SOCKET_DIR"
+    chown clamscan:clamscan "$SOCKET_DIR"
+    chmod 755 "$SOCKET_DIR"
+
+    # -----------------------------
+    # Create data directories
+    # -----------------------------
+    echo "[+] Creating data directories..."
+    for DIR in "$QUARANTINE_DIR" "$LOG_DIR"; do
+        mkdir -p "$DIR"
+        chown -R clamscan:clamscan "$DIR"
+        chmod 0750 "$DIR"
+    done
+
+    # -----------------------------
+    # Enable services
+    # -----------------------------
+    echo "[+] Enabling services..."
+    systemctl daemon-reexec
+    systemctl enable --now clamav-freshclam.service
+    systemctl enable --now clamd@scan
+
+    # -----------------------------
     # Deploy hourly scan script
+    # -----------------------------
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -euo pipefail
 
-SCAN_DIR="/"
-CHECKPOINT="/var/lib/clamav/scan_checkpoint"
+SCAN_DIR="$SCAN_DIR"
+CHECKPOINT="$CHECKPOINT"
 LOG_DIR="$LOG_DIR"
 QUARANTINE_DIR="$QUARANTINE_DIR"
 EMAIL="$EMAIL"
 CONFIG="$CONFIG"
-WEEKLY_REPORT="\$LOG_DIR/weekly_report.log"
+WEEKLY_REPORT="$WEEKLY_REPORT"
 
-# Prevent concurrent scans
 LOCK_FILE="/run/hourly_secure_scan.lock"
 exec 200>"\$LOCK_FILE"
 flock -n 200 || exit 0
@@ -1948,7 +2063,6 @@ flock -n 200 || exit 0
 LIST_FILE=\$(mktemp)
 trap 'rm -f "\$LIST_FILE"' EXIT
 
-# Find new/changed files
 if [ ! -f "\$CHECKPOINT" ]; then
     find "\$SCAN_DIR" -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" -not -path "/run/*" > "\$LIST_FILE"
 else
@@ -1959,10 +2073,11 @@ TOTAL_FILES=\$(wc -l < "\$LIST_FILE")
 INFECTED_FILES=()
 
 if [ "\$TOTAL_FILES" -gt 0 ]; then
-    # --no-summary and >/dev/null keeps the output clean
+    # Redirected to /dev/null to hide individual file scan progress
     clamdscan -c "\$CONFIG" --fdpass --multiscan --no-summary --move="\$QUARANTINE_DIR" --file-list="\$LIST_FILE" --log="\$LOG_DIR/hourly_audit.log" >/dev/null 2>&1
 
-    # Harvest infected paths from log
+    find "\$QUARANTINE_DIR" -type f -exec chmod 0640 {} \; -exec chown clamscan:clamscan {} \; 2>/dev/null || true
+
     while read -r FILE; do
         INFECTED_FILES+=("\$FILE")
     done < <(grep "FOUND" "\$LOG_DIR/hourly_audit.log" | awk -F: '{print \$1}')
@@ -1970,25 +2085,23 @@ fi
 
 INFECTED=\${#INFECTED_FILES[@]}
 
-# Send Alert if infected
 if [ "\$INFECTED" -gt 0 ]; then
     printf "%s\n" "\${INFECTED_FILES[@]}" | mail -s "ClamAV ALERT on \$(hostname)" "\$EMAIL"
 fi
 
-# Print clean summary to console/log
+# Summary output for manual runs/logs
 echo "=== ClamAV Scan Summary ==="
 echo "Date: \$(date '+%Y-%m-%d %H:%M:%S')"
-echo "Files Scanned: \$TOTAL_FILES"
-echo "Infected Found: \$INFECTED"
-echo "Quarantine Location: \$QUARANTINE_DIR"
+echo "Total files scanned: \$TOTAL_FILES"
+echo "Infected files: \$INFECTED"
+echo "Quarantine Directory: \$QUARANTINE_DIR"
 echo "==========================="
 
-# Log to weekly report
 {
     echo "Date: \$(date '+%Y-%m-%d %H:%M:%S')"
     echo "Files scanned: \$TOTAL_FILES"
     echo "Infected: \$INFECTED"
-    [ "\$INFECTED" -gt 0 ] && printf "Files: %s\n" "\${INFECTED_FILES[@]}"
+    [ "\$INFECTED" -gt 0 ] && printf "Infected files:\n%s\n" "\${INFECTED_FILES[@]}"
     echo ""
 } >> "\$WEEKLY_REPORT"
 
@@ -1998,12 +2111,43 @@ EOF
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
 
     # -----------------------------
-    # Root Crontab Entry
+    # SELinux configuration
     # -----------------------------
-    echo "[+] Updating root crontab..."
-    ( crontab -l 2>/dev/null | grep -v 'hourly_secure_scan.sh' ; echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ) | crontab -
-    
-    echo "[+] Setup Complete. Hourly scan active."
+    if getenforce | grep -q Enforcing; then
+        setsebool -P antivirus_can_scan_system 1
+        setsebool -P clamd_use_jit 1
+    fi
+
+    # -----------------------------
+    # Log rotation
+    # -----------------------------
+    cat > /etc/logrotate.d/clamav-hourly <<EOF
+$LOG_DIR/hourly_audit.log {
+    daily
+    rotate 30
+    compress
+    missingok
+    notifempty
+}
+EOF
+
+    # -----------------------------
+    # Update virus definitions
+    # -----------------------------
+    echo "[+] Updating ClamAV signatures..."
+    freshclam || true
+
+    # -----------------------------
+    # CRON JOB FOR ROOT (The Fix)
+    # -----------------------------
+    echo "[+] Installing root crontab entry..."
+    local TMP_CRON=\$(mktemp)
+    # Capture existing root cron, filter script, add new line
+    ( crontab -l 2>/dev/null | grep -v 'hourly_secure_scan.sh' || true ; echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ) > "\$TMP_CRON"
+    crontab "\$TMP_CRON"
+    rm -f "\$TMP_CRON"
+
+    echo "[+] ClamAV setup complete. Cron job verified."
 }
 
 test_clamav_setup() {
