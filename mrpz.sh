@@ -1877,7 +1877,7 @@ setup_clamav() {
     dnf install -q -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
 
     echo "[+] Detecting ClamAV User..."
-    # Dynamically detect the user based on the database directory owner (universal for RHEL/Oracle)
+    # Dynamically detect the user (fixes the RHEL 'clamupdate' vs Oracle 'clamscan' issue)
     local CLAM_USER=$(stat -c '%U' /var/lib/clamav)
     local CLAM_GROUP=$(stat -c '%G' /var/lib/clamav)
     echo "[+] Detected Service Account: $CLAM_USER:$CLAM_GROUP"
@@ -1926,8 +1926,10 @@ setup_clamav() {
     fi
 
     echo "[+] Starting ClamAV Engine (clamd@scan)..."
-    systemctl reset-failed clamd@scan >/dev/null 2>&1
-    systemctl enable --now clamd@scan >/dev/null 2>&1
+    # Added reload and || true to prevent RHEL from exiting the script if the service takes too long to load
+    systemctl daemon-reload
+    systemctl reset-failed clamd@scan >/dev/null 2>&1 || true
+    systemctl enable --now clamd@scan >/dev/null 2>&1 || true
 
     echo "[+] Deploying Secure Scan Script (Filtered Alerts)..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
