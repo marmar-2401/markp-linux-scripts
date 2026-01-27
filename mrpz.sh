@@ -1869,6 +1869,7 @@ setup_clamav() {
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
 
     echo "[+] Configuring EPEL & Installing Components..."
+    # Logic for Oracle vs RHEL is preserved here
     if grep -q "Oracle Linux" /etc/os-release; then
         dnf install -y oracle-epel-release-el$(rpm -E %rhel) >/dev/null 2>&1
     else
@@ -1943,6 +1944,7 @@ C_USER="$CLAM_USER"
 C_GROUP="$CLAM_GROUP"
 
 LIST=\$(mktemp)
+# Find files newer than checkpoint
 nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" \\
      \$([ -f "\$CHK" ] && echo "-newer \$CHK") > "\$LIST" 2>/dev/null || true
@@ -1950,7 +1952,11 @@ nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -
 TOTAL=\$(wc -l < "\$LIST")
 
 if [ "\$TOTAL" -gt 0 ]; then
-    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
+    # CRITICAL FIX: Make the list readable by the ClamAV service account
+    chmod 644 "\$LIST"
+
+    # Use explicit path and config file to ensure daemon connectivity
+    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan -c /etc/clamd.d/scan.conf --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
     
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
         ALERT_BODY=\$(echo "\$SCAN_RESULTS" | grep -E "FOUND|SCAN SUMMARY|Infected files|Total errors|Time:")
@@ -1987,6 +1993,7 @@ EOF
 
     echo "[+] Setup Complete."
 }
+
 
 clamav_health_check() {
     check_root
