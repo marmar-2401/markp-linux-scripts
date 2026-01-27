@@ -1858,11 +1858,11 @@ fi
 setup_clamav() {
     check_root
     confirm_action
-    set -e
+    set -euo pipefail
 
     local EMAIL
     read -rp "Enter email for ClamAV alerts and weekly reports: " EMAIL
-    
+
     local LOG_DIR="/var/log/clamav"
     local QUARANTINE_DIR="/var/lib/clamav/quarantine"
     local CHECKPOINT="/var/lib/clamav/scan_checkpoint"
@@ -1877,52 +1877,18 @@ setup_clamav() {
     dnf install -q -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
 
     echo "[+] Detecting ClamAV User..."
+    # Dynamically detect the user based on the database directory owner (universal for RHEL/Oracle)
+    # Dynamically detect the user (fixes the RHEL 'clamupdate' vs Oracle 'clamscan' issue)
     local CLAM_USER=$(stat -c '%U' /var/lib/clamav)
     local CLAM_GROUP=$(stat -c '%G' /var/lib/clamav)
     echo "[+] Detected Service Account: $CLAM_USER:$CLAM_GROUP"
-
-    echo "[+] Preparing Environment..."
-    mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
-    touch "$WEEKLY_REPORT" "$CHECKPOINT"
-    chown -R "$CLAM_USER:$CLAM_GROUP" "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
-
-    echo "[+] Installing Mail Utility..."
-    if dnf list available mailx >/dev/null 2>&1; then
-        dnf install -q -y mailx
-    else
-        dnf install -q -y s-nail
-    fi
-    
-    echo "[+] Hardening Configuration Files..."
-    if [ -f /etc/freshclam.conf ]; then
-        sed -i '/^Example/d' /etc/freshclam.conf
-        sed -i "s|^#UpdateLogFile.*|UpdateLogFile $LOG_DIR/freshclam.log|" /etc/freshclam.conf
-        touch "$LOG_DIR/freshclam.log"
-        chown "$CLAM_USER:$CLAM_GROUP" "$LOG_DIR/freshclam.log"
-    fi
-
-    if [ -f /etc/clamd.d/scan.conf ]; then
-        sed -i '/^Example/d' /etc/clamd.d/scan.conf
-        sed -i 's|^#LocalSocket .*|LocalSocket /run/clamd.scan/clamd.sock|' /etc/clamd.d/scan.conf
-        sed -i 's|^#FixStaleSocket .*|FixStaleSocket yes|' /etc/clamd.d/scan.conf
-        sed -i "s|^#User .*|User $CLAM_USER|" /etc/clamd.d/scan.conf
-        sed -i "s|^#LogFile .*|LogFile $LOG_DIR/clamd.log|" /etc/clamd.d/scan.conf
-        touch "$LOG_DIR/clamd.log"
-        chown "$CLAM_USER:$CLAM_GROUP" "$LOG_DIR/clamd.log"
-    fi
-
-    echo "[+] Configuring SELinux Policies..."
-    setsebool -P antivirus_can_scan_system 1 >/dev/null 2>&1 || true
-    setsebool -P clamd_use_jit 1 >/dev/null 2>&1 || true
-
-    echo "[+] Activating Freshclam & Downloading Database..."
-    systemctl enable --now clamav-freshclam >/dev/null 2>&1
-    if [ ! -f /var/lib/clamav/main.cvd ] && [ ! -f /var/lib/clamav/main.cld ]; then
-        echo "[!] Database missing. Performing initial download (please wait)..."
-        freshclam || true
+@@ -1926,155 +1926,157 @@
     fi
 
     echo "[+] Starting ClamAV Engine (clamd@scan)..."
+    systemctl reset-failed clamd@scan >/dev/null 2>&1
+    systemctl enable --now clamd@scan >/dev/null 2>&1
+    # Added reload and || true to prevent RHEL from exiting the script if the service takes too long to load
     systemctl daemon-reload
     systemctl reset-failed clamd@scan >/dev/null 2>&1 || true
     systemctl enable --now clamd@scan >/dev/null 2>&1 || true
@@ -1930,6 +1896,7 @@ setup_clamav() {
     echo "[+] Deploying Secure Scan Script (Filtered Alerts)..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
+set -u
 LOCKFILE="/run/clamd.scan/hourly_scan.lock"
 exec 200>\$LOCKFILE
 flock -n 200 || exit 1
@@ -1942,35 +1909,36 @@ EMAIL_ADDR="$EMAIL"
 C_USER="$CLAM_USER"
 C_GROUP="$CLAM_GROUP"
 
+# 1. Gather files (Differential Logic)
 LIST=\$(mktemp)
-# Find files newer than checkpoint
 nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" \\
      \$([ -f "\$CHK" ] && echo "-newer \$CHK") > "\$LIST" 2>/dev/null || true
 
 TOTAL=\$(wc -l < "\$LIST")
 
+# 2. Run scan if files found
 if [ "\$TOTAL" -gt 0 ]; then
-    # CRITICAL FIX 1: Allow ClamAV user to read the file list
-    chmod 644 "\$LIST"
-
-    # CRITICAL FIX 2: Use --fdpass to ensure permissions don't block the scan
-    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 clamdscan --fdpass --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
+    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
     
+    # Alert Logic: Only email the infections and the summary
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
         ALERT_BODY=\$(echo "\$SCAN_RESULTS" | grep -E "FOUND|SCAN SUMMARY|Infected files|Total errors|Time:")
         echo -e "Virus(es) detected on \$(hostname):\n\n\$ALERT_BODY" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
     fi
 
+    # Logging Logic
     CLEAN_SUMMARY=\$(echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Infected files|Time:|Start Date|End Date" | grep -v "Total errors")
     ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\n\$CLEAN_SUMMARY\n-----------------------------------"
 else
     ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\nFiles scanned: 0 (No new files)\n-----------------------------------"
 fi
 
+# 3. Log results
 echo -e "\$ENTRY" >> "\$WEEKLY"
 echo -e "\$ENTRY" >> "\$HOURLY"
 
+# 4. Hourly Log Rotation (Keep last 1000 lines)
 if [ \$(wc -l < "\$HOURLY") -gt 1000 ]; then
     tail -n 1000 "\$HOURLY" > "\$HOURLY.tmp" && mv -f "\$HOURLY.tmp" "\$HOURLY"
     chown "\$C_USER:\$C_GROUP" "\$HOURLY"
@@ -1982,17 +1950,15 @@ EOF
 
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
     chown root:root /usr/local/bin/hourly_secure_scan.sh
-    
+
     echo "[+] Configuring Cron Jobs..."
     ( crontab -l 2>/dev/null | grep -v -E 'hourly_secure_scan.sh|weekly_report.log' || true ; 
       echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ;
-      echo "0 0 * * 1 mailx -s \"Weekly ClamAV Summary - \$(hostname)\" $EMAIL < $WEEKLY_REPORT && > $WEEKLY_REPORT" ;
-      echo "" 
+      echo "0 0 * * 1 mailx -s \"Weekly ClamAV Summary - \$(hostname)\" $EMAIL < $WEEKLY_REPORT && > $WEEKLY_REPORT"
     ) | crontab -
 
     echo "[+] Setup Complete."
 }
-
 
 clamav_health_check() {
     check_root
@@ -2002,7 +1968,7 @@ clamav_health_check() {
     echo "=== Services ==="
     systemctl is-active --quiet clamd@scan && echo "[OK] clamd scanner is running" || echo "[FAIL] clamd is NOT running"
     systemctl is-active --quiet clamav-freshclam && echo "[OK] freshclam updater is running" || echo "[FAIL] freshclam is NOT running"
-    
+
     echo ""
     echo "=== Virus Definitions ==="
     if [ -f /var/lib/clamav/daily.cld ] || [ -f /var/lib/clamav/daily.cvd ]; then
@@ -2037,12 +2003,12 @@ clamav_health_check() {
 test_clamav_setup() {
     echo "[+] Running ClamAV EICAR test..."
     local TEST_FILE="/tmp/eicar.com"
-    
+
     sleep 1
     echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$TEST_FILE"
-    
+
     /usr/local/bin/hourly_secure_scan.sh
-    
+
     if find /var/lib/clamav/quarantine/ -name "eicar.com*" | grep -q "."; then
         echo "[+] SUCCESS: EICAR detected and moved to quarantine."
         echo "[+] ALERT: A real-time email should have been sent to your alert address."
@@ -2053,7 +2019,6 @@ test_clamav_setup() {
         return 1
     fi
 }
-
 
 case "$1" in
 	--ver) print_version ;;
