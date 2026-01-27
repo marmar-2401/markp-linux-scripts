@@ -1858,7 +1858,6 @@ fi
 setup_clamav() {
     check_root
     confirm_action
-    set -euo pipefail
 
     local EMAIL
     read -rp "Enter email for ClamAV alerts and weekly reports: " EMAIL
@@ -1871,26 +1870,39 @@ setup_clamav() {
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR"
     
-    # Ensure /run/clamd.scan persists across reboots via systemd-tmpfiles
+    # Ensure /run/clamd.scan persists across reboots (Critical for OL/RHEL)
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
 
     echo "[+] Configuring EPEL & Installing Components..."
     if grep -q "Oracle Linux" /etc/os-release; then
-        dnf install -y oracle-epel-release-el$(rpm -E %rhel) >/dev/null 2>&1
+        dnf install -y oracle-epel-release-el$(rpm -E %rhel) >/dev/null 2>&1 || true
     else
-        dnf install -y epel-release >/dev/null 2>&1
+        dnf install -y epel-release >/dev/null 2>&1 || true
     fi
-    dnf install -q -y clamav clamav-freshclam clamd policycoreutils-python-utils mailx >/dev/null 2>&1
+
+    # Install main packages (allowing for already installed states)
+    dnf install -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1 || { echo "[-] Core ClamAV install failed"; return 1; }
+
+    echo "[+] Installing Mail Utility..."
+    # Bulletproof check for mailx vs s-nail to prevent 'set -e' crashes
+    if dnf list available mailx >/dev/null 2>&1; then
+        dnf install -y mailx >/dev/null 2>&1 || true
+    else
+        dnf install -y s-nail >/dev/null 2>&1 || true
+    fi
+
+    # Now enable strict mode for configuration logic
+    set -euo pipefail
 
     echo "[+] Hardening Configuration Files..."
-    # 1. Freshclam Config (Service runs as 'clamupdate')
+    # 1. Freshclam Config (Service runs as 'clamupdate' on OL/RHEL)
     if [ -f /etc/freshclam.conf ]; then
         sed -i '/^Example/d' /etc/freshclam.conf
         sed -i "s|^#UpdateLogFile.*|UpdateLogFile $LOG_DIR/freshclam.log|" /etc/freshclam.conf
         touch "$LOG_DIR/freshclam.log"
         chown clamupdate:clamupdate "$LOG_DIR/freshclam.log"
-        chown clamupdate:clamupdate /var/lib/clamav
+        chown -R clamupdate:clamupdate /var/lib/clamav
     fi
 
     # 2. Clamd Scan Config (Service runs as 'clamscan')
@@ -1909,12 +1921,12 @@ setup_clamav() {
     setsebool -P clamd_use_jit 1 >/dev/null 2>&1 || true
 
     echo "[+] Activating Freshclam & Downloading Database..."
-    # Ensure freshclam can write to its log before starting
+    # Ensure directory permissions for the update user
     chown clamupdate:clamupdate "$LOG_DIR"
     systemctl enable --now clamav-freshclam >/dev/null 2>&1
     
     if [ ! -f /var/lib/clamav/main.cvd ] && [ ! -f /var/lib/clamav/main.cld ]; then
-        echo "[!] Database missing. Performing initial download..."
+        echo "[!] Database missing. Performing initial download (please wait)..."
         freshclam || true
     fi
 
@@ -1922,7 +1934,7 @@ setup_clamav() {
     systemctl reset-failed clamd@scan >/dev/null 2>&1
     systemctl enable --now clamd@scan >/dev/null 2>&1
 
-    echo "[+] Deploying Secure Scan Script..."
+    echo "[+] Deploying Secure Scan Script (Differential Logic)..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -1930,17 +1942,18 @@ LOCKFILE="/run/clamd.scan/hourly_scan.lock"
 exec 200>\$LOCKFILE
 flock -n 200 || exit 1
 
-# Create reference timestamp BEFORE scanning starts
-SCAN_START_TIME=\$(mktemp /tmp/clamav_ts.XXXXXX)
+# Capture start time to prevent missing files modified during the scan
+SCAN_START_MARKER=\$(mktemp /tmp/clamscan_ts.XXXXXX)
+
 WEEKLY="$WEEKLY_REPORT"
 HOURLY="$LOG_DIR/hourly_audit.log"
 CHK="$CHECKPOINT"
 Q_DIR="$QUARANTINE_DIR"
 EMAIL_ADDR="$EMAIL"
 
-# 1. Gather files (Differential Logic)
+# 1. Gather files created/modified since last checkpoint
 LIST=\$(mktemp)
-nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
+find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" -not -path "$LOG_DIR/*" \\
      \$([ -f "\$CHK" ] && echo "-newer \$CHK") > "\$LIST" 2>/dev/null || true
 
@@ -1948,6 +1961,7 @@ TOTAL=\$(wc -l < "\$LIST")
 
 # 2. Run scan if files found
 if [ "\$TOTAL" -gt 0 ]; then
+    # Use clamdscan (daemon) for speed, move infected to quarantine
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
 
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
@@ -1965,13 +1979,13 @@ fi
 echo -e "\$ENTRY" >> "\$WEEKLY"
 echo -e "\$ENTRY" >> "\$HOURLY"
 
-# 4. Hourly Log Rotation
+# 4. Hourly Log Rotation (Keep last 1000 lines)
 if [ -f "\$HOURLY" ] && [ \$(wc -l < "\$HOURLY") -gt 1000 ]; then
     tail -n 1000 "\$HOURLY" > "\$HOURLY.tmp" && mv -f "\$HOURLY.tmp" "\$HOURLY"
 fi
 
-# Move the start-time timestamp to the checkpoint
-mv "\$SCAN_START_TIME" "\$CHK"
+# 5. Success - Move marker to official checkpoint
+mv "\$SCAN_START_MARKER" "\$CHK"
 chown clamscan:clamscan "\$CHK"
 rm -f "\$LIST"
 EOF
