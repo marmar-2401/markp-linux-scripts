@@ -1990,7 +1990,6 @@ clamav_health_check() {
     
     echo ""
     echo "=== Quarantine ==="
-    # Use -mindepth 1 to avoid counting the directory itself
     local Q_COUNT=$(find /var/lib/clamav/quarantine -mindepth 1 -type f | wc -l)
     echo "Items in Quarantine: $Q_COUNT"
     echo "Location: /var/lib/clamav/quarantine"
@@ -1999,14 +1998,19 @@ clamav_health_check() {
     echo "=== Weekly Stats ==="
     local REPORT="/var/log/clamav/weekly_report.log"
     if [ -f "$REPORT" ]; then
-        # -i makes grep case-insensitive to avoid "Scanned" vs "scanned" issues
+        # Count only lines that actually indicate a completed scan attempt
         local SCANS=$(grep -ci "Files scanned:" "$REPORT")
-        local LAST_SCAN=$(grep "Date:" "$REPORT" | tail -n 1 | cut -d': ' -f2-)
+        # Fixed the delimiter issue using awk
+        local LAST_SCAN=$(grep "Date:" "$REPORT" | tail -n 1 | awk -F': ' '{print $2}')
         
         echo "Scans Logged This Week: $SCANS"
-        [ -n "$LAST_SCAN" ] && echo "Last Successful Scan: $LAST_SCAN" || echo "Last Successful Scan: Never"
+        if [ -n "$LAST_SCAN" ]; then
+            echo "Last Successful Scan: $LAST_SCAN"
+        else
+            echo "Last Successful Scan: Never"
+        fi
     else
-        echo "[FAIL] Report file ($REPORT) not found"
+        echo "Report not found"
     fi
 }
 
