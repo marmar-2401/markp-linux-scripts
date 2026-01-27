@@ -1855,14 +1855,13 @@ else
 fi
 }
 
-#!/bin/bash
-
-# ==============================================================================
-# ClamAV Comprehensive Security Suite
-# ==============================================================================
 
 clamav_health_check() {
-    set -euo pipefail
+
+	check_root
+	confirm_action 
+	
+	set -euo pipefail
 
     local CLAMD_SERVICE="${1:-clamd@scan}"
     local FRESHCLAM_SERVICE="${2:-freshclam}"
@@ -1972,7 +1971,6 @@ clamav_health_check() {
 }
 
 setup_clamav() {
-    # (Root check handled by wrapper)
     set -euo pipefail
 
     # -----------------------------
@@ -2016,27 +2014,16 @@ setup_clamav() {
         "$CONFIG"
 
     # -----------------------------
-    # Create socket directory
+    # Create directories
     # -----------------------------
-    echo "[+] Creating socket dir..."
-    mkdir -p "$SOCKET_DIR"
-    chown clamscan:clamscan "$SOCKET_DIR"
+    mkdir -p "$SOCKET_DIR" "$QUARANTINE_DIR" "$LOG_DIR"
+    chown clamscan:clamscan "$SOCKET_DIR" "$QUARANTINE_DIR" "$LOG_DIR"
     chmod 755 "$SOCKET_DIR"
-
-    # -----------------------------
-    # Create data directories
-    # -----------------------------
-    echo "[+] Creating data directories..."
-    for DIR in "$QUARANTINE_DIR" "$LOG_DIR"; do
-        mkdir -p "$DIR"
-        chown -R clamscan:clamscan "$DIR"
-        chmod 0750 "$DIR"
-    done
+    chmod 0750 "$QUARANTINE_DIR" "$LOG_DIR"
 
     # -----------------------------
     # Enable services
     # -----------------------------
-    echo "[+] Enabling services..."
     systemctl daemon-reexec
     systemctl enable --now clamav-freshclam.service
     systemctl enable --now clamd@scan
@@ -2073,10 +2060,8 @@ TOTAL_FILES=\$(wc -l < "\$LIST_FILE")
 INFECTED_FILES=()
 
 if [ "\$TOTAL_FILES" -gt 0 ]; then
-    # Redirected to /dev/null to hide individual file scan progress
+    # Hide individual file scan output
     clamdscan -c "\$CONFIG" --fdpass --multiscan --no-summary --move="\$QUARANTINE_DIR" --file-list="\$LIST_FILE" --log="\$LOG_DIR/hourly_audit.log" >/dev/null 2>&1
-
-    find "\$QUARANTINE_DIR" -type f -exec chmod 0640 {} \; -exec chown clamscan:clamscan {} \; 2>/dev/null || true
 
     while read -r FILE; do
         INFECTED_FILES+=("\$FILE")
@@ -2089,7 +2074,6 @@ if [ "\$INFECTED" -gt 0 ]; then
     printf "%s\n" "\${INFECTED_FILES[@]}" | mail -s "ClamAV ALERT on \$(hostname)" "\$EMAIL"
 fi
 
-# Summary output for manual runs/logs
 echo "=== ClamAV Scan Summary ==="
 echo "Date: \$(date '+%Y-%m-%d %H:%M:%S')"
 echo "Total files scanned: \$TOTAL_FILES"
@@ -2111,43 +2095,21 @@ EOF
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
 
     # -----------------------------
-    # SELinux configuration
+    # Update Crontab as root
+    # -----------------------------
+    echo "[+] Updating root crontab..."
+    # Robust update: extract current cron (ignoring script), append new line, load back
+    ( crontab -l 2>/dev/null | grep -v 'hourly_secure_scan.sh' || true ; echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ) | crontab -
+
+    # -----------------------------
+    # Final touches
     # -----------------------------
     if getenforce | grep -q Enforcing; then
         setsebool -P antivirus_can_scan_system 1
         setsebool -P clamd_use_jit 1
     fi
 
-    # -----------------------------
-    # Log rotation
-    # -----------------------------
-    cat > /etc/logrotate.d/clamav-hourly <<EOF
-$LOG_DIR/hourly_audit.log {
-    daily
-    rotate 30
-    compress
-    missingok
-    notifempty
-}
-EOF
-
-    # -----------------------------
-    # Update virus definitions
-    # -----------------------------
-    echo "[+] Updating ClamAV signatures..."
-    freshclam || true
-
-    # -----------------------------
-    # CRON JOB FOR ROOT (The Fix)
-    # -----------------------------
-    echo "[+] Installing root crontab entry..."
-    local TMP_CRON=\$(mktemp)
-    # Capture existing root cron, filter script, add new line
-    ( crontab -l 2>/dev/null | grep -v 'hourly_secure_scan.sh' || true ; echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ) > "\$TMP_CRON"
-    crontab "\$TMP_CRON"
-    rm -f "\$TMP_CRON"
-
-    echo "[+] ClamAV setup complete. Cron job verified."
+    echo "[+] ClamAV setup complete."
 }
 
 test_clamav_setup() {
