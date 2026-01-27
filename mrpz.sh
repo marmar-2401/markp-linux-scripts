@@ -1870,8 +1870,6 @@ setup_clamav() {
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR"
     
-    # Critical for OL9: Ensure the log directory is accessible to both service users
-    # We use the 'clamav' group which usually exists on these systems
     groupadd -f clamav
     usermod -aG clamav clamupdate
     usermod -aG clamav clamscan
@@ -1879,7 +1877,6 @@ setup_clamav() {
     chown -R clamupdate:clamav "$LOG_DIR"
     chmod 775 "$LOG_DIR"
 
-    # Ensure /run/clamd.scan persists across reboots
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
 
@@ -1899,13 +1896,14 @@ setup_clamav() {
         dnf install -y s-nail >/dev/null 2>&1 || true
     fi
 
-    # Enable strict mode now that installs are done
     set -euo pipefail
 
-    echo "[+] Hardening Configuration Files..."
+    echo "[+] Hardening Configuration Files & Setting Log Limits..."
     if [ -f /etc/freshclam.conf ]; then
         sed -i '/^Example/d' /etc/freshclam.conf
         sed -i "s|^#UpdateLogFile.*|UpdateLogFile $LOG_DIR/freshclam.log|" /etc/freshclam.conf
+        # Prevent log from exceeding 2MB before internal rotation
+        sed -i 's|^#LogFileMaxSize .*|LogFileMaxSize 2M|' /etc/freshclam.conf
         touch "$LOG_DIR/freshclam.log"
         chown clamupdate:clamupdate "$LOG_DIR/freshclam.log"
     fi
@@ -1916,15 +1914,33 @@ setup_clamav() {
         sed -i 's|^#FixStaleSocket .*|FixStaleSocket yes|' /etc/clamd.d/scan.conf
         sed -i 's|^#User .*|User clamscan|' /etc/clamd.d/scan.conf
         sed -i "s|^#LogFile .*|LogFile $LOG_DIR/clamd.log|" /etc/clamd.d/scan.conf
+        # Prevent log from exceeding 2MB before internal rotation
+        sed -i 's|^#LogFileMaxSize .*|LogFileMaxSize 2M|' /etc/clamd.d/scan.conf
         touch "$LOG_DIR/clamd.log"
         chown clamscan:clamscan "$LOG_DIR/clamd.log"
     fi
 
+    echo "[+] Configuring Log Rotation (System-wide)..."
+    cat > /etc/logrotate.d/clamav <<EOF
+$LOG_DIR/*.log {
+    weekly
+    rotate 4
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 clamupdate clamav
+    sharedscripts
+    postrotate
+        /usr/bin/systemctl reload clamd@scan 2>/dev/null || true
+        /usr/bin/systemctl reload clamav-freshclam 2>/dev/null || true
+    endscript
+}
+EOF
+
     echo "[+] Configuring SELinux Policies & Contexts..."
     setsebool -P antivirus_can_scan_system 1 >/dev/null 2>&1 || true
     setsebool -P clamd_use_jit 1 >/dev/null 2>&1 || true
-    
-    # Fix contexts so ClamAV can actually 'chown' its own logs
     semanage fcontext -a -t clamav_var_lib_t "/var/lib/clamav(/.*)?" 2>/dev/null || true
     semanage fcontext -a -t antivirus_log_t "$LOG_DIR(/.*)?" 2>/dev/null || true
     restorecon -Rv /var/lib/clamav >/dev/null 2>&1
@@ -1932,7 +1948,6 @@ setup_clamav() {
 
     echo "[+] Activating Freshclam & Downloading Database..."
     systemctl enable --now clamav-freshclam >/dev/null 2>&1 || true
-    
     if [ ! -f /var/lib/clamav/main.cvd ] && [ ! -f /var/lib/clamav/main.cld ]; then
         echo "[!] Database missing. Performing initial download (please wait)..."
         freshclam || true
@@ -1980,6 +1995,7 @@ fi
 echo -e "\$ENTRY" >> "\$WEEKLY"
 echo -e "\$ENTRY" >> "\$HOURLY"
 
+# Internal audit rotation (keeps only last 1000 lines)
 if [ -f "\$HOURLY" ] && [ \$(wc -l < "\$HOURLY") -gt 1000 ]; then
     tail -n 1000 "\$HOURLY" > "\$HOURLY.tmp" && mv -f "\$HOURLY.tmp" "\$HOURLY"
 fi
