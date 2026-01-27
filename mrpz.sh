@@ -1871,6 +1871,8 @@ setup_clamav() {
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
     touch "$WEEKLY_REPORT" "$CHECKPOINT"
+    # Ensure clamscan user owns these early
+    chown -R clamscan:clamscan "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
 
     echo "[+] Configuring EPEL & Installing Components..."
     if grep -q "Oracle Linux" /etc/os-release; then
@@ -1887,22 +1889,44 @@ setup_clamav() {
         dnf install -q -y s-nail
     fi
     
-    echo "[+] Activating Services & Configuring Logs..."
+    echo "[+] Hardening Configuration Files..."
+    # 1. Fix Freshclam Config (Removes Example, Sets Log)
     if [ -f /etc/freshclam.conf ]; then
-        sed -i 's/^#UpdateLogFile.*/UpdateLogFile \/var\/log\/clamav\/freshclam.log/' /etc/freshclam.conf
-        sed -i 's/^UpdateLogFile.*/UpdateLogFile \/var\/log\/clamav\/freshclam.log/' /etc/freshclam.conf
+        sed -i '/^Example/d' /etc/freshclam.conf
+        sed -i 's|^#UpdateLogFile.*|UpdateLogFile /var/log/clamav/freshclam.log|' /etc/freshclam.conf
+        touch /var/log/clamav/freshclam.log
+        chown clamscan:clamscan /var/log/clamav/freshclam.log
     fi
-    
-    systemctl restart clamav-freshclam >/dev/null 2>&1
+
+    # 2. Fix Clamd Scan Config (Critical for clamd@scan service)
+    if [ -f /etc/clamd.d/scan.conf ]; then
+        sed -i '/^Example/d' /etc/clamd.d/scan.conf
+        sed -i 's|^#LocalSocket .*|LocalSocket /run/clamd.scan/clamd.sock|' /etc/clamd.d/scan.conf
+        sed -i 's|^#FixStaleSocket .*|FixStaleSocket yes|' /etc/clamd.d/scan.conf
+        sed -i 's|^#User .*|User clamscan|' /etc/clamd.d/scan.conf
+        sed -i 's|^#LogFile .*|LogFile /var/log/clamav/clamd.log|' /etc/clamd.d/scan.conf
+        touch /var/log/clamav/clamd.log
+        chown clamscan:clamscan /var/log/clamav/clamd.log
+    fi
+
+    echo "[+] Configuring SELinux Policies..."
+    setsebool -P antivirus_can_scan_system 1 >/dev/null 2>&1 || true
+    setsebool -P clamd_use_jit 1 >/dev/null 2>&1 || true
+
+    echo "[+] Activating Freshclam & Downloading Database..."
     systemctl enable --now clamav-freshclam >/dev/null 2>&1
+    
+    # Wait for database or force a download so clamd doesn't crash on start
+    if [ ! -f /var/lib/clamav/main.cvd ] && [ ! -f /var/lib/clamav/main.cld ]; then
+        echo "[!] Database missing. Performing initial download (please wait)..."
+        freshclam || true
+    fi
+
+    echo "[+] Starting ClamAV Engine (clamd@scan)..."
+    systemctl reset-failed clamd@scan >/dev/null 2>&1
     systemctl enable --now clamd@scan >/dev/null 2>&1
 
-    echo "[+] Fixing SELinux & Permissions..."
-    chown -R clamscan:clamscan "$LOG_DIR" "$QUARANTINE_DIR" "$CHECKPOINT"
-    restorecon -Rv "$LOG_DIR" >/dev/null 2>&1 || true
-    setsebool -P antivirus_can_scan_system 1 >/dev/null 2>&1 || true
-
-    echo "[+] Deploying Secure Scan Script (Rotating Audit Logs)..."
+    echo "[+] Deploying Secure Scan Script..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -1916,7 +1940,7 @@ CHK="/var/lib/clamav/scan_checkpoint"
 Q_DIR="/var/lib/clamav/quarantine"
 EMAIL_ADDR="$EMAIL"
 
-# 1. Gather files (Preserving original exclusions)
+# 1. Gather files (Differential Logic)
 LIST=\$(mktemp)
 nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" \\
@@ -1924,7 +1948,7 @@ nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -
 
 TOTAL=\$(wc -l < "\$LIST")
 
-# 2. Extract results and filter noise
+# 2. Run scan if files found
 if [ "\$TOTAL" -gt 0 ]; then
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
     
@@ -1938,11 +1962,11 @@ else
     ENTRY="-----------------------------------\nDate: \$(date '+%Y-%m-%d %H:%M:%S')\nFiles scanned: 0 (No new files)\n-----------------------------------"
 fi
 
-# 3. Log to both (Append mode)
+# 3. Log results
 echo -e "\$ENTRY" >> "\$WEEKLY"
 echo -e "\$ENTRY" >> "\$HOURLY"
 
-# 4. Simple Server-Side Rotation for HOURLY (Keep last 1000 lines)
+# 4. Hourly Log Rotation (Keep last 1000 lines)
 if [ \$(wc -l < "\$HOURLY") -gt 1000 ]; then
     tail -n 1000 "\$HOURLY" > "\$HOURLY.tmp" && mv -f "\$HOURLY.tmp" "\$HOURLY"
     chown clamscan:clamscan "\$HOURLY"
@@ -1953,6 +1977,7 @@ rm -f "\$LIST"
 EOF
 
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
+    chown root:root /usr/local/bin/hourly_secure_scan.sh
     
     echo "[+] Configuring Cron Jobs..."
     ( crontab -l 2>/dev/null | grep -v -E 'hourly_secure_scan.sh|weekly_report.log' || true ; 
