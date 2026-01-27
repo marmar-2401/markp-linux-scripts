@@ -1978,9 +1978,6 @@ clamav_health_check() {
     echo "=== ClamAV Health Check Complete ==="
 }
 
-# ==========================================
-# ClamAV Setup Script
-# ==========================================
 setup_clamav() {
     check_root
     confirm_action
@@ -2102,6 +2099,7 @@ if [ -s "$LIST_FILE" ]; then
         --log="$LOG_DIR/hourly_audit.log" \
         >/dev/null 2>&1
 
+    # Ensure quarantined files have correct permissions
     find "$QUARANTINE_DIR" -type f -exec chmod 0640 {} \; -exec chown clamscan:clamscan {} \;
 
     while read -r FILE; do
@@ -2168,8 +2166,19 @@ EOF
     echo "[+] Updating ClamAV signatures..."
     freshclam || true
 
+    # -----------------------------
+    # Cron job for hourly scan
+    # -----------------------------
+    echo "[+] Setting up hourly scan cron job..."
+    # Remove existing entries
+    crontab -l 2>/dev/null | grep -v 'hourly_secure_scan.sh' | crontab -
+    # Add new hourly cron job
+    ( crontab -l 2>/dev/null; echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ) | crontab -
+    echo "[+] Cron job installed: runs every hour"
+
     echo "[+] ClamAV setup complete."
-} 
+}
+
 
 test_clamav_setup() {
     set -euo pipefail
