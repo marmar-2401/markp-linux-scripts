@@ -1902,6 +1902,7 @@ setup_clamav() {
     if [ -f /etc/freshclam.conf ]; then
         sed -i '/^Example/d' /etc/freshclam.conf
         sed -i "s|^#UpdateLogFile.*|UpdateLogFile $LOG_DIR/freshclam.log|" /etc/freshclam.conf
+        sed -i 's|^#LogTime .*|LogTime yes|' /etc/freshclam.conf
         sed -i 's|^#LogFileMaxSize .*|LogFileMaxSize 2M|' /etc/freshclam.conf
         touch "$LOG_DIR/freshclam.log"
         chown clamupdate:clamupdate "$LOG_DIR/freshclam.log"
@@ -1913,6 +1914,7 @@ setup_clamav() {
         sed -i 's|^#FixStaleSocket .*|FixStaleSocket yes|' /etc/clamd.d/scan.conf
         sed -i 's|^#User .*|User clamscan|' /etc/clamd.d/scan.conf
         sed -i "s|^#LogFile .*|LogFile $LOG_DIR/clamd.log|" /etc/clamd.d/scan.conf
+        sed -i 's|^#LogTime .*|LogTime yes|' /etc/clamd.d/scan.conf
         sed -i 's|^#LogFileMaxSize .*|LogFileMaxSize 2M|' /etc/clamd.d/scan.conf
         touch "$LOG_DIR/clamd.log"
         chown clamscan:clamscan "$LOG_DIR/clamd.log"
@@ -1956,7 +1958,7 @@ EOF
     systemctl enable clamd@scan >/dev/null 2>&1 || true
     systemctl start clamd@scan >/dev/null 2>&1 || true
 
-    echo "[+] Deploying Secure Scan Script (Enhanced Reporting v2)..."
+    echo "[+] Deploying Secure Scan Script (Count-Corrected Reporting)..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -1973,17 +1975,22 @@ EMAIL_ADDR="$EMAIL"
 NOW=\$(date '+%Y-%m-%d %H:%M:%S')
 
 LIST=\$(mktemp)
+# Generate list of new/modified files, excluding core system mounts and quarantine
 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" -not -path "$LOG_DIR/*" \\
      -not -path "\$Q_DIR/*" \\
      \$([ -f "\$CHK" ] && echo "-newer \$CHK") > "\$LIST" 2>/dev/null || true
 
-if [ -s "\$LIST" ]; then
+# Manually count files for reliable reporting
+FILES_TO_SCAN=\$(wc -l < "\$LIST")
+
+if [ "\$FILES_TO_SCAN" -gt 0 ]; then
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
 
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
         INFECTED_LIST=\$(echo "\$SCAN_RESULTS" | grep "FOUND" | awk -F: '{print \$1}')
         REPORT_BODY="Detection Date: \$NOW\n"
+        REPORT_BODY+="Actual Files Checked: \$FILES_TO_SCAN\n"
         REPORT_BODY+="Virus(es) detected on \$(hostname) and moved to quarantine:\n\n"
         
         while read -r FILE; do
@@ -1994,16 +2001,13 @@ if [ -s "\$LIST" ]; then
             REPORT_BODY+="-----------------------------------\n"
         done <<< "\$INFECTED_LIST"
 
-        # Filtered Summary: Added Scanned Files, Removed Total Errors
-        SUMMARY_STATS=\$(echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Known viruses|Engine version|Scanned files|Infected files|Time:")
-        echo -e "\$REPORT_BODY\n\n\$SUMMARY_STATS" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
+        SUMMARY_STATS=\$(echo "\$SCAN_RESULTS" | grep -E "Infected files|Time:")
+        echo -e "\$REPORT_BODY\n\n----------- SCAN SUMMARY -----------\nInfected files: \$(echo "\$INFECTED_LIST" | wc -l)\n\$SUMMARY_STATS" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
     fi
 
-    # Weekly/Hourly Log Entry
-    CLEAN_SUMMARY=\$(echo "\$SCAN_RESULTS" | grep -E "Known viruses|Engine version|Scanned files|Infected files|Time:")
-    ENTRY="-----------------------------------\nDate: \$NOW\n\$CLEAN_SUMMARY\n-----------------------------------"
+    ENTRY="-----------------------------------\nDate: \$NOW\nFiles Checked: \$FILES_TO_SCAN\n\$(echo "\$SCAN_RESULTS" | grep -E "Infected files|Time:")\n-----------------------------------"
 else
-    ENTRY="-----------------------------------\nDate: \$NOW\nFiles scanned: 0 (No new files)\n-----------------------------------"
+    ENTRY="-----------------------------------\nDate: \$NOW\nFiles Checked: 0 (No new files)\n-----------------------------------"
 fi
 
 echo -e "\$ENTRY" >> "\$WEEKLY"
