@@ -1902,7 +1902,6 @@ setup_clamav() {
     if [ -f /etc/freshclam.conf ]; then
         sed -i '/^Example/d' /etc/freshclam.conf
         sed -i "s|^#UpdateLogFile.*|UpdateLogFile $LOG_DIR/freshclam.log|" /etc/freshclam.conf
-        # Prevent log from exceeding 2MB before internal rotation
         sed -i 's|^#LogFileMaxSize .*|LogFileMaxSize 2M|' /etc/freshclam.conf
         touch "$LOG_DIR/freshclam.log"
         chown clamupdate:clamupdate "$LOG_DIR/freshclam.log"
@@ -1914,13 +1913,12 @@ setup_clamav() {
         sed -i 's|^#FixStaleSocket .*|FixStaleSocket yes|' /etc/clamd.d/scan.conf
         sed -i 's|^#User .*|User clamscan|' /etc/clamd.d/scan.conf
         sed -i "s|^#LogFile .*|LogFile $LOG_DIR/clamd.log|" /etc/clamd.d/scan.conf
-        # Prevent log from exceeding 2MB before internal rotation
         sed -i 's|^#LogFileMaxSize .*|LogFileMaxSize 2M|' /etc/clamd.d/scan.conf
         touch "$LOG_DIR/clamd.log"
         chown clamscan:clamscan "$LOG_DIR/clamd.log"
     fi
 
-    echo "[+] Configuring Log Rotation (System-wide)..."
+    echo "[+] Configuring Log Rotation..."
     cat > /etc/logrotate.d/clamav <<EOF
 $LOG_DIR/*.log {
     weekly
@@ -1958,7 +1956,7 @@ EOF
     systemctl enable clamd@scan >/dev/null 2>&1 || true
     systemctl start clamd@scan >/dev/null 2>&1 || true
 
-    echo "[+] Deploying Secure Scan Script..."
+    echo "[+] Deploying Secure Scan Script (Enhanced Reporting)..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -1976,14 +1974,26 @@ EMAIL_ADDR="$EMAIL"
 LIST=\$(mktemp)
 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" -not -path "$LOG_DIR/*" \\
+     -not -path "\$Q_DIR/*" \\
      \$([ -f "\$CHK" ] && echo "-newer \$CHK") > "\$LIST" 2>/dev/null || true
 
 if [ -s "\$LIST" ]; then
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
 
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
-        ALERT_BODY=\$(echo "\$SCAN_RESULTS" | grep -E "FOUND|SCAN SUMMARY|Infected files|Total errors|Time:")
-        echo -e "Virus(es) detected on \$(hostname):\n\n\$ALERT_BODY" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
+        INFECTED_LIST=\$(echo "\$SCAN_RESULTS" | grep "FOUND" | awk -F: '{print \$1}')
+        REPORT_BODY="Virus(es) detected on \$(hostname) and moved to quarantine:\n\n"
+        
+        while read -r FILE; do
+            [ -z "\$FILE" ] && continue
+            FILENAME=\$(basename "\$FILE")
+            REPORT_BODY+="Original Path: \$FILE\n"
+            REPORT_BODY+="Quarantine Path: \$Q_DIR/\$FILENAME\n"
+            REPORT_BODY+="-----------------------------------\n"
+        done <<< "\$INFECTED_LIST"
+
+        SUMMARY_STATS=\$(echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Infected files|Total errors|Time:")
+        echo -e "\$REPORT_BODY\n\n\$SUMMARY_STATS" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
     fi
 
     CLEAN_SUMMARY=\$(echo "\$SCAN_RESULTS" | grep -E "SCAN SUMMARY|Infected files|Time:|Start Date|End Date" | grep -v "Total errors")
@@ -1995,7 +2005,6 @@ fi
 echo -e "\$ENTRY" >> "\$WEEKLY"
 echo -e "\$ENTRY" >> "\$HOURLY"
 
-# Internal audit rotation (keeps only last 1000 lines)
 if [ -f "\$HOURLY" ] && [ \$(wc -l < "\$HOURLY") -gt 1000 ]; then
     tail -n 1000 "\$HOURLY" > "\$HOURLY.tmp" && mv -f "\$HOURLY.tmp" "\$HOURLY"
 fi
@@ -2016,7 +2025,6 @@ EOF
 
     echo "[+] Setup Complete."
 }
-
 clamav_health_check() {
     check_root
     local REPORT="/var/log/clamav/weekly_report.log"
