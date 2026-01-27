@@ -1990,17 +1990,23 @@ clamav_health_check() {
     
     echo ""
     echo "=== Quarantine ==="
-    local Q_COUNT=$(find /var/lib/clamav/quarantine -type f | wc -l)
+    # Use -mindepth 1 to avoid counting the directory itself
+    local Q_COUNT=$(find /var/lib/clamav/quarantine -mindepth 1 -type f | wc -l)
     echo "Items in Quarantine: $Q_COUNT"
     echo "Location: /var/lib/clamav/quarantine"
 
     echo ""
     echo "=== Weekly Stats ==="
-    if [ -f /var/log/clamav/weekly_report.log ]; then
-        local SCANS=$(grep -c "Files scanned:" /var/log/clamav/weekly_report.log)
+    local REPORT="/var/log/clamav/weekly_report.log"
+    if [ -f "$REPORT" ]; then
+        # -i makes grep case-insensitive to avoid "Scanned" vs "scanned" issues
+        local SCANS=$(grep -ci "Files scanned:" "$REPORT")
+        local LAST_SCAN=$(grep "Date:" "$REPORT" | tail -n 1 | cut -d': ' -f2-)
+        
         echo "Scans Logged This Week: $SCANS"
+        [ -n "$LAST_SCAN" ] && echo "Last Successful Scan: $LAST_SCAN" || echo "Last Successful Scan: Never"
     else
-        echo "Report not found"
+        echo "[FAIL] Report file ($REPORT) not found"
     fi
 }
 
