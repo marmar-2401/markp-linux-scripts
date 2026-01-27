@@ -1899,7 +1899,6 @@ setup_clamav() {
     set -euo pipefail
 
     echo "[+] Hardening Configuration Files..."
-    # Apply standard configs and log limits
     for cfg in /etc/freshclam.conf /etc/clamd.d/scan.conf; do
         if [ -f "$cfg" ]; then
             sed -i '/^Example/d' "$cfg"
@@ -1908,7 +1907,6 @@ setup_clamav() {
         fi
     done
     
-    # Specific file pointers
     sed -i "s|^#UpdateLogFile.*|UpdateLogFile $LOG_DIR/freshclam.log|" /etc/freshclam.conf
     sed -i 's|^#LocalSocket .*|LocalSocket /run/clamd.scan/clamd.sock|' /etc/clamd.d/scan.conf
     sed -i 's|^#User .*|User clamscan|' /etc/clamd.d/scan.conf
@@ -1957,6 +1955,8 @@ SCAN_START_MARKER=\$(mktemp /tmp/clamscan_ts.XXXXXX)
 Q_DIR="$QUARANTINE_DIR"
 EMAIL_ADDR="$EMAIL"
 CHK="$CHECKPOINT"
+WEEKLY="$WEEKLY_REPORT"
+LOGS="$LOG_DIR/hourly_audit.log"
 NOW=\$(date '+%Y-%m-%d %H:%M:%S')
 
 LIST=\$(mktemp)
@@ -1965,18 +1965,17 @@ find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "\$Q_DIR/*" \\
      \$([ -f "\$CHK" ] && echo "-newer \$CHK") > "\$LIST" 2>/dev/null || true
 
-FILES_TO_SCAN=\$(wc -l < "\$LIST")
+# Strip whitespace from count to prevent integer comparison errors
+FILES_TO_SCAN=\$(wc -l < "\$LIST" | xargs)
 
-if [ "\$FILES_TO_SCAN" -gt 0 ]; then
-    # Perform scan
+if [[ "\$FILES_TO_SCAN" -gt 0 ]]; then
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
     
-    # Process findings
-    INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep -c "FOUND" || echo 0)
+    # Grab only the first match of Infected files and strip non-digits
+    INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep -m1 "Infected files" | grep -o '[0-9]*' || echo 0)
     SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep "Time:" | awk -F: '{print \$2}' | xargs)
 
-    if [ "\$INFECTED_COUNT" -gt 0 ]; then
-        # Build Report
+    if [[ "\$INFECTED_COUNT" -gt 0 ]]; then
         REPORT="Detection Date: \$NOW\n"
         REPORT+="-------------------------------------------\n"
         REPORT+="Virus(es) detected on \$(hostname):\n\n"
@@ -1998,13 +1997,11 @@ if [ "\$FILES_TO_SCAN" -gt 0 ]; then
         echo -e "\$REPORT" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
     fi
 
-    # Log the result
     ENTRY="Date: \$NOW | Files: \$FILES_TO_SCAN | Infected: \$INFECTED_COUNT | Time: \$SCAN_TIME"
-    echo "\$ENTRY" >> "$WEEKLY_REPORT"
-    echo "\$ENTRY" >> "$LOG_DIR/hourly_audit.log"
+    echo "\$ENTRY" >> "\$WEEKLY"
+    echo "\$ENTRY" >> "\$LOGS"
 fi
 
-# Cleanup
 mv "\$SCAN_START_MARKER" "\$CHK"
 chown clamscan:clamscan "\$CHK"
 rm -f "\$LIST"
