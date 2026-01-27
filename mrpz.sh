@@ -1976,8 +1976,7 @@ setup_clamav() {
     local EMAIL
     read -rp "Enter email for ClamAV alerts: " EMAIL
     [[ "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || {
-        echo "Invalid email format"
-        return 1
+        echo "Invalid email format"; return 1
     }
 
     local SCAN_DIR="${2:-/}"
@@ -1993,12 +1992,10 @@ setup_clamav() {
     dnf install -q -y clamav clamav-freshclam clamd >/dev/null 2>&1
 
     echo "[+] Configuring clamd..."
-    sed -i \
-        -e 's/^Example.*/Example no/' \
-        -e "s|^#\?LocalSocket .*|LocalSocket $SOCKET_DIR/clamd.sock|" \
-        -e 's/^#\?FixStaleSocket.*/FixStaleSocket yes/' \
-        -e 's/^#\?User.*/User clamscan/' \
-        "$CONFIG"
+    sed -i -e 's/^Example.*/Example no/' \
+           -e "s|^#\?LocalSocket .*|LocalSocket $SOCKET_DIR/clamd.sock|" \
+           -e 's/^#\?FixStaleSocket.*/FixStaleSocket yes/' \
+           -e 's/^#\?User.*/User clamscan/' "$CONFIG"
 
     mkdir -p "$SOCKET_DIR" "$QUARANTINE_DIR" "$LOG_DIR"
     chown clamscan:clamscan "$SOCKET_DIR" "$QUARANTINE_DIR" "$LOG_DIR"
@@ -2007,68 +2004,67 @@ setup_clamav() {
 
     echo "[+] Enabling Daemons..."
     systemctl daemon-reexec
-    # Explicitly enable the freshclam daemon
     systemctl enable --now clamav-freshclam.service >/dev/null 2>&1
     systemctl enable --now clamd@scan >/dev/null 2>&1
 
-    cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
+    # Using 'EOF' in quotes prevents the setup script from pre-evaluating variables
+    cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
 set -euo pipefail
 
-SCAN_DIR="$SCAN_DIR"
-CHECKPOINT="$CHECKPOINT"
-LOG_DIR="$LOG_DIR"
-QUARANTINE_DIR="$QUARANTINE_DIR"
-EMAIL="$EMAIL"
-CONFIG="$CONFIG"
-WEEKLY_REPORT="$WEEKLY_REPORT"
+# These are now correctly preserved as variables for the scan script
+SCAN_DIR="/"
+QUARANTINE_DIR="/var/lib/clamav/quarantine"
+LOG_DIR="/var/log/clamav"
+CHECKPOINT="/var/lib/clamav/scan_checkpoint"
+CONFIG="/etc/clamd.d/scan.conf"
+WEEKLY_REPORT="/var/log/clamav/weekly_report.log"
+AUDIT_LOG="/var/log/clamav/hourly_audit.log"
 
-LOCK_FILE="/run/hourly_secure_scan.lock"
-exec 200>"\$LOCK_FILE"
-flock -n 200 || exit 0
+# Clear previous audit log to ensure fresh summary
+> "$AUDIT_LOG"
 
-LIST_FILE=\$(mktemp)
-trap 'rm -f "\$LIST_FILE"' EXIT
+LIST_FILE=$(mktemp)
+trap 'rm -f "$LIST_FILE"' EXIT
 
-if [ ! -f "\$CHECKPOINT" ]; then
-    find "\$SCAN_DIR" -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" -not -path "/run/*" > "\$LIST_FILE"
+if [ ! -f "$CHECKPOINT" ]; then
+    find "$SCAN_DIR" -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" -not -path "/run/*" > "$LIST_FILE"
 else
-    find "\$SCAN_DIR" -type f \( -newer "\$CHECKPOINT" -o -cnewer "\$CHECKPOINT" \) -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" -not -path "/run/*" > "\$LIST_FILE"
+    find "$SCAN_DIR" -type f \( -newer "$CHECKPOINT" -o -cnewer "$CHECKPOINT" \) -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" -not -path "/run/*" > "$LIST_FILE"
 fi
 
-TOTAL_FILES=\$(wc -l < "\$LIST_FILE")
+TOTAL_FILES=$(wc -l < "$LIST_FILE")
 INFECTED_FILES=()
 
-if [ "\$TOTAL_FILES" -gt 0 ]; then
-    clamdscan -c "\$CONFIG" --fdpass --multiscan --no-summary --move="\$QUARANTINE_DIR" --file-list="\$LIST_FILE" --log="\$LOG_DIR/hourly_audit.log" >/dev/null 2>&1
+if [ "$TOTAL_FILES" -gt 0 ]; then
+    # Run scan and send summary to the audit log
+    clamdscan -c "$CONFIG" --fdpass --multiscan --no-summary --move="$QUARANTINE_DIR" --file-list="$LIST_FILE" --log="$AUDIT_LOG" >/dev/null 2>&1
 
     while read -r FILE; do
-        INFECTED_FILES+=("\$FILE")
-    done < <(grep "FOUND" "\$LOG_DIR/hourly_audit.log" | awk -F: '{print \$1}')
+        INFECTED_FILES+=("$FILE")
+    done < <(grep "FOUND" "$AUDIT_LOG" | awk -F: '{print $1}')
 fi
 
-INFECTED=\${#INFECTED_FILES[@]}
+INFECTED=${#INFECTED_FILES[@]}
 
-if [ "\$INFECTED" -gt 0 ]; then
-    printf "%s\n" "\${INFECTED_FILES[@]}" | mail -s "ClamAV ALERT on \$(hostname)" "\$EMAIL"
-fi
-
+# Terminal / Cron Output Summary
 echo "=== ClamAV Scan Summary ==="
-echo "Date: \$(date '+%Y-%m-%d %H:%M:%S')"
-echo "Total files scanned: \$TOTAL_FILES"
-echo "Infected files: \$INFECTED"
-echo "Quarantine Directory: \$QUARANTINE_DIR"
+echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "Total files scanned: $TOTAL_FILES"
+echo "Infected files: $INFECTED"
+echo "Quarantine Directory: $QUARANTINE_DIR"
 echo "==========================="
 
+# Log to Weekly Report
 {
-    echo "Date: \$(date '+%Y-%m-%d %H:%M:%S')"
-    echo "Files scanned: \$TOTAL_FILES"
-    echo "Infected: \$INFECTED"
-    [ "\$INFECTED" -gt 0 ] && printf "Infected files:\n%s\n" "\${INFECTED_FILES[@]}"
+    echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "Files scanned: $TOTAL_FILES"
+    echo "Infected: $INFECTED"
+    [ "$INFECTED" -gt 0 ] && printf "Infected files:\n%s\n" "${INFECTED_FILES[@]}"
     echo ""
-} >> "\$WEEKLY_REPORT"
+} >> "$WEEKLY_REPORT"
 
-touch "\$CHECKPOINT"
+touch "$CHECKPOINT"
 EOF
 
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
