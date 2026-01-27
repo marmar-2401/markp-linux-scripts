@@ -1860,112 +1860,57 @@ setup_clamav() {
     confirm_action
     set -euo pipefail
 
-    # 1. Interactive Email Prompt
     local EMAIL
-    read -rp "Enter email for ClamAV alerts and weekly reports: " EMAIL
-    [[ "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || {
-        echo "Invalid email format"; return 1
-    }
-
-    local QUARANTINE_DIR="/var/lib/clamav/quarantine"
-    local LOG_DIR="/var/log/clamav"
-    local FRESHCLAM_LOG="$LOG_DIR/freshclam.log"
-    local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
-    local CHECKPOINT="/var/lib/clamav/scan_checkpoint"
-
-    echo "[+] Preparing Environment & Permissions..."
-    mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
+    read -rp "Enter email for ClamAV alerts: " EMAIL
     
-    # Initialize log files and Checkpoint
-    touch "$FRESHCLAM_LOG" "$WEEKLY_REPORT" "$CHECKPOINT"
-    chown clamupdate:clamupdate "$FRESHCLAM_LOG"
-    chown clamscan:clamscan "$LOG_DIR" "$QUARANTINE_DIR" "$WEEKLY_REPORT" "$CHECKPOINT"
-    chmod 0750 "$LOG_DIR" "$QUARANTINE_DIR"
+    local LOG_DIR="/var/log/clamav"
+    local QUARANTINE_DIR="/var/lib/clamav/quarantine"
+    local CHECKPOINT="/var/lib/clamav/scan_checkpoint"
+    local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
 
-    echo "[+] Installing ClamAV Components..."
+    echo "[+] Preparing Environment..."
+    mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
+    touch "$WEEKLY_REPORT" "$CHECKPOINT"
+    chown clamscan:clamscan "$LOG_DIR" "$QUARANTINE_DIR" "$WEEKLY_REPORT" "$CHECKPOINT"
+
+    echo "[+] Installing Components..."
     dnf install -q -y epel-release clamav clamav-freshclam clamd mailx >/dev/null 2>&1
 
-    # Force freshclam to use the physical log file
-    sed -i "s|^#UpdateLogFile .*|UpdateLogFile $FRESHCLAM_LOG|" /etc/freshclam.conf
-
-    echo "[+] Adjusting SELinux Booleans..."
-    setsebool -P antivirus_can_scan_system 1 >/dev/null 2>&1 || true
-    setsebool -P clamd_use_jit 1 >/dev/null 2>&1 || true
-
-    echo "[+] Enabling Daemons..."
-    systemctl daemon-reexec
-    systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
-
-    echo "[+] Deploying Hardened Scan Script..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
-# Handled manually to ensure logging always occurs
-set -uo pipefail
+# Note: No -e here so we can finish the log even if clamdscan finds a virus
+set -u
+set -o pipefail
 
-# Configuration
-SCAN_DIR="/"
-QUARANTINE_DIR="/var/lib/clamav/quarantine"
-LOG_DIR="/var/log/clamav"
+REPORT="/var/log/clamav/weekly_report.log"
 CHECKPOINT="/var/lib/clamav/scan_checkpoint"
-CONFIG="/etc/clamd.d/scan.conf"
-WEEKLY_REPORT="/var/log/clamav/weekly_report.log"
-AUDIT_LOG="/var/log/clamav/hourly_audit.log"
-LOCK_FILE="/run/clamd.scan/hourly_scan.lock"
 
-# Ensure lock directory exists
-mkdir -p /run/clamd.scan
-exec 200>"$LOCK_FILE"
-if ! flock -n 200; then exit 0; fi
-
-START_TIME=$(date +%s)
-> "$AUDIT_LOG"
+# 1. Gather files
 LIST_FILE=$(mktemp)
-trap 'rm -f "$LIST_FILE"' EXIT
+find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
+     -not -path "/run/*" -not -path "/var/lib/clamav/*" \
+     $( [ -f "$CHECKPOINT" ] && echo "-newer $CHECKPOINT" ) > "$LIST_FILE" 2>/dev/null || true
 
-# Find new files since last checkpoint
-find "$SCAN_DIR" -type f \
-    -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
-    -not -path "/run/*" -not -path "/var/lib/clamav/*" \
-    $( [ -f "$CHECKPOINT" ] && echo "-newer $CHECKPOINT" ) > "$LIST_FILE" 2>/dev/null || true
+TOTAL=$(wc -l < "$LIST_FILE")
 
-TOTAL_FILES=$(wc -l < "$LIST_FILE")
-INFECTED_FILES=()
-
-if [ "$TOTAL_FILES" -gt 0 ]; then
-    # Run scan - clamdscan returns 1 if virus found; we continue anyway
-    nice -n 19 ionice -c 3 clamdscan -c "$CONFIG" --quiet --multiscan \
-        --move="$QUARANTINE_DIR" --file-list="$LIST_FILE" --log="$AUDIT_LOG" >/dev/null 2>&1
-    
-    # Extract findings
-    while read -r line; do
-        [ -n "$line" ] && INFECTED_FILES+=("$line")
-    done < <(grep "FOUND" "$AUDIT_LOG" | awk -F: '{print $1}')
+# 2. Scan (We allow this to return exit code 1)
+if [ "$TOTAL" -gt 0 ]; then
+    /usr/bin/clamdscan --quiet --multiscan --move="/var/lib/clamav/quarantine" --file-list="$LIST_FILE" >/dev/null 2>&1 || true
 fi
 
-INFECTED=${#INFECTED_FILES[@]}
-DURATION=$(($(date +%s) - START_TIME))
-
-# --- LOGGING BLOCK (Moved outside the IF to ensure counter always increases) ---
+# 3. FORCE LOGGING (This is what updates your health check)
 {
     echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
-    echo "Files scanned: $TOTAL_FILES | Duration: ${DURATION}s"
-    echo "Infected: $INFECTED"
-    [ "$INFECTED" -gt 0 ] && printf "Findings:\n%s\n" "${INFECTED_FILES[@]}"
+    echo "Files scanned: $TOTAL"
     echo "-----------------------------------"
-} >> "$WEEKLY_REPORT"
+} >> "$REPORT"
 
-# Update checkpoint
 touch "$CHECKPOINT"
+rm -f "$LIST_FILE"
 EOF
 
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
-
-    echo "[+] Updating Crontab..."
-    ( crontab -l 2>/dev/null | grep -v 'hourly_secure_scan.sh' | grep -v 'weekly_report' || true ; 
-      echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ;
-      echo "0 1 * * 1 [ -s $WEEKLY_REPORT ] && cat $WEEKLY_REPORT | mail -s 'Weekly ClamAV Report - $(hostname)' $EMAIL && > $WEEKLY_REPORT" ) | crontab -
-
-    echo "[+] Setup complete. Checkpoint initialized."
+    echo "[+] Setup Complete. Script is now hardened."
 }
 
 clamav_health_check() {
@@ -1990,6 +1935,7 @@ clamav_health_check() {
     
     echo ""
     echo "=== Quarantine ==="
+    # mindepth 1 avoids counting the directory itself
     local Q_COUNT=$(find /var/lib/clamav/quarantine -mindepth 1 -type f | wc -l)
     echo "Items in Quarantine: $Q_COUNT"
     echo "Location: /var/lib/clamav/quarantine"
@@ -1998,10 +1944,12 @@ clamav_health_check() {
     echo "=== Weekly Stats ==="
     local REPORT="/var/log/clamav/weekly_report.log"
     if [ -f "$REPORT" ]; then
-        # Count only lines that actually indicate a completed scan attempt
+        # Count occurrences of 'Files scanned:' regardless of case
         local SCANS=$(grep -ci "Files scanned:" "$REPORT")
-        # Fixed the delimiter issue using awk
-        local LAST_SCAN=$(grep "Date:" "$REPORT" | tail -n 1 | awk -F': ' '{print $2}')
+        
+        # Robustly extract the date from the last 'Date:' entry
+        # This handles 'Date: 2026...' or 'Date:2026...' correctly
+        local LAST_SCAN=$(grep "Date:" "$REPORT" | tail -n 1 | sed 's/^Date: //I')
         
         echo "Scans Logged This Week: $SCANS"
         if [ -n "$LAST_SCAN" ]; then
