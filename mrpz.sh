@@ -1860,20 +1860,16 @@ setup_clamav() {
     confirm_action
     set -euo pipefail
 
-    local EMAIL
-    read -rp "Enter email for ClamAV alerts and weekly reports: " EMAIL
-    [[ "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || {
-        echo "Invalid email format"; return 1
-    }
-
+    local EMAIL="marmar2401@icloud.com"
     local QUARANTINE_DIR="/var/lib/clamav/quarantine"
     local LOG_DIR="/var/log/clamav"
     local FRESHCLAM_LOG="$LOG_DIR/freshclam.log"
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
 
-    echo "[+] Preparing Log Files and Permissions..."
+    echo "[+] Preparing Environment & Permissions..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" /run/clamd.scan
     
+    # Initialize logs with specific ownership
     touch "$FRESHCLAM_LOG" "$WEEKLY_REPORT"
     chown clamupdate:clamupdate "$FRESHCLAM_LOG"
     chown clamscan:clamscan "$LOG_DIR" "$QUARANTINE_DIR" "$WEEKLY_REPORT"
@@ -1882,19 +1878,23 @@ setup_clamav() {
     echo "[+] Installing ClamAV Components..."
     dnf install -q -y epel-release clamav clamav-freshclam clamd >/dev/null 2>&1
 
-    # Force freshclam to use a physical log file for tailing
+    # Force physical logging for tailing capabilities
     sed -i "s|^#UpdateLogFile .*|UpdateLogFile $FRESHCLAM_LOG|" /etc/freshclam.conf
+
+    echo "[+] Adjusting SELinux Booleans..."
+    setsebool -P antivirus_can_scan_system 1 >/dev/null 2>&1 || true
+    setsebool -P clamd_use_jit 1 >/dev/null 2>&1 || true
 
     echo "[+] Enabling Daemons..."
     systemctl daemon-reexec
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
-    # Deployment of the Hardened, Resource-Friendly Scan Script
+    # Deployment of the Master Scan Script
     cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
 set -euo pipefail
 
-# 1. LOCK FILE: Prevent overlapping
+# 1. LOCK FILE: Prevent overlapping scans
 LOCK_FILE="/run/clamd.scan/hourly_scan.lock"
 exec 200>"$LOCK_FILE"
 if ! flock -n 200; then exit 0; fi
@@ -1910,12 +1910,13 @@ CONFIG="/etc/clamd.d/scan.conf"
 WEEKLY_REPORT="/var/log/clamav/weekly_report.log"
 AUDIT_LOG="/var/log/clamav/hourly_audit.log"
 
-# 2. Preparation
+# 2. Reset the audit log for this run
 > "$AUDIT_LOG"
+
+# 3. Identify files (Delta only via Checkpoint)
 LIST_FILE=$(mktemp)
 trap 'rm -f "$LIST_FILE"' EXIT
 
-# Identify new/modified files
 find "$SCAN_DIR" -type f \
     -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
     -not -path "/run/*" -not -path "/var/lib/clamav/*" \
@@ -1924,9 +1925,9 @@ find "$SCAN_DIR" -type f \
 TOTAL_FILES=$(wc -l < "$LIST_FILE")
 INFECTED_FILES=()
 
-# 3. SCAN: Executed with nice 19 and ionice class 3 (Idle)
+# 4. Perform Throttled Scan (Removed --fdpass to resolve SELinux truncation errors)
 if [ "$TOTAL_FILES" -gt 0 ]; then
-    nice -n 19 ionice -c 3 clamdscan -c "$CONFIG" --quiet --fdpass --multiscan \
+    nice -n 19 ionice -c 3 clamdscan -c "$CONFIG" --quiet --multiscan \
         --move="$QUARANTINE_DIR" --file-list="$LIST_FILE" --log="$AUDIT_LOG" >/dev/null 2>&1
     
     while read -r line; do
@@ -1938,7 +1939,7 @@ INFECTED=${#INFECTED_FILES[@]}
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
-# 4. SUMMARY OUTPUT
+# 5. Output Summary to Terminal/Cron
 echo "=== ClamAV Scan Summary ==="
 echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "Files Scanned: $TOTAL_FILES"
@@ -1946,52 +1947,48 @@ echo "Infected: $INFECTED"
 echo "Time Taken: ${DURATION}s"
 echo "==========================="
 
+# 6. Append to Weekly Stats
 {
     echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "Files scanned: $TOTAL_FILES | Duration: ${DURATION}s"
     echo "Infected: $INFECTED"
-    [ "$INFECTED" -gt 0 ] && printf "Infected files list:\n%s\n" "${INFECTED_FILES[@]}"
+    [ "$INFECTED" -gt 0 ] && printf "Findings:\n%s\n" "${INFECTED_FILES[@]}"
     echo "-----------------------------------"
 } >> "$WEEKLY_REPORT"
 
-# Update touch file checkpoint
+# 7. Update Touch File Checkpoint
 touch "$CHECKPOINT"
 EOF
 
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
 
-    echo "[+] Updating crontab with Weekly Emailer..."
+    echo "[+] Updating Crontab (Hourly Scan & Weekly Email)..."
     ( crontab -l 2>/dev/null | grep -v 'hourly_secure_scan.sh' | grep -v 'weekly_report' || true ; 
       echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ;
       echo "0 1 * * 1 [ -s $WEEKLY_REPORT ] && cat $WEEKLY_REPORT | mail -s 'Weekly ClamAV Report - $(hostname)' $EMAIL && > $WEEKLY_REPORT" ) | crontab -
 
-    # Ensure SELinux context for quarantine
-    if getenforce | grep -q Enforcing; then
-        chcon -t clamscan_db_t "$QUARANTINE_DIR" >/dev/null 2>&1 || true
-    fi
-
-    echo "[+] Setup complete. Physical logs, Resource Throttling, and Weekly Email are active."
+    echo "[+] Setup complete."
 }
 
 clamav_health_check() {
     echo "=== ClamAV Health Check ==="
     echo ""
     echo "=== Services ==="
-    systemctl is-active --quiet clamd@scan && echo "[OK] clamd is running" || echo "[FAIL] clamd is down"
-    systemctl is-active --quiet clamav-freshclam && echo "[OK] freshclam daemon is running" || echo "[FAIL] freshclam is down"
+    systemctl is-active --quiet clamd@scan && echo "[OK] clamd scanner is running" || echo "[FAIL] clamd is NOT running"
+    systemctl is-active --quiet clamav-freshclam && echo "[OK] freshclam updater is running" || echo "[FAIL] freshclam is NOT running"
     
     echo ""
     echo "=== Virus Definitions ==="
     if [ -f /var/lib/clamav/main.cvd ]; then
         echo "Database Last Sync: $(stat -c %y /var/lib/clamav/main.cvd | cut -d'.' -f1)"
     else
-        echo "[FAIL] Virus database (main.cvd) missing"
+        echo "[FAIL] Virus database files missing"
     fi
 
     echo ""
-    echo "=== Files & Governance ==="
-    [ -f /var/log/clamav/freshclam.log ] && echo "[OK] Physical freshclam.log active" || echo "[FAIL] freshclam.log missing"
-    [ -f /var/lib/clamav/scan_checkpoint ] && echo "[OK] Checkpoint (Touch File) exists" || echo "[WARN] Checkpoint missing (First scan pending)"
+    echo "=== Resource & Reporting ==="
+    [ -f /var/log/clamav/freshclam.log ] && echo "[OK] Physical freshclam.log exists" || echo "[FAIL] Log file missing"
+    [ -f /var/lib/clamav/scan_checkpoint ] && echo "[OK] Checkpoint (Touch File) is active" || echo "[WARN] Checkpoint not yet created"
     
     echo ""
     echo "=== Quarantine ==="
@@ -2005,10 +2002,8 @@ clamav_health_check() {
         local SCANS=$(grep -c "Files scanned:" /var/log/clamav/weekly_report.log)
         echo "Scans Logged This Week: $SCANS"
     else
-        echo "Weekly report file not yet created."
+        echo "Report not found"
     fi
-    echo ""
-    echo "=== ClamAV Health Check Complete ==="
 }
 
 test_clamav_setup() {
@@ -2016,18 +2011,17 @@ test_clamav_setup() {
     local TEST_FILE="/tmp/eicar.com"
     echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$TEST_FILE"
     
-    # Run the script manually to confirm summary and throttling
+    # Run the script manually
     /usr/local/bin/hourly_secure_scan.sh
 
     if [ -f /var/lib/clamav/quarantine/eicar.com ] || [ -f /var/lib/clamav/quarantine/eicar.com.0 ]; then
         echo "[+] SUCCESS: EICAR detected and moved to quarantine."
         echo "[+] VERIFIED: Checkpoint (Touch File) updated: $(stat -c %y /var/lib/clamav/scan_checkpoint | cut -d'.' -f1)"
     else
-        echo "[FAIL]: EICAR was NOT quarantined. Check clamd status."
+        echo "[FAIL]: EICAR not found in quarantine. Verify 'systemctl status clamd@scan'."
         return 1
     fi
 }
-
 
 case "$1" in
 	--ver) print_version ;;
