@@ -2000,7 +2000,7 @@ setup_clamav() {
     else
         dnf install -y epel-release
     fi
-    dnf install -y clamav clamav-freshclam clamd mailx
+    dnf install -y clamav clamav-freshclam clamd
 
     # -----------------------------
     # Configure clamd
