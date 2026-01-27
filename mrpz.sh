@@ -1917,8 +1917,10 @@ nice -n 19 ionice -c 3 find / -type f -not -path "/proc/*" -not -path "/sys/*" -
 TOTAL=\$(wc -l < "\$LIST")
 
 if [ "\$TOTAL" -gt 0 ]; then
-    # Redirect 2>/dev/null to hide errors; capture results to filter output
-    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
+    # --quiet: Prevents printing 'OK' files
+    # --no-summary: We use the manual filter instead for better control
+    # 2>/dev/null: Mutes system level errors
+    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --quiet --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
     
     if echo "\$SCAN_RESULTS" | grep -q "FOUND"; then
         echo "\$SCAN_RESULTS" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
@@ -1927,8 +1929,9 @@ if [ "\$TOTAL" -gt 0 ]; then
     {
         echo "-----------------------------------"
         echo "Date: \$(date '+%Y-%m-%d %H:%M:%S')"
-        # Log ONLY the summary block and infected lines (hides individual OK files)
-        echo "\$SCAN_RESULTS" | grep -E "FOUND|----------- SCAN SUMMARY -----------|^Infected|^Total|^Time|^Start|^End"
+        # This specific grep ONLY allows the FOUND line and the final summary block.
+        # It ignores anything with 'ERROR' or 'OK'.
+        echo "\$SCAN_RESULTS" | grep -E "FOUND|----------- SCAN SUMMARY -----------|^Infected|^Total|^Time|^Start|^End" | grep -v "ERROR"
         echo "-----------------------------------"
     } >> "\$REPORT"
 else
@@ -1980,21 +1983,16 @@ clamav_health_check() {
     echo "=== Quarantine ==="
     local Q_COUNT=$(find /var/lib/clamav/quarantine -mindepth 1 -type f | wc -l)
     echo "Items in Quarantine: $Q_COUNT"
-    echo "Location: /var/lib/clamav/quarantine"
 
     echo ""
     echo "=== Weekly Stats ==="
     if [ -f "$REPORT" ]; then
-        # Count the SCAN SUMMARY headers to avoid counting idle runs
         local SCANS=$(grep -c "SCAN SUMMARY" "$REPORT")
-        local LAST_SCAN=$(grep "Date:" "$REPORT" | tail -n 1 | sed 's/Date: //')
+        # FIXED: Only grep for lines STARTING with Date:
+        local LAST_SCAN=$(grep "^Date:" "$REPORT" | tail -n 1 | sed 's/Date: //')
         
         echo "Scans Logged This Week: $SCANS"
-        if [ -n "$LAST_SCAN" ]; then
-            echo "Last Successful Scan: $LAST_SCAN"
-        else
-            echo "Last Successful Scan: Never (Log format issue)"
-        fi
+        echo "Last Successful Scan: ${LAST_SCAN:-Never}"
     else
         echo "Report not found"
     fi
