@@ -1877,17 +1877,21 @@ setup_clamav() {
     chown -R clamupdate:clamav "$LOG_DIR"
     chmod 775 "$LOG_DIR"
 
-    # Grant clamscan permission to enter /root via ACLs
-    echo "[+] Setting ACLs for /root access..."
-    setfacl -m u:clamscan:x /root
-    # Note: We don't need to recursively grant R to all of /root yet; 
-    # clamdscan handles the file reading if it can reach the path.
+    # CRITICAL: Grant clamscan 'hall pass' to enter /root for sudo-user audits
+    echo "[+] Setting ACLs for /root traversal..."
+    setfacl -m u:clamscan:x /root 2>/dev/null || echo "[!] ACL set failed; ensure 'acl' package is installed."
 
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
 
     echo "[+] Configuring EPEL & Installing Components..."
-    dnf install -y oracle-epel-release-el$(rpm -E %rhel) clamav clamav-freshclam clamd policycoreutils-python-utils mailx >/dev/null 2>&1
+    if grep -q "Oracle Linux" /etc/os-release; then
+        dnf install -y oracle-epel-release-el$(rpm -E %rhel) >/dev/null 2>&1 || true
+    else
+        dnf install -y epel-release >/dev/null 2>&1 || true
+    fi
+
+    dnf install -y clamav clamav-freshclam clamd policycoreutils-python-utils mailx >/dev/null 2>&1
 
     set -euo pipefail
 
@@ -1909,7 +1913,22 @@ setup_clamav() {
     chown clamupdate:clamupdate "$LOG_DIR/freshclam.log"
     chown clamscan:clamscan "$LOG_DIR/clamd.log"
 
-    echo "[+] Configuring SELinux..."
+    echo "[+] Configuring Log Rotation..."
+    cat > /etc/logrotate.d/clamav <<EOF
+$LOG_DIR/*.log {
+    weekly
+    rotate 4
+    compress
+    missingok
+    notifempty
+    create 0644 clamupdate clamav
+    postrotate
+        /usr/bin/systemctl reload clamd@scan 2>/dev/null || true
+    endscript
+}
+EOF
+
+    echo "[+] Configuring SELinux (Antivirus Booleans)..."
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
     setsebool -P clamd_use_jit 1 2>/dev/null || true
     semanage fcontext -a -t clamav_var_lib_t "/var/lib/clamav(/.*)?" 2>/dev/null || true
@@ -1917,9 +1936,11 @@ setup_clamav() {
     restorecon -Rv /var/lib/clamav "$LOG_DIR" >/dev/null 2>&1
 
     echo "[+] Starting Services..."
-    systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
+    systemctl enable --now clamav-freshclam >/dev/null 2>&1 || true
+    systemctl reset-failed clamd@scan >/dev/null 2>&1
+    systemctl enable --now clamd@scan >/dev/null 2>&1 || true
 
-    echo "[+] Deploying Secure Scan Script (Root Access Enabled)..."
+    echo "[+] Deploying Secure Scan Script..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -1936,7 +1957,8 @@ LOGS="$LOG_DIR/hourly_audit.log"
 NOW=\$(date '+%Y-%m-%d %H:%M:%S')
 
 LIST=\$(mktemp)
-# /root is now INCLUDED in the scan
+# Scans all modified files EXCEPT core system mounts and quarantine itself
+# /root is INCLUDED here because of the ACL we set above
 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" -not -path "$LOG_DIR/*" \\
      -not -path "\$Q_DIR/*" \\
@@ -1986,7 +2008,7 @@ EOF
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
     chown root:root /usr/local/bin/hourly_secure_scan.sh
 
-    echo "[+] Configuring Cron..."
+    echo "[+] Configuring Cron Jobs..."
     ( crontab -l 2>/dev/null | grep -v -E 'hourly_secure_scan.sh|weekly_report.log' || true ;
       echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ;
       echo "0 0 * * 1 mailx -s \"Weekly ClamAV Summary - \$(hostname)\" $EMAIL < $WEEKLY_REPORT && > $WEEKLY_REPORT"
