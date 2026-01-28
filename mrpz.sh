@@ -1882,7 +1882,8 @@ setup_clamav() {
         if [ $RETRY -gt 15 ]; then
             echo "[!] Timeout: Creating ClamAV users manually..."
             groupadd -f clamav
-            useradd -r -g clamav -s /sbin/nologin -c "Clamav Tool" clamscan 2>/dev/null
+            groupadd -f clamscan
+            useradd -r -g clamscan -G clamav -s /sbin/nologin -c "Clamav Tool" clamscan 2>/dev/null
             useradd -r -g clamav -s /sbin/nologin -c "Clamav Tool" clamupdate 2>/dev/null
             break
         fi
@@ -2014,6 +2015,7 @@ EOF
     systemctl restart crond 2>/dev/null
     echo "[+] ClamAV Setup and Automation Complete."
 }
+
 
 
 clamav_health_check() {
