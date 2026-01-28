@@ -2163,13 +2163,20 @@ uninstall_clamav() {
     read -rp "Are you sure you want to proceed? (y/N): " CONFIRM
     [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]] && exit 1
 
+    # 1. Stop Cron first to prevent "parting gift" alert emails
+    echo "[+] Temporarily stopping Cron to prevent race-condition alerts..."
+    systemctl stop crond 2>/dev/null
+
     echo "[+] Stopping services and killing active processes..."
     systemctl disable --now clamd@scan clamav-freshclam 2>/dev/null
+    
+    # Kill everything: the client, the updater, AND the main engine
     pkill -9 clamdscan 2>/dev/null
     pkill -9 freshclam 2>/dev/null
+    pkill -9 clamd 2>/dev/null
+    sleep 2 # Wait for file locks to release
 
     echo "[+] Cleaning up Cron Jobs (All Types)..."
-    
     if [ -f /etc/cron.d/clamav_jobs ]; then
         rm -f /etc/cron.d/clamav_jobs
         echo "    - Removed /etc/cron.d/clamav_jobs"
@@ -2177,7 +2184,8 @@ uninstall_clamav() {
 
     if crontab -l &>/dev/null; then
         local TMP_CRON=$(mktemp)
-        crontab -l | grep -v "hourly_secure_scan.sh" | grep -v "clamav_monitor.sh" > "$TMP_CRON"
+        # Use -E for extended regex to handle multiple scripts at once
+        crontab -l | grep -vE "hourly_secure_scan.sh|clamav_monitor.sh" > "$TMP_CRON"
         
         if [ ! -s "$TMP_CRON" ]; then
             crontab -r 2>/dev/null
@@ -2189,15 +2197,13 @@ uninstall_clamav() {
         rm -f "$TMP_CRON"
     fi
 
-    systemctl restart crond 2>/dev/null
-
     echo "[+] Removing Scripts and Environment..."
     rm -f /usr/local/bin/hourly_secure_scan.sh
     rm -f /usr/local/bin/clamav_monitor.sh
     rm -f /etc/tmpfiles.d/clamav-daemon.conf
 
     echo "[+] Purging Data and Quarantine..."
-    [ -d "/var/lib/clamav/quarantine" ] && rm -rf /var/lib/clamav/quarantine/*
+    # The 'rm -rf' on the parent dir is usually enough once clamd is truly dead
     rm -rf /var/lib/clamav
     rm -rf /var/log/clamav
 
@@ -2207,12 +2213,18 @@ uninstall_clamav() {
     echo "[+] Removing System Users..."
     userdel -r clamscan 2>/dev/null
     userdel -r clamupdate 2>/dev/null
+    # Redirecting groupdel errors in case they were already removed by userdel
     groupdel clamav 2>/dev/null
     groupdel clamscan 2>/dev/null
 
     echo "[+] Reverting SELinux Policies..."
     setsebool -P antivirus_can_scan_system 0 2>/dev/null || true
+    # Use -d to delete the permissive record
     semanage permissive -d clamd_t 2>/dev/null || true
+
+    # 4. Restart Cron now that the scripts are gone
+    echo "[+] Restarting Cron..."
+    systemctl start crond 2>/dev/null
 
     echo "[+] Uninstall Complete."
 }
