@@ -1869,7 +1869,6 @@ setup_clamav() {
 
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR"
-
     groupadd -f clamav
     usermod -aG clamav clamupdate
     usermod -aG clamav clamscan
@@ -1877,7 +1876,6 @@ setup_clamav() {
     chown -R clamupdate:clamav "$LOG_DIR"
     chmod 775 "$LOG_DIR"
 
-    # Grant clamscan permission to enter /root via ACLs
     echo "[+] Setting ACLs for /root access..."
     setfacl -m u:clamscan:x /root
     setfacl -d -m u:clamscan:rX /root
@@ -1918,7 +1916,7 @@ setup_clamav() {
     echo "[+] Starting Services..."
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
-    echo "[+] Deploying Secure Scan Script (Root Access Enabled)..."
+    echo "[+] Deploying Secure Scan Script..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
 set -u
@@ -1946,9 +1944,10 @@ FILES_TO_SCAN=$(wc -l < "$LIST" | xargs)
 if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
     SCAN_RESULTS=$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="$Q_DIR" --file-list="$LIST" 2>/dev/null)
 
-    INFECTED_COUNT=$(echo "$SCAN_RESULTS" | awk '/Infected files:/ {print $NF}')
+    # Clean parsing for Infected Count and Time (Fixes "OK OK" bug)
+    INFECTED_COUNT=$(echo "$SCAN_RESULTS" | grep "Infected files:" | awk '{print $NF}')
     [[ -z "$INFECTED_COUNT" ]] && INFECTED_COUNT=0
-    SCAN_TIME=$(echo "$SCAN_RESULTS" | grep "Time:" | awk -F: '{print $2}' | xargs)
+    SCAN_TIME=$(echo "$SCAN_RESULTS" | grep "Time:" | sed 's/Time: //' | xargs)
 
     if [[ "$INFECTED_COUNT" -gt 0 ]]; then
         TMP_MAIL=$(mktemp)
@@ -2034,30 +2033,28 @@ clamav_health_check() {
 }
 
 test_clamav_setup() {
-    echo "[+] Running ClamAV EICAR test..."
+    echo "[+] Preparing ClamAV EICAR background test..."
     local TEST_FILE="/tmp/eicar.com"
-    local CHK="/var/lib/clamav/scan_checkpoint"
+    local EMAIL_ADDR=$(grep "EMAIL_ADDR=" /usr/local/bin/hourly_secure_scan.sh | cut -d'"' -f2)
 
-    # CRITICAL: Backdate or clear checkpoint to ensure 'find -newer' sees the file
-    rm -f "$CHK"
+    # Force full scan by clearing checkpoint
+    rm -f /var/lib/clamav/scan_checkpoint
 
-    sleep 1
     echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$TEST_FILE"
-    
-    # Surgical fix: Backdate the test file by 5 seconds so it is "older" than the marker created in the script
     touch -d "5 seconds ago" "$TEST_FILE"
+    chmod 644 "$TEST_FILE"
 
-    /usr/local/bin/hourly_secure_scan.sh
+    echo "[+] Scan started in BACKGROUND. Check your email ($EMAIL_ADDR) for the final report."
+    
+    # Background execution with a post-completion email report
+    nohup bash -c "/usr/local/bin/hourly_secure_scan.sh && \
+    if find /var/lib/clamav/quarantine/ -name 'eicar.com*' | grep -q '.'; then \
+        echo 'EICAR Test Successful. File detected and moved to quarantine.' | mailx -s 'ClamAV Test Result: SUCCESS' '$EMAIL_ADDR'; \
+    else \
+        echo 'EICAR Test Failed. File not found in quarantine.' | mailx -s 'ClamAV Test Result: FAIL' '$EMAIL_ADDR'; \
+    fi" > /dev/null 2>&1 &
 
-    if find /var/lib/clamav/quarantine/ -name "eicar.com*" | grep -q "."; then
-        echo "[+] SUCCESS: EICAR detected and moved to quarantine."
-        echo "[+] ALERT: A real-time email should have been sent to your alert address."
-        echo "[+] VERIFIED: Checkpoint updated: $(stat -c %y /var/lib/clamav/scan_checkpoint | cut -d'.' -f1)"
-        return 0
-    else
-        echo "[FAIL]: EICAR not found in quarantine. Ensure clamd@scan is active."
-        return 1
-    fi
+    return 0
 }
 
 case "$1" in
