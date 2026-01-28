@@ -1949,7 +1949,11 @@ LOGS="/var/log/clamav/hourly_audit.log"
 NOW=$(date '+%Y-%m-%d %H:%M:%S')
 LIST=$(mktemp)
 if [[ "$TYPE" == "MANUAL-TEST" ]]; then
-    [[ -f "/tmp/eicar.com" ]] && echo "/tmp/eicar.com" > "$LIST"
+    # Create test file in a location the daemon namespace can actually see
+    TEST_FILE="/var/lib/clamav/eicar.com"
+    echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$TEST_FILE"
+    chown clamscan:clamav "$TEST_FILE"
+    echo "$TEST_FILE" > "$LIST"
 else
     find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
          -not -path "/var/lib/clamav/*" -not -path "/var/log/clamav/*" \
@@ -1962,7 +1966,8 @@ if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
     [[ -z "$INFECTED_COUNT" ]] && INFECTED_COUNT=0
     SCAN_TIME=$(echo "$SCAN_RESULTS" | grep "Time:" | sed 's/Time: //' | xargs)
     if [[ "$INFECTED_COUNT" -gt 0 ]]; then
-        mail -r "$EMAIL_ADDR" -s "CRITICAL: Virus Detected on $(hostname) [$TYPE]" "$EMAIL_ADDR" <<MAIL_CONTENT
+        # Force the 'from' address to ensure corporate relay acceptance
+        mail -s "CRITICAL: Virus Detected on $(hostname) [$TYPE]" -S from="$EMAIL_ADDR" "$EMAIL_ADDR" <<MAIL_CONTENT
 Detection Type: $TYPE  
 Detection Date: $NOW  
 Virus(es) detected on $(hostname):  
@@ -2000,21 +2005,19 @@ fi
 for SVC in "${SERVICES[@]}"; do
     if ! systemctl is-active --quiet "$SVC"; then
         systemctl restart "$SVC"
-        mail -r "$EMAIL_ADDR" -s "ALERT: $SVC Restored on $(hostname)" "$EMAIL_ADDR" <<< "$SVC was down and has been restarted."
+        mail -s "ALERT: $SVC Restored on $(hostname)" -S from="$EMAIL_ADDR" "$EMAIL_ADDR" <<< "$SVC was down and has been restarted."
     fi
 done
 EOF
 
     echo "[+] Configuring Cron Jobs..."
-    # FIX: Using __EMAIL__ placeholder to ensure shell doesn't break the string on creation
     cat > /etc/cron.d/clamav_jobs <<EOF
 0 * * * * root /usr/local/bin/hourly_secure_scan.sh Hourly
 */15 * * * * root /usr/local/bin/clamav_monitor.sh
 0 0 * * 0 root find /var/lib/clamav/quarantine -type f -mtime +30 -delete
-0 9 * * 1 root mail -r "__EMAIL__" -s "Weekly ClamAV Report: \$(hostname)" "__EMAIL__" < "$WEEKLY_REPORT" && > "$WEEKLY_REPORT"
+0 9 * * 1 root mail -s "Weekly ClamAV Report: \$(hostname)" -S from="__EMAIL__" "__EMAIL__" < "$WEEKLY_REPORT" && > "$WEEKLY_REPORT"
 EOF
 
-    # Apply email to ALL deployed files including the cron job
     sed -i "s|__EMAIL__|$EMAIL|g" /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh /etc/cron.d/clamav_jobs
     
     chmod 700 /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh
