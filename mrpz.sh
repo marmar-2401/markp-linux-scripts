@@ -2131,63 +2131,50 @@ EOF
 clamav_health_check() {
     check_root
     echo "========================================================="
-    echo "   CLAMAV PRODUCTION OPTIMIZATION AUDIT - $(hostname)"
+    echo "   CLAMAV SYSTEM CHECK-UP - $(hostname)"
     echo "========================================================="
 
-    # 1. CORE SERVICES & DB FRESHNESS
-    echo "--- [Core Services] ---"
-    systemctl is-active --quiet clamd@scan && echo "[PASS] clamd (Scanner Daemon) is active" || echo "[FAIL] clamd is DOWN"
-    systemctl is-active --quiet clamav-freshclam && echo "[PASS] freshclam (Updater) is active" || echo "[FAIL] freshclam is DOWN"
+    # 1. CORE SERVICES
+    echo "--- [Is the security software awake?] ---"
+    systemctl is-active --quiet clamd@scan && echo "[YES] Scanner is active and guarding files." || echo "[NO] Scanner is OFF."
+    systemctl is-active --quiet clamav-freshclam && echo "[YES] Updater is active and watching for new viruses." || echo "[NO] Updater is OFF."
     
-    echo -n "Last DB Update: "
+    echo -n "Last Virus Database Update: "
     if [ -f /var/log/clamav/freshclam.log ]; then
-        grep "updated" /var/log/clamav/freshclam.log | tail -n 1 || echo "No update record found."
+        # This pulls the date of the last successful update
+        grep "updated" /var/log/clamav/freshclam.log | tail -n 1 || echo "No record of an update yet."
     else
-        echo "LOG MISSING: /var/log/clamav/freshclam.log"
+        echo "Log file not found (Update may not have run yet)."
     fi
 
-    # 2. FILE SYSTEM & PERMISSIONS (THE "MR.PZ" SPECIALS)
+    # 2. SECURITY CHECK
     echo ""
-    echo "--- [Security & Path Integrity] ---"
-    # Verify the Root Access ACL
-    getfacl /root 2>/dev/null | grep -q "user:clamscan:--x" && echo "[PASS] /root ACL for 'clamscan' verified" || echo "[FAIL] ACL missing - Scanner cannot enter /root"
+    echo "--- [Is the door unlocked for the scanner?] ---"
+    # We check if the 'clamscan' user is allowed to enter the /root folder
+    getfacl /root 2>/dev/null | grep -q "user:clamscan:--x" && echo "[PASS] Permissions: The scanner can access restricted areas." || echo "[FAIL] Permissions: The scanner is being blocked from /root."
     
-    # Verify SELinux Boolean
-    getsebool antivirus_can_scan_system 2>/dev/null | grep -q "on" && echo "[PASS] SELinux 'antivirus_can_scan_system' is ON" || echo "[FAIL] SELinux will block the scan!"
+    # Check SELinux (The Linux 'Security Guard')
+    getsebool antivirus_can_scan_system 2>/dev/null | grep -q "on" && echo "[PASS] SELinux: Security guard is allowing the scan." || echo "[FAIL] SELinux: Security guard is blocking the scan."
     
-    # Verify Quarantine setup
-    [ -d /var/lib/clamav/quarantine ] && echo "[PASS] Quarantine directory exists" || echo "[FAIL] Quarantine directory missing"
-    
-    # Check Checkpoint age (Ensures incremental logic isn't 'stuck' in the past)
+    # 3. SMART SCANNING (INCREMENTAL)
     if [ -f /var/lib/clamav/scan_checkpoint ]; then
         local CHK_AGE=$(stat -c %Y /var/lib/clamav/scan_checkpoint)
         local NOW=$(date +%s)
         local DIFF=$(( (NOW - CHK_AGE) / 60 ))
-        echo "[INFO] Checkpoint is $DIFF minutes old (Current Incremental Window)"
+        echo "[INFO] Last Full Scan: $DIFF minutes ago. (Next scan will only check NEW files to save power)."
     fi
 
-    # 3. RESOURCE OPTIMIZATION
+    # 4. AUTOMATED TASKS
     echo ""
-    echo "--- [Automation & Optimization] ---"
-    # Check for the Heartbeat Monitor
-    [ -f /usr/local/bin/clamav_monitor.sh ] && echo "[PASS] Heartbeat Monitor script deployed" || echo "[WARN] Monitor script missing"
-    
-    # Verify Cron density
-    CRON_COUNT=$(crontab -l 2>/dev/null | grep -c "clamav")
-    echo "[INFO] Active ClamAV Cron Jobs: $CRON_COUNT (Target: 4)"
+    echo "--- [Scheduled Tasks] ---"
+    # We count how many 'ClamAV' related tasks are on the calendar
+    CRON_COUNT=$(crontab -l 2>/dev/null | grep -E 'hourly_secure_scan.sh|clamav_monitor.sh|quarantine.*delete|weekly_report.log' | wc -l)
+    echo "[INFO] Tasks Scheduled: $CRON_COUNT out of 4 (Scan, Monitor, Cleanup, Report)."
 
-    # 4. DATA SUMMARY
+    # 5. LOGS
     echo ""
-    echo "--- [Log Audit & Quarantine Status] ---"
-    local Q_COUNT=$(find /var/lib/clamav/quarantine -mindepth 1 -type f | wc -l)
-    echo "Current Quarantined Items: $Q_COUNT"
-    
-    echo ""
-    echo "Last 5 Audit Entries:"
-    echo "---------------------------------------------------------"
-    [ -f /var/log/clamav/hourly_audit.log ] && tail -n 5 /var/log/clamav/hourly_audit.log || echo "No log data available yet."
-    echo "---------------------------------------------------------"
-}
+    echo "--- [Recent Activity Log] ---"
+    [ -f /var/log/clamav/hourly_audit.log ] && tail -n 5 /var/log/clamav/hourly_audit.log || echo "
 
 test_clamav_setup() {
     echo "[+] Running Fast-Track Test with Logging..."
