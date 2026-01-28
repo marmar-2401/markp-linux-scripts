@@ -1870,6 +1870,10 @@ setup_clamav() {
     local WHITE_LIST="/var/lib/clamav/whitelist.txt"
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
 
+    # INSTALLATION FIRST: Required to create clamscan/clamupdate users on new systems
+    echo "[+] Installing Components (This may take a moment)..."
+    dnf install -y oracle-epel-release-el$(rpm -E %rhel) clamav clamav-freshclam clamd policycoreutils-python-utils mailx >/dev/null 2>&1
+
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR"
     touch "$WHITE_LIST"
@@ -1878,14 +1882,14 @@ setup_clamav() {
     usermod -aG clamav clamscan
     chown -R clamupdate:clamav "$LOG_DIR"
     chmod 775 "$LOG_DIR"
+    
+    # Corrected ACLs: Ensuring user exists before applying
     setfacl -m u:clamscan:x /root
     setfacl -d -m u:clamscan:rX /root
 
+    # Runtime directory creation (Now resolves clamscan user correctly)
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
-
-    echo "[+] Installing Components (This may take a moment)..."
-    dnf install -y oracle-epel-release-el$(rpm -E %rhel) clamav clamav-freshclam clamd policycoreutils-python-utils mailx >/dev/null 2>&1
 
     echo "[+] Configuring SELinux (Building Policy)..."
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
@@ -1955,7 +1959,6 @@ EOF
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
     echo "[+] ClamAV Setup and Scanner Deployment Complete."
 }
-
 clamav_health_check() {
     check_root
     echo "========================================================="
