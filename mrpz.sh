@@ -1879,7 +1879,6 @@ setup_clamav() {
     dnf install -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
     
     # --- USER SYNC BLOCK ---
-    # Wait up to 30 seconds for the OS to recognize the new users created by DNF
     echo "[+] Synchronizing system users..."
     local RETRY=0
     while ! getent passwd clamscan >/dev/null; do
@@ -1894,7 +1893,7 @@ setup_clamav() {
         sleep 2
         ((RETRY++))
     done
-    udevadm settle # Ensure all system side-effects are committed
+    udevadm settle 
     # -----------------------
 
     if ! command -v mail &>/dev/null; then
@@ -1908,11 +1907,13 @@ setup_clamav() {
     groupadd -f clamav
     usermod -aG clamav clamupdate
     usermod -aG clamav clamscan
+
+    # FIX: Changed ownership to clamupdate so database downloads succeed
     chown -R clamupdate:clamav "$LOG_DIR"
-    chown clamscan:clamav /var/lib/clamav 
+    chown -R clamupdate:clamav /var/lib/clamav 
     chmod 775 "$LOG_DIR"
+    chmod 775 /var/lib/clamav
     
-    # Use explicit permission strings to avoid character interpretation issues
     setfacl -m u:clamscan:--x /root
     setfacl -d -m u:clamscan:r-X /root
 
@@ -1928,13 +1929,14 @@ setup_clamav() {
         sed -i 's|^#LocalSocketMode .*|LocalSocketMode 660|' /etc/clamd.d/scan.conf
     fi
 
-    # VERSION DIFFERENTIATED SELINUX FIX
     echo "[+] Applying SELinux Policies..."
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
     setsebool -P clamd_use_jit 1 2>/dev/null || true
     setsebool -P nis_enabled 1 2>/dev/null || true
     semanage permissive -a clamd_t 2>/dev/null || true
     
+    # FIX: Run freshclam FIRST so clamd has a database to load on start
+    echo "[+] Initializing Database and Services..."
     freshclam >/dev/null 2>&1
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
