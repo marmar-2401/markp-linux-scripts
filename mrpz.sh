@@ -2024,9 +2024,10 @@ EOF
     chmod 644 /etc/cron.d/clamav_jobs
     systemctl restart crond 2>/dev/null
     
-    /usr/local/bin/hourly_secure_scan.sh "Initial-Setup" &
+    # Removed the background Initial-Setup scan to prevent locking and delays
+    touch /var/lib/clamav/setup_complete
     
-    echo "[+] ClamAV Setup Complete. Initial scan running in background; monitoring will activate once finished."
+    echo "[+] ClamAV Setup Complete. Monitoring is now active."
 }
 
 clamav_health_check() {
