@@ -2059,7 +2059,7 @@ if [[ "$FILES" -gt 0 ]]; then
     SCAN_TIME=$(echo "$SCAN_RESULTS" | grep "Time:" | sed 's/Time: //' | xargs)
 
     if [[ "$INFECTED" -gt 0 ]]; then
-        #--- FIXED FORMATTING BLOCK ---
+        #--- THIS IS THE EXACT FIX FOR THE ALIGNMENT ---
         {
             echo "Detection Type: $TYPE"
             echo "Detection Date: $NOW"
@@ -2091,7 +2091,6 @@ EOF
     ) | crontab -
     echo "[+] Setup Complete."
 }
-
 clamav_health_check() {
     check_root
     echo "========================================================="
