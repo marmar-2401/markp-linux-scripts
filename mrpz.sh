@@ -1874,6 +1874,24 @@ setup_clamav() {
     echo "[+] Installing Components..."
     dnf install -y oracle-epel-release-el$(rpm -E %rhel) clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
     
+    # --- USER SYNC BLOCK ---
+    # Wait up to 30 seconds for the OS to recognize the new users created by DNF
+    echo "[+] Synchronizing system users..."
+    local RETRY=0
+    while ! getent passwd clamscan >/dev/null; do
+        if [ $RETRY -gt 15 ]; then
+            echo "[!] Timeout: Creating ClamAV users manually..."
+            groupadd -f clamav
+            useradd -r -g clamav -s /sbin/nologin -c "Clamav Tool" clamscan 2>/dev/null
+            useradd -r -g clamav -s /sbin/nologin -c "Clamav Tool" clamupdate 2>/dev/null
+            break
+        fi
+        sleep 2
+        ((RETRY++))
+    done
+    udevadm settle # Ensure all system side-effects are committed
+    # -----------------------
+
     if ! command -v mail &>/dev/null; then
         dnf install -y mailx >/dev/null 2>&1 || dnf install -y s-nail >/dev/null 2>&1
     fi
@@ -1881,17 +1899,17 @@ setup_clamav() {
     # 2. PREPARE ENVIRONMENT
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR"
-    # REMOVED: touch "$CHK" so the first scan is forced to be a FULL scan
     touch "$WHITE_LIST"
     groupadd -f clamav
     usermod -aG clamav clamupdate
     usermod -aG clamav clamscan
     chown -R clamupdate:clamav "$LOG_DIR"
-    # We still ensure the directory exists so chown doesn't fail on the path
     chown clamscan:clamav /var/lib/clamav 
     chmod 775 "$LOG_DIR"
-    setfacl -m u:clamscan:x /root
-    setfacl -d -m u:clamscan:rX /root
+    
+    # Use explicit permission strings to avoid character interpretation issues
+    setfacl -m u:clamscan:--x /root
+    setfacl -d -m u:clamscan:r-X /root
 
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
@@ -1910,7 +1928,6 @@ setup_clamav() {
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
     setsebool -P clamd_use_jit 1 2>/dev/null || true
     setsebool -P nis_enabled 1 2>/dev/null || true
-    # Surgical fix for OL10 compatibility
     semanage permissive -a clamd_t 2>/dev/null || true
     
     freshclam >/dev/null 2>&1
@@ -1934,7 +1951,6 @@ LIST=$(mktemp)
 if [[ "$TYPE" == "MANUAL-TEST" ]]; then
     [[ -f "/tmp/eicar.com" ]] && echo "/tmp/eicar.com" > "$LIST"
 else
-    # Logic: If $CHK is missing, it scans everything.
     find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
          -not -path "/var/lib/clamav/*" -not -path "/var/log/clamav/*" \
          $([ -f "$CHK" ] && echo "-newer $CHK") -mmin +1 > "$LIST" 2>/dev/null || true
@@ -1966,7 +1982,6 @@ else
     echo "$ENTRY" >> "$WEEKLY"
     echo "$ENTRY" >> "$LOGS"
 fi
-# This creates the checkpoint ONLY AFTER the scan is finished.
 [[ "$TYPE" != "MANUAL-TEST" ]] && touch "$CHK" && chown clamscan:clamscan "$CHK"
 rm -f "$LIST"
 EOF
@@ -1999,6 +2014,7 @@ EOF
     systemctl restart crond 2>/dev/null
     echo "[+] ClamAV Setup and Automation Complete."
 }
+
 
 clamav_health_check() {
     check_root
