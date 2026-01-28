@@ -1999,6 +1999,7 @@ EOF
     systemctl restart crond 2>/dev/null
     echo "[+] ClamAV Setup and Automation Complete."
 }
+
 clamav_health_check() {
     check_root
     echo "========================================================="
@@ -2043,8 +2044,15 @@ clamav_health_check() {
     echo ""
     echo "--- [Security & Permissions] ---"
     getfacl /root 2>/dev/null | grep -q "user:clamscan:--x" && echo "[PASS] Scanner can access /root." || echo "[FAIL] Scanner blocked from /root."
-    # Fixed: check if clamd is permissive if boolean check fails
-    (getsebool antivirus_can_scan_system 2>/dev/null | grep -q "on" || semanage permissive -l 2>/dev/null | grep -q "clamd_t") && echo "[PASS] SELinux allows scanning." || echo "[FAIL] SELinux blocking scan."
+    
+    # Surgical fix: check if clamd is permissive OR if it is running unconfined (OL10)
+    if (getsebool antivirus_can_scan_system 2>/dev/null | grep -q "on" || \
+        semanage permissive -l 2>/dev/null | grep -q "clamd_t" || \
+        ps -eZ | grep -v grep | grep clamd | grep -q "unconfined_service_t"); then
+        echo "[PASS] SELinux allows scanning."
+    else
+        echo "[FAIL] SELinux blocking scan."
+    fi
     
     echo ""
     echo "--- [Automation: Core Cron Jobs] ---"
