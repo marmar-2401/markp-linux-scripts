@@ -2093,10 +2093,15 @@ clamav_health_check() {
     echo "========================================================="
     echo "   CLAMAV SYSTEM CHECK-UP - $(hostname)"
     echo "========================================================="
+    
     echo "--- [Core Services] ---"
-    systemctl is-active --quiet clamd@scan && echo "[YES] Scanner is active." || echo "[NO] Scanner is OFF."
-    echo -n "Last Virus DB Update: "
-    grep "updated" /var/log/clamav/freshclam.log 2>/dev/null | tail -n 1 || echo "No updates yet."
+    # Show actual service status for scanner and updater
+    printf "Scanner (clamd):      %-10s\n" "$(systemctl is-active clamd@scan)"
+    printf "Updater (freshclam):  %-10s\n" "$(systemctl is-active clamav-freshclam)"
+    
+    # Show the actual timestamp of the last database update
+    echo -n "Last DB Update:       "
+    stat -c %y /var/lib/clamav/daily.cld 2>/dev/null || echo "No DB found."
 
     echo ""
     echo "--- [Security & Permissions] ---"
