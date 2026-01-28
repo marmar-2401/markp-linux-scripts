@@ -2095,28 +2095,37 @@ clamav_health_check() {
     echo "========================================================="
     
     echo "--- [Core Services] ---"
-    # Show actual service status for scanner and updater
     printf "Scanner (clamd):      %-10s\n" "$(systemctl is-active clamd@scan)"
     printf "Updater (freshclam):  %-10s\n" "$(systemctl is-active clamav-freshclam)"
     
-    # Show the actual timestamp of the last database update
     echo -n "Last DB Update:       "
     stat -c %y /var/lib/clamav/daily.cld 2>/dev/null || echo "No DB found."
 
     echo ""
-    echo "--- [Security & Permissions] ---"
-    getfacl /root 2>/dev/null | grep -q "user:clamscan:--x" && echo "[PASS] Scanner can access /root." || echo "[FAIL] Scanner blocked from /root."
-    getsebool antivirus_can_scan_system 2>/dev/null | grep -q "on" && echo "[PASS] SELinux allows scanning." || echo "[FAIL] SELinux blocking scan."
-    
-    echo ""
-    echo "--- [Automation & Whitelist] ---"
-    CRON_COUNT=$(crontab -l 2>/dev/null | grep -E 'hourly_secure_scan.sh|quarantine.*delete|weekly_report.log' | wc -l)
-    echo "[INFO] Tasks Scheduled: $CRON_COUNT (Target: 3)"
-    echo "[INFO] Whitelisted Files: $(wc -l < /var/lib/clamav/whitelist.txt 2>/dev/null || echo 0)"
+    echo "--- [Automation: Core Cron Jobs] ---"
+    local CRON_DATA
+    CRON_DATA=$(crontab -l 2>/dev/null)
+
+    check_job() {
+        if echo "$CRON_DATA" | grep -q "$1"; then
+            echo "[CONFIRMED] $2"
+        else
+            echo "[MISSING]   $2"
+        fi
+    }
+
+    check_job "/usr/local/bin/clamav_monitor.sh" "Service Monitor (clamav_monitor.sh)"
+    check_job "/usr/local/bin/hourly_secure_scan.sh" "Security Scanner (hourly_secure_scan.sh)"
+    check_job "quarantine -type f -mtime +30 -delete" "Quarantine Cleanup (30-day)"
+    check_job "Weekly ClamAV Summary" "Weekly Report Email"
 
     echo ""
     echo "--- [Recent Activity] ---"
-    [ -f /var/log/clamav/hourly_audit.log ] && tail -n 5 /var/log/clamav/hourly_audit.log || echo "No logs found."
+    if [ -f /var/log/clamav/hourly_audit.log ]; then
+        tail -n 5 /var/log/clamav/hourly_audit.log
+    else
+        echo "No logs found at /var/log/clamav/hourly_audit.log"
+    fi
     echo "---------------------------------------------------------"
 }
 
@@ -2150,7 +2159,6 @@ clamav_restore_file() {
     [[ ! -d "$DEST" ]] && echo "Invalid directory." && return 1
 
     mv "$Q_DIR/$FILE_NAME" "$DEST/"
-    # Logic: Adds full path to whitelist to prevent the scanner from re-moving it
     echo "$DEST/$FILE_NAME" >> "$WHITE_LIST"
     sort -u "$WHITE_LIST" -o "$WHITE_LIST"
     echo "[SUCCESS] $FILE_NAME restored and whitelisted."
