@@ -1997,7 +1997,7 @@ setup_clamav() {
     confirm_action
 
     local EMAIL
-    read -rp "Enter email for ClamAV alerts and weekly reports: " EMAIL
+    read -rp "Enter email for ClamAV alerts: " EMAIL
 
     local LOG_DIR="/var/log/clamav"
     local QUARANTINE_DIR="/var/lib/clamav/quarantine"
@@ -2013,47 +2013,32 @@ setup_clamav() {
 
     chown -R clamupdate:clamav "$LOG_DIR"
     chmod 775 "$LOG_DIR"
-
-    echo "[+] Setting ACLs for /root access..."
     setfacl -m u:clamscan:x /root
     setfacl -d -m u:clamscan:rX /root
 
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
 
+    echo "[+] Installing Components (This may take a moment)..."
     dnf install -y oracle-epel-release-el$(rpm -E %rhel) clamav clamav-freshclam clamd policycoreutils-python-utils mailx >/dev/null 2>&1
 
     set -euo pipefail
 
-    for cfg in /etc/freshclam.conf /etc/clamd.d/scan.conf; do
-        if [ -f "$cfg" ]; then
-            sed -i '/^Example/d' "$cfg"
-            sed -i 's|^#LogTime .*|LogTime yes|' "$cfg"
-            sed -i 's|^#LogFileMaxSize .*|LogFileMaxSize 2M|' "$cfg"
-        fi
-    done
-
+    # Configuration Hardening
     sed -i "s|^#UpdateLogFile.*|UpdateLogFile $LOG_DIR/freshclam.log|" /etc/freshclam.conf
     sed -i 's|^#LocalSocket .*|LocalSocket /run/clamd.scan/clamd.sock|' /etc/clamd.d/scan.conf
     sed -i 's|^#User .*|User clamscan|' /etc/clamd.d/scan.conf
     sed -i "s|^#LogFile .*|LogFile $LOG_DIR/clamd.log|" /etc/clamd.d/scan.conf
 
-    touch "$LOG_DIR/freshclam.log" "$LOG_DIR/clamd.log" "$AUDIT_LOG"
-    chown clamupdate:clamupdate "$LOG_DIR/freshclam.log"
-    chown clamscan:clamscan "$LOG_DIR/clamd.log"
-
+    echo "[+] Configuring SELinux (Building Policy)..."
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
-    setsebool -P clamd_use_jit 1 2>/dev/null || true
-    semanage fcontext -a -t clamav_var_lib_t "/var/lib/clamav(/.*)?" 2>/dev/null || true
-    semanage fcontext -a -t antivirus_log_t "$LOG_DIR(/.*)?" 2>/dev/null || true
-    restorecon -Rv /var/lib/clamav "$LOG_DIR" >/dev/null 2>&1
-
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
-    # DEPLOY HOURLY SCAN SCRIPT
+    # DEPLOY THE SCANNER SCRIPT
     cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
 set -u
+TYPE=${1:-Hourly}
 LOCKFILE="/run/clamd.scan/hourly_scan.lock"
 exec 200>$LOCKFILE
 flock -n 200 || exit 1
@@ -2067,11 +2052,17 @@ LOGS="/var/log/clamav/hourly_audit.log"
 NOW=$(date '+%Y-%m-%d %H:%M:%S')
 
 LIST=$(mktemp)
-find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
-     -not -path "/run/*" -not -path "/var/lib/clamav/*" -not -path "/var/log/clamav/*" \
-     -not -path "$Q_DIR/*" \
-     $([ -f "$CHK" ] && echo "-newer $CHK") \
-     -mmin +1 > "$LIST" 2>/dev/null || true
+if [[ "$TYPE" == "MANUAL-TEST" ]]; then
+    # Targeted fast scan for testing
+    [[ -f "/tmp/eicar.com" ]] && echo "/tmp/eicar.com" > "$LIST"
+else
+    # Incremental scan for production
+    find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
+         -not -path "/run/*" -not -path "/var/lib/clamav/*" -not -path "/var/log/clamav/*" \
+         -not -path "$Q_DIR/*" \
+         $([ -f "$CHK" ] && echo "-newer $CHK") \
+         -mmin +1 > "$LIST" 2>/dev/null || true
+fi
 
 FILES_TO_SCAN=$(wc -l < "$LIST" | xargs)
 
@@ -2084,36 +2075,39 @@ if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
     if [[ "$INFECTED_COUNT" -gt 0 ]]; then
         TMP_MAIL=$(mktemp)
         {
+            echo "Detection Type: $TYPE"
             echo "Detection Date: $NOW"
             echo "Virus(es) detected on $(hostname):"
+            echo "-------------------------------------------"
             echo "$SCAN_RESULTS" | grep "FOUND"
-            echo "----------- SCAN SUMMARY -----------"
+            echo "-------------------------------------------"
+            echo "Quarantine Dir: $Q_DIR"
             echo "Files Checked:  $FILES_TO_SCAN"
-            echo "Infected Files: $INFECTED_COUNT"
             echo "Scan Time:      $SCAN_TIME"
         } > "$TMP_MAIL"
-        /usr/bin/mailx -s "CRITICAL: Virus Detected on $(hostname)" "$EMAIL_ADDR" < "$TMP_MAIL"
+        /usr/bin/mailx -s "CRITICAL: Virus Detected on $(hostname) [$TYPE]" "$EMAIL_ADDR" < "$TMP_MAIL"
         rm -f "$TMP_MAIL"
     fi
-    echo "Date: $NOW | Files: $FILES_TO_SCAN | Infected: $INFECTED_COUNT | Time: $SCAN_TIME" >> "$WEEKLY"
-    echo "Date: $NOW | Files: $FILES_TO_SCAN | Infected: $INFECTED_COUNT | Time: $SCAN_TIME" >> "$LOGS"
+    ENTRY="Date: $NOW | Type: $TYPE | Files: $FILES_TO_SCAN | Infected: $INFECTED_COUNT | Time: $SCAN_TIME"
+    echo "$ENTRY" >> "$WEEKLY"
+    echo "$ENTRY" >> "$LOGS"
 else
-    # Log heartbeats even if 0 files scanned so the monitor knows we are alive
-    echo "Date: $NOW | Files: 0 | Infected: 0 | Time: 0s (Idle)" >> "$LOGS"
+    # Heartbeat for the monitor script
+    echo "Date: $NOW | Type: $TYPE | Files: 0 | Infected: 0 | Time: 0s (Idle)" >> "$LOGS"
 fi
-mv "$SCAN_START_MARKER" "$CHK"
-chown clamscan:clamscan "$CHK"
+
+# Only update the global checkpoint for real hourly runs
+[[ "$TYPE" != "MANUAL-TEST" ]] && mv "$SCAN_START_MARKER" "$CHK" && chown clamscan:clamscan "$CHK"
 rm -f "$LIST"
 EOF
 
-    # DEPLOY HEALTH MONITOR SCRIPT
+    # DEPLOY THE MONITOR SCRIPT
     cat > /usr/local/bin/clamav_monitor.sh <<'EOF'
 #!/bin/bash
 EMAIL_ADDR="__EMAIL__"
 LOGS="/var/log/clamav/hourly_audit.log"
-# Check if the log was updated in the last 70 minutes
 if ! find "$LOGS" -mmin -70 | grep -q .; then
-    echo "ALERT: ClamAV hourly scan has not reported in over an hour on $(hostname). Please check systemctl status clamd@scan" | \
+    echo "ALERT: ClamAV hourly scan has not reported in over an hour on $(hostname)." | \
     mailx -s "STALLED: ClamAV Scan Failure on $(hostname)" "$EMAIL_ADDR"
 fi
 EOF
@@ -2121,61 +2115,49 @@ EOF
     sed -i "s|__EMAIL__|$EMAIL|" /usr/local/bin/hourly_secure_scan.sh
     sed -i "s|__EMAIL__|$EMAIL|" /usr/local/bin/clamav_monitor.sh
     chmod 700 /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh
-    chown root:root /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh
 
-    echo "[+] Configuring Cron Jobs..."
+    echo "[+] Configuring Crontab..."
     ( crontab -l 2>/dev/null | grep -v -E 'hourly_secure_scan.sh|weekly_report.log|clamav_monitor.sh|quarantine.*delete' || true ;
       echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ;
       echo "5 * * * * /usr/local/bin/clamav_monitor.sh" ;
       echo "0 1 * * * find /var/lib/clamav/quarantine -type f -mtime +30 -delete" ;
       echo "0 0 * * 1 mailx -s \"Weekly ClamAV Summary - \$(hostname)\" $EMAIL < $WEEKLY_REPORT && > $WEEKLY_REPORT"
     ) | crontab -
-    
+
     echo "[+] Setup Complete."
 }
 
+
 clamav_health_check() {
     check_root
-    local REPORT="/var/log/clamav/weekly_report.log"
     echo "=== ClamAV Health Check ==="
-    systemctl is-active --quiet clamd@scan && echo "[OK] clamd running" || echo "[FAIL] clamd down"
-    systemctl is-active --quiet clamav-freshclam && echo "[OK] freshclam running" || echo "[FAIL] freshclam down"
+    systemctl is-active --quiet clamd@scan && echo "[OK] clamd scanner running" || echo "[FAIL] clamd scanner DOWN"
+    systemctl is-active --quiet clamav-freshclam && echo "[OK] freshclam updater running" || echo "[FAIL] freshclam updater DOWN"
+    
     local Q_COUNT=$(find /var/lib/clamav/quarantine -mindepth 1 -type f | wc -l)
     echo "Items in Quarantine: $Q_COUNT"
-    echo "=== Last 5 Activity Logs ==="
-    tail -n 5 /var/log/clamav/hourly_audit.log
+    
+    echo ""
+    echo "=== Recent Log Entries ==="
+    [ -f /var/log/clamav/hourly_audit.log ] && tail -n 5 /var/log/clamav/hourly_audit.log || echo "No logs found."
 }
 
 test_clamav_setup() {
-    echo "[+] Running Fast-Track Test..."
+    echo "[+] Running Fast-Track Test with Logging..."
     local TEST_FILE="/tmp/eicar.com"
-    local Q_DIR="/var/lib/clamav/quarantine"
-    local EMAIL_ADDR=$(grep "EMAIL_ADDR=" /usr/local/bin/hourly_secure_scan.sh | cut -d'"' -f2)
     
-    # 1. Create the test virus
+    # 1. Create virus
     echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$TEST_FILE"
     chmod 644 "$TEST_FILE"
     
-    # 2. Scan and move
-    SCAN_RESULTS=$(/usr/bin/clamdscan --multiscan --move="$Q_DIR" "$TEST_FILE" 2>/dev/null)
-    
-    if echo "$SCAN_RESULTS" | grep -q "FOUND"; then
-        echo "[+] SUCCESS: EICAR detected."
-        
-        # 3. Formulate the specific email you requested
-        {
-            echo "Test Success on $(hostname)"
-            echo "-----------------------------------"
-            echo "Result: Test virus FOUND and quarantined."
-            echo "Quarantine Directory: $Q_DIR"
-            echo ""
-            echo "Full Scan Output:"
-            echo "$SCAN_RESULTS" | grep "FOUND"
-        } | mailx -s "ClamAV Test Result: SUCCESS" "$EMAIL_ADDR"
-        
-        echo "[+] Detailed alert sent to $EMAIL_ADDR."
+    # 2. Trigger the main script with the TEST label
+    /usr/local/bin/hourly_secure_scan.sh "MANUAL-TEST"
+
+    if find /var/lib/clamav/quarantine/ -name "eicar.com*" | grep -q "."; then
+        echo "[+] SUCCESS: EICAR detected and logged."
+        echo "[+] Check your email for the 'CRITICAL... [MANUAL-TEST]' alert."
     else
-        echo "[FAIL]: Detection failed. Ensure clamd@scan is active."
+        echo "[FAIL]: Detection failed. Check /var/log/clamav/clamd.log for errors."
     fi
 }
 
