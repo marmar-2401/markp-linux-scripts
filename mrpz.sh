@@ -1934,7 +1934,6 @@ setup_clamav() {
     freshclam >/dev/null 2>&1
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
-    
     cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
 set -u
@@ -1984,7 +1983,6 @@ else
     echo "$ENTRY" >> "$LOGS"
 fi
 [[ "$TYPE" != "MANUAL-TEST" ]] && touch "$CHK" && chown clamscan:clamscan "$CHK"
-# Create flag indicating the first scan (and setup) is officially complete
 touch /var/lib/clamav/setup_complete
 rm -f "$LIST"
 EOF
@@ -1995,7 +1993,6 @@ EMAIL_ADDR="__EMAIL__"
 FLAG="/var/lib/clamav/setup_complete"
 SERVICES=("clamd@scan" "clamav-freshclam")
 
-# Exit silently if the initial setup/scan hasn't finished yet
 if [ ! -f "$FLAG" ]; then
     exit 0
 fi
@@ -2009,18 +2006,21 @@ done
 EOF
 
     echo "[+] Configuring Cron Jobs..."
+    # FIX: Using __EMAIL__ placeholder to ensure shell doesn't break the string on creation
     cat > /etc/cron.d/clamav_jobs <<EOF
 0 * * * * root /usr/local/bin/hourly_secure_scan.sh Hourly
 */15 * * * * root /usr/local/bin/clamav_monitor.sh
 0 0 * * 0 root find /var/lib/clamav/quarantine -type f -mtime +30 -delete
-0 9 * * 1 root mail -r "$EMAIL" -s "Weekly ClamAV Report: \$(hostname)" "$EMAIL" < "$WEEKLY_REPORT" && > "$WEEKLY_REPORT"
+0 9 * * 1 root mail -r "__EMAIL__" -s "Weekly ClamAV Report: \$(hostname)" "__EMAIL__" < "$WEEKLY_REPORT" && > "$WEEKLY_REPORT"
 EOF
 
-    sed -i "s|__EMAIL__|$EMAIL|g" /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh
+    # Apply email to ALL deployed files including the cron job
+    sed -i "s|__EMAIL__|$EMAIL|g" /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh /etc/cron.d/clamav_jobs
+    
     chmod 700 /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh
     chmod 644 /etc/cron.d/clamav_jobs
     systemctl restart crond 2>/dev/null
-	
+    
     /usr/local/bin/hourly_secure_scan.sh "Initial-Setup" &
     
     echo "[+] ClamAV Setup Complete. Initial scan running in background; monitoring will activate once finished."
