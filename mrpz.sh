@@ -2159,34 +2159,62 @@ clamav_restore_file() {
 
 uninstall_clamav() {
     check_root
-	confirm_action
-    echo "[!] Warning: This will remove ClamAV, all logs, and quarantined files."
+    echo "[!] Warning: This will remove ClamAV, all logs, and ALL quarantined files."
     read -rp "Are you sure you want to proceed? (y/N): " CONFIRM
     [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]] && exit 1
 
-    echo "[+] Stopping and disabling services..."
+    echo "[+] Stopping services and killing active processes..."
     systemctl disable --now clamd@scan clamav-freshclam 2>/dev/null
+    pkill -9 clamdscan 2>/dev/null
+    pkill -9 freshclam 2>/dev/null
 
-    echo "[+] Removing Cron jobs and scripts..."
-    rm -f /etc/cron.d/clamav_jobs
+    echo "[+] Cleaning up Cron Jobs (All Types)..."
+    
+    if [ -f /etc/cron.d/clamav_jobs ]; then
+        rm -f /etc/cron.d/clamav_jobs
+        echo "    - Removed /etc/cron.d/clamav_jobs"
+    fi
+
+    if crontab -l &>/dev/null; then
+        local TMP_CRON=$(mktemp)
+        crontab -l | grep -v "hourly_secure_scan.sh" | grep -v "clamav_monitor.sh" > "$TMP_CRON"
+        
+        if [ ! -s "$TMP_CRON" ]; then
+            crontab -r 2>/dev/null
+            echo "    - Root crontab emptied and removed."
+        else
+            crontab "$TMP_CRON"
+            echo "    - ClamAV entries removed from root crontab."
+        fi
+        rm -f "$TMP_CRON"
+    fi
+
+    systemctl restart crond 2>/dev/null
+
+    echo "[+] Removing Scripts and Environment..."
     rm -f /usr/local/bin/hourly_secure_scan.sh
     rm -f /usr/local/bin/clamav_monitor.sh
     rm -f /etc/tmpfiles.d/clamav-daemon.conf
-    systemctl restart crond 2>/dev/null
+
+    echo "[+] Purging Data and Quarantine..."
+    [ -d "/var/lib/clamav/quarantine" ] && rm -rf /var/lib/clamav/quarantine/*
+    rm -rf /var/lib/clamav
+    rm -rf /var/log/clamav
 
     echo "[+] Removing Packages..."
     dnf remove -y clamav clamav-freshclam clamd >/dev/null 2>&1
 
-    echo "[+] Cleaning up directories and flags..."
-    rm -rf /var/log/clamav
-    rm -rf /var/lib/clamav
-    rm -f /var/lib/clamav/setup_complete
+    echo "[+] Removing System Users..."
+    userdel -r clamscan 2>/dev/null
+    userdel -r clamupdate 2>/dev/null
+    groupdel clamav 2>/dev/null
+    groupdel clamscan 2>/dev/null
 
-    echo "[+] Reverting SELinux policies (optional)..."
+    echo "[+] Reverting SELinux Policies..."
     setsebool -P antivirus_can_scan_system 0 2>/dev/null || true
     semanage permissive -d clamd_t 2>/dev/null || true
 
-    echo "[+] ClamAV has been successfully uninstalled."
+    echo "[+] Uninstall Complete."
 }
 
 case "$1" in
