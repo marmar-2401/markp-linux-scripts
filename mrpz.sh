@@ -115,7 +115,7 @@ check_sccadm_group() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.3.1 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.3.3 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -2020,7 +2020,6 @@ setup_clamav() {
     setfacl -m u:clamscan:x /root
     setfacl -d -m u:clamscan:rX /root
 
-    # OS-SPECIFIC LOGIC (Oracle vs RHEL)
     echo "[+] Installing Components & Configuring SELinux..."
     dnf install -y oracle-epel-release-el$(rpm -E %rhel) clamav clamav-freshclam clamd policycoreutils-python-utils mailx >/dev/null 2>&1
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
@@ -2039,7 +2038,6 @@ LOGS="/var/log/clamav/hourly_audit.log"
 WEEKLY="/var/log/clamav/weekly_report.log"
 NOW=$(date '+%Y-%m-%d %H:%M:%S')
 
-# LOCK FILE LOGIC (Prevents overlapping scans)
 exec 200>$LOCKFILE
 flock -n 200 || exit 1
 
@@ -2047,7 +2045,6 @@ LIST=$(mktemp)
 if [[ "$TYPE" == "MANUAL-TEST" ]]; then
     [[ -f "/tmp/eicar.com" ]] && echo "/tmp/eicar.com" > "$LIST"
 else
-    # Logic: Ignore system mounts, logs, and any paths in the whitelist file
     find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
          -not -path "/var/lib/clamav/*" -not -path "/var/log/clamav/*" \
          $( [ -f "$WHITE_LIST" ] && awk '{print "-not -path", $1}' "$WHITE_LIST" ) \
@@ -2062,6 +2059,7 @@ if [[ "$FILES" -gt 0 ]]; then
     SCAN_TIME=$(echo "$SCAN_RESULTS" | grep "Time:" | sed 's/Time: //' | xargs)
 
     if [[ "$INFECTED" -gt 0 ]]; then
+        #--- FIXED FORMATTING BLOCK ---
         {
             echo "Detection Type: $TYPE"
             echo "Detection Date: $NOW"
@@ -2069,14 +2067,13 @@ if [[ "$FILES" -gt 0 ]]; then
             echo "-------------------------------------------"
             echo "$SCAN_RESULTS" | grep "FOUND"
             echo "-------------------------------------------"
-            echo -n "Quarantine Dir: $Q_DIR "
-            echo "Files Checked: $FILES"
-            echo "Scan Time:     $SCAN_TIME"
+            echo "Quarantine Dir: $Q_DIR"
+            echo "Files Checked:  $FILES"
+            echo "Scan Time:      $SCAN_TIME"
         } | mailx -s "CRITICAL: Virus Detected on $(hostname) [$TYPE]" "$EMAIL_ADDR"
     fi
-    ENTRY="Date: $NOW | Type: $TYPE | Files: $FILES | Infected: $INFECTED | Time: $SCAN_TIME"
-    echo "$ENTRY" >> "$LOGS"
-    echo "$ENTRY" >> "$WEEKLY"
+    echo "Date: $NOW | Type: $TYPE | Files: $FILES | Infected: $INFECTED | Time: $SCAN_TIME" >> "$LOGS"
+    echo "Date: $NOW | Type: $TYPE | Files: $FILES | Infected: $INFECTED | Time: $SCAN_TIME" >> "$WEEKLY"
 else
     echo "Date: $NOW | Type: $TYPE | Files: 0 | Infected: 0 | Time: 0s (Idle)" >> "$LOGS"
 fi
