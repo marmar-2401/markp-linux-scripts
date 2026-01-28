@@ -1880,7 +1880,6 @@ setup_clamav() {
     # Grant clamscan permission to enter /root via ACLs
     echo "[+] Setting ACLs for /root access..."
     setfacl -m u:clamscan:x /root
-    # DEFAULT ACL ensures new files created in /root are readable by the scanner
     setfacl -d -m u:clamscan:rX /root
 
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
@@ -1920,7 +1919,6 @@ setup_clamav() {
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
     echo "[+] Deploying Secure Scan Script (Root Access Enabled)..."
-    # Using 'EOF' (quoted) is the essential fix to prevent variable mangling
     cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
 set -u
@@ -1948,28 +1946,25 @@ FILES_TO_SCAN=$(wc -l < "$LIST" | xargs)
 if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
     SCAN_RESULTS=$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="$Q_DIR" --file-list="$LIST" 2>/dev/null)
 
-    # Use awk for reliable parsing of the infected count
     INFECTED_COUNT=$(echo "$SCAN_RESULTS" | awk '/Infected files:/ {print $NF}')
     [[ -z "$INFECTED_COUNT" ]] && INFECTED_COUNT=0
     SCAN_TIME=$(echo "$SCAN_RESULTS" | grep "Time:" | awk -F: '{print $2}' | xargs)
 
     if [[ "$INFECTED_COUNT" -gt 0 ]]; then
-        # Create a physical file for the mail to ensure it works on OL9/RHEL9
         TMP_MAIL=$(mktemp)
-        echo "Detection Date: $NOW" > "$TMP_MAIL"
-        echo "-------------------------------------------" >> "$TMP_MAIL"
-        echo "Virus(es) detected on $(hostname):" >> "$TMP_MAIL"
-        echo "" >> "$TMP_MAIL"
-        
-        # List findings directly into the file
-        echo "$SCAN_RESULTS" | grep "FOUND" >> "$TMP_MAIL"
-
-        echo "" >> "$TMP_MAIL"
-        echo "----------- SCAN SUMMARY -----------" >> "$TMP_MAIL"
-        echo "Files Checked:  $FILES_TO_SCAN" >> "$TMP_MAIL"
-        echo "Infected Files: $INFECTED_COUNT" >> "$TMP_MAIL"
-        echo "Scan Time:      $SCAN_TIME" >> "$TMP_MAIL"
-        echo "------------------------------------" >> "$TMP_MAIL"
+        {
+            echo "Detection Date: $NOW"
+            echo "-------------------------------------------"
+            echo "Virus(es) detected on $(hostname):"
+            echo ""
+            echo "$SCAN_RESULTS" | grep "FOUND"
+            echo ""
+            echo "----------- SCAN SUMMARY -----------"
+            echo "Files Checked:  $FILES_TO_SCAN"
+            echo "Infected Files: $INFECTED_COUNT"
+            echo "Scan Time:      $SCAN_TIME"
+            echo "------------------------------------"
+        } > "$TMP_MAIL"
 
         /usr/bin/mailx -s "CRITICAL: Virus Detected on $(hostname)" "$EMAIL_ADDR" < "$TMP_MAIL"
         rm -f "$TMP_MAIL"
@@ -1985,7 +1980,6 @@ chown clamscan:clamscan "$CHK"
 rm -f "$LIST"
 EOF
 
-    # Properly inject the email and fix permissions
     sed -i "s|__EMAIL__|$EMAIL|" /usr/local/bin/hourly_secure_scan.sh
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
     chown root:root /usr/local/bin/hourly_secure_scan.sh
@@ -2042,9 +2036,16 @@ clamav_health_check() {
 test_clamav_setup() {
     echo "[+] Running ClamAV EICAR test..."
     local TEST_FILE="/tmp/eicar.com"
+    local CHK="/var/lib/clamav/scan_checkpoint"
+
+    # CRITICAL: Backdate or clear checkpoint to ensure 'find -newer' sees the file
+    rm -f "$CHK"
 
     sleep 1
     echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$TEST_FILE"
+    
+    # Surgical fix: Backdate the test file by 5 seconds so it is "older" than the marker created in the script
+    touch -d "5 seconds ago" "$TEST_FILE"
 
     /usr/local/bin/hourly_secure_scan.sh
 
