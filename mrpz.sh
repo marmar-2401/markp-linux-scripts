@@ -1880,8 +1880,8 @@ setup_clamav() {
     # Grant clamscan permission to enter /root via ACLs
     echo "[+] Setting ACLs for /root access..."
     setfacl -m u:clamscan:x /root
-    # Note: We don't need to recursively grant R to all of /root yet;
-    # clamdscan handles the file reading if it can reach the path.
+    # DEFAULT ACL ensures new files created in /root are readable by the scanner
+    setfacl -d -m u:clamscan:rX /root
 
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
@@ -1920,69 +1920,73 @@ setup_clamav() {
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
     echo "[+] Deploying Secure Scan Script (Root Access Enabled)..."
-    cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
+    # Using 'EOF' (quoted) is the essential fix to prevent variable mangling
+    cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
 set -u
 LOCKFILE="/run/clamd.scan/hourly_scan.lock"
-exec 200>\$LOCKFILE
+exec 200>$LOCKFILE
 flock -n 200 || exit 1
 
-SCAN_START_MARKER=\$(mktemp /tmp/clamscan_ts.XXXXXX)
-Q_DIR="$QUARANTINE_DIR"
-EMAIL_ADDR="$EMAIL"
-CHK="$CHK"
-WEEKLY="$WEEKLY_REPORT"
-LOGS="$LOG_DIR/hourly_audit.log"
-NOW=\$(date '+%Y-%m-%d %H:%M:%S')
+SCAN_START_MARKER=$(mktemp /tmp/clamscan_ts.XXXXXX)
+Q_DIR="/var/lib/clamav/quarantine"
+EMAIL_ADDR="__EMAIL__"
+CHK="/var/lib/clamav/scan_checkpoint"
+WEEKLY="/var/log/clamav/weekly_report.log"
+LOGS="/var/log/clamav/hourly_audit.log"
+NOW=$(date '+%Y-%m-%d %H:%M:%S')
 
-LIST=\$(mktemp)
-# /root is now INCLUDED in the scan
-find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
-     -not -path "/run/*" -not -path "/var/lib/clamav/*" -not -path "$LOG_DIR/*" \\
-     -not -path "\$Q_DIR/*" \\
-     \$([ -f "\$CHK" ] && echo "-newer \$CHK") \\
-     -mmin +1 > "\$LIST" 2>/dev/null || true
+LIST=$(mktemp)
+find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
+     -not -path "/run/*" -not -path "/var/lib/clamav/*" -not -path "/var/log/clamav/*" \
+     -not -path "$Q_DIR/*" \
+     $([ -f "$CHK" ] && echo "-newer $CHK") \
+     -mmin +1 > "$LIST" 2>/dev/null || true
 
-FILES_TO_SCAN=\$(wc -l < "\$LIST" | xargs)
+FILES_TO_SCAN=$(wc -l < "$LIST" | xargs)
 
-if [[ "\$FILES_TO_SCAN" -gt 0 ]]; then
-    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
+if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
+    SCAN_RESULTS=$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="$Q_DIR" --file-list="$LIST" 2>/dev/null)
 
-    INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep -m1 "Infected files" | grep -o '[0-9]*' || echo 0)
-    SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep "Time:" | awk -F: '{print \$2}' | xargs)
+    # Use awk for reliable parsing of the infected count
+    INFECTED_COUNT=$(echo "$SCAN_RESULTS" | awk '/Infected files:/ {print $NF}')
+    [[ -z "$INFECTED_COUNT" ]] && INFECTED_COUNT=0
+    SCAN_TIME=$(echo "$SCAN_RESULTS" | grep "Time:" | awk -F: '{print $2}' | xargs)
 
-    if [[ "\$INFECTED_COUNT" -gt 0 ]]; then
-        REPORT="Detection Date: \$NOW\n"
-        REPORT+="-------------------------------------------\n"
-        REPORT+="Virus(es) detected on \$(hostname):\n\n"
+    if [[ "$INFECTED_COUNT" -gt 0 ]]; then
+        # Create a physical file for the mail to ensure it works on OL9/RHEL9
+        TMP_MAIL=$(mktemp)
+        echo "Detection Date: $NOW" > "$TMP_MAIL"
+        echo "-------------------------------------------" >> "$TMP_MAIL"
+        echo "Virus(es) detected on $(hostname):" >> "$TMP_MAIL"
+        echo "" >> "$TMP_MAIL"
+        
+        # List findings directly into the file
+        echo "$SCAN_RESULTS" | grep "FOUND" >> "$TMP_MAIL"
 
-        while read -r FILE; do
-            [ -z "\$FILE" ] && continue
-            FILENAME=\$(basename "\$FILE")
-            REPORT+="Original Path:   \$FILE\n"
-            REPORT+="Quarantine Path: \$Q_DIR/\$FILENAME\n"
-            REPORT+="-------------------------------------------\n"
-        done <<< "\$(echo "\$SCAN_RESULTS" | grep "FOUND" | awk -F: '{print \$1}')"
+        echo "" >> "$TMP_MAIL"
+        echo "----------- SCAN SUMMARY -----------" >> "$TMP_MAIL"
+        echo "Files Checked:  $FILES_TO_SCAN" >> "$TMP_MAIL"
+        echo "Infected Files: $INFECTED_COUNT" >> "$TMP_MAIL"
+        echo "Scan Time:      $SCAN_TIME" >> "$TMP_MAIL"
+        echo "------------------------------------" >> "$TMP_MAIL"
 
-        REPORT+="\n----------- SCAN SUMMARY -----------\n"
-        REPORT+="Files Checked:  \$FILES_TO_SCAN\n"
-        REPORT+="Infected Files: \$INFECTED_COUNT\n"
-        REPORT+="Scan Time:      \$SCAN_TIME\n"
-        REPORT+="------------------------------------"
-
-        echo -e "\$REPORT" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
+        /usr/bin/mailx -s "CRITICAL: Virus Detected on $(hostname)" "$EMAIL_ADDR" < "$TMP_MAIL"
+        rm -f "$TMP_MAIL"
     fi
 
-    ENTRY="Date: \$NOW | Files: \$FILES_TO_SCAN | Infected: \$INFECTED_COUNT | Time: \$SCAN_TIME"
-    echo "\$ENTRY" >> "\$WEEKLY"
-    echo "\$ENTRY" >> "\$LOGS"
+    ENTRY="Date: $NOW | Files: $FILES_TO_SCAN | Infected: $INFECTED_COUNT | Time: $SCAN_TIME"
+    echo "$ENTRY" >> "$WEEKLY"
+    echo "$ENTRY" >> "$LOGS"
 fi
 
-mv "\$SCAN_START_MARKER" "\$CHK"
-chown clamscan:clamscan "\$CHK"
-rm -f "\$LIST"
+mv "$SCAN_START_MARKER" "$CHK"
+chown clamscan:clamscan "$CHK"
+rm -f "$LIST"
 EOF
 
+    # Properly inject the email and fix permissions
+    sed -i "s|__EMAIL__|$EMAIL|" /usr/local/bin/hourly_secure_scan.sh
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
     chown root:root /usr/local/bin/hourly_secure_scan.sh
 
@@ -1993,7 +1997,7 @@ EOF
     ) | crontab -
 
     echo "[+] Setup Complete."
-}  
+}
 
 clamav_health_check() {
     check_root
@@ -2011,7 +2015,7 @@ clamav_health_check() {
         echo "Last Database Update: $(stat -c %y "$DB_FILE" | cut -d'.' -f1)"
     fi
     local LAST_CHECK=$(journalctl -u clamav-freshclam --since "24 hours ago" | grep "process started" | tail -n 1 | awk '{print $1,$2,$3}')
-    echo "Last Update Check:   ${LAST_CHECK:-No check in last 24h}"
+    echo "Last Update Check:    ${LAST_CHECK:-No check in last 24h}"
 
     echo ""
     echo "=== Resource & Reporting ==="
