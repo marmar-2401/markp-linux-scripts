@@ -2130,16 +2130,63 @@ EOF
 
 clamav_health_check() {
     check_root
-    echo "=== ClamAV Health Check ==="
-    systemctl is-active --quiet clamd@scan && echo "[OK] clamd scanner running" || echo "[FAIL] clamd scanner DOWN"
-    systemctl is-active --quiet clamav-freshclam && echo "[OK] freshclam updater running" || echo "[FAIL] freshclam updater DOWN"
+    echo "========================================================="
+    echo "   CLAMAV PRODUCTION OPTIMIZATION AUDIT - $(hostname)"
+    echo "========================================================="
+
+    # 1. CORE SERVICES & DB FRESHNESS
+    echo "--- [Core Services] ---"
+    systemctl is-active --quiet clamd@scan && echo "[PASS] clamd (Scanner Daemon) is active" || echo "[FAIL] clamd is DOWN"
+    systemctl is-active --quiet clamav-freshclam && echo "[PASS] freshclam (Updater) is active" || echo "[FAIL] freshclam is DOWN"
     
+    echo -n "Last DB Update: "
+    if [ -f /var/log/clamav/freshclam.log ]; then
+        grep "updated" /var/log/clamav/freshclam.log | tail -n 1 || echo "No update record found."
+    else
+        echo "LOG MISSING: /var/log/clamav/freshclam.log"
+    fi
+
+    # 2. FILE SYSTEM & PERMISSIONS (THE "MR.PZ" SPECIALS)
+    echo ""
+    echo "--- [Security & Path Integrity] ---"
+    # Verify the Root Access ACL
+    getfacl /root 2>/dev/null | grep -q "user:clamscan:--x" && echo "[PASS] /root ACL for 'clamscan' verified" || echo "[FAIL] ACL missing - Scanner cannot enter /root"
+    
+    # Verify SELinux Boolean
+    getsebool antivirus_can_scan_system 2>/dev/null | grep -q "on" && echo "[PASS] SELinux 'antivirus_can_scan_system' is ON" || echo "[FAIL] SELinux will block the scan!"
+    
+    # Verify Quarantine setup
+    [ -d /var/lib/clamav/quarantine ] && echo "[PASS] Quarantine directory exists" || echo "[FAIL] Quarantine directory missing"
+    
+    # Check Checkpoint age (Ensures incremental logic isn't 'stuck' in the past)
+    if [ -f /var/lib/clamav/scan_checkpoint ]; then
+        local CHK_AGE=$(stat -c %Y /var/lib/clamav/scan_checkpoint)
+        local NOW=$(date +%s)
+        local DIFF=$(( (NOW - CHK_AGE) / 60 ))
+        echo "[INFO] Checkpoint is $DIFF minutes old (Current Incremental Window)"
+    fi
+
+    # 3. RESOURCE OPTIMIZATION
+    echo ""
+    echo "--- [Automation & Optimization] ---"
+    # Check for the Heartbeat Monitor
+    [ -f /usr/local/bin/clamav_monitor.sh ] && echo "[PASS] Heartbeat Monitor script deployed" || echo "[WARN] Monitor script missing"
+    
+    # Verify Cron density
+    CRON_COUNT=$(crontab -l 2>/dev/null | grep -c "clamav")
+    echo "[INFO] Active ClamAV Cron Jobs: $CRON_COUNT (Target: 4)"
+
+    # 4. DATA SUMMARY
+    echo ""
+    echo "--- [Log Audit & Quarantine Status] ---"
     local Q_COUNT=$(find /var/lib/clamav/quarantine -mindepth 1 -type f | wc -l)
-    echo "Items in Quarantine: $Q_COUNT"
+    echo "Current Quarantined Items: $Q_COUNT"
     
     echo ""
-    echo "=== Recent Log Entries ==="
-    [ -f /var/log/clamav/hourly_audit.log ] && tail -n 5 /var/log/clamav/hourly_audit.log || echo "No logs found."
+    echo "Last 5 Audit Entries:"
+    echo "---------------------------------------------------------"
+    [ -f /var/log/clamav/hourly_audit.log ] && tail -n 5 /var/log/clamav/hourly_audit.log || echo "No log data available yet."
+    echo "---------------------------------------------------------"
 }
 
 test_clamav_setup() {
