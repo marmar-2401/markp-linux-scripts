@@ -1869,29 +1869,25 @@ setup_clamav() {
 
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR"
-    
+
     groupadd -f clamav
     usermod -aG clamav clamupdate
     usermod -aG clamav clamscan
-    
+
     chown -R clamupdate:clamav "$LOG_DIR"
     chmod 775 "$LOG_DIR"
 
-    echo "[+] Setting ACLs for /root access and inheritance..."
+    # Grant clamscan permission to enter /root via ACLs
+    echo "[+] Setting ACLs for /root access..."
     setfacl -m u:clamscan:x /root
-    [ -d "/root/utility-scripts" ] && setfacl -R -m u:clamscan:rX /root/utility-scripts
-    setfacl -d -m u:clamscan:rX /root
+    # Note: We don't need to recursively grant R to all of /root yet;
+    # clamdscan handles the file reading if it can reach the path.
 
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
 
     echo "[+] Configuring EPEL & Installing Components..."
-    if grep -q "Oracle Linux" /etc/os-release; then
-        dnf install -y oracle-epel-release-el$(rpm -E %rhel) >/dev/null 2>&1 || true
-    else
-        dnf install -y epel-release >/dev/null 2>&1 || true
-    fi
-    dnf install -y clamav clamav-freshclam clamd policycoreutils-python-utils mailx >/dev/null 2>&1
+    dnf install -y oracle-epel-release-el$(rpm -E %rhel) clamav clamav-freshclam clamd policycoreutils-python-utils mailx >/dev/null 2>&1
 
     set -euo pipefail
 
@@ -1903,7 +1899,7 @@ setup_clamav() {
             sed -i 's|^#LogFileMaxSize .*|LogFileMaxSize 2M|' "$cfg"
         fi
     done
-    
+
     sed -i "s|^#UpdateLogFile.*|UpdateLogFile $LOG_DIR/freshclam.log|" /etc/freshclam.conf
     sed -i 's|^#LocalSocket .*|LocalSocket /run/clamd.scan/clamd.sock|' /etc/clamd.d/scan.conf
     sed -i 's|^#User .*|User clamscan|' /etc/clamd.d/scan.conf
@@ -1923,7 +1919,7 @@ setup_clamav() {
     echo "[+] Starting Services..."
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
-    echo "[+] Deploying Secure Scan Script..."
+    echo "[+] Deploying Secure Scan Script (Root Access Enabled)..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -1940,10 +1936,10 @@ LOGS="$LOG_DIR/hourly_audit.log"
 NOW=\$(date '+%Y-%m-%d %H:%M:%S')
 
 LIST=\$(mktemp)
+# /root is now INCLUDED in the scan
 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" -not -path "$LOG_DIR/*" \\
      -not -path "\$Q_DIR/*" \\
-     -not -path "/var/lib/sss/*" -not -path "/var/log/chrony/*" -not -path "/var/cache/dnf/*" \\
      \$([ -f "\$CHK" ] && echo "-newer \$CHK") \\
      -mmin +1 > "\$LIST" 2>/dev/null || true
 
@@ -1951,36 +1947,30 @@ FILES_TO_SCAN=\$(wc -l < "\$LIST" | xargs)
 
 if [[ "\$FILES_TO_SCAN" -gt 0 ]]; then
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
-    
+
     INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep -m1 "Infected files" | grep -o '[0-9]*' || echo 0)
     SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep "Time:" | awk -F: '{print \$2}' | xargs)
 
     if [[ "\$INFECTED_COUNT" -gt 0 ]]; then
-        EMAIL_BODY=\$(mktemp)
-        {
-            echo "Detection Date: \$NOW"
-            echo "-------------------------------------------"
-            echo "Virus(es) detected on \$(hostname):"
-            echo ""
-            echo "\$SCAN_RESULTS" | grep "FOUND" | while read -r LINE; do
-                FILE_PATH=\$(echo "\$LINE" | awk -F: '{print \$1}')
-                VIRUS_NAME=\$(echo "\$LINE" | awk -F: '{print \$2}' | xargs)
-                FILENAME=\$(basename "\$FILE_PATH")
-                echo "Original Path:   \$FILE_PATH"
-                echo "Virus Name:      \$VIRUS_NAME"
-                echo "Quarantine Path: \$Q_DIR/\$FILENAME"
-                echo "-------------------------------------------"
-            done
-            echo ""
-            echo "----------- SCAN SUMMARY -----------"
-            echo "Files Checked:  \$FILES_TO_SCAN"
-            echo "Infected Files: \$INFECTED_COUNT"
-            echo "Scan Time:      \$SCAN_TIME"
-            echo "------------------------------------"
-        } > "\$EMAIL_BODY"
+        REPORT="Detection Date: \$NOW\n"
+        REPORT+="-------------------------------------------\n"
+        REPORT+="Virus(es) detected on \$(hostname):\n\n"
 
-        mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR" < "\$EMAIL_BODY"
-        rm -f "\$EMAIL_BODY"
+        while read -r FILE; do
+            [ -z "\$FILE" ] && continue
+            FILENAME=\$(basename "\$FILE")
+            REPORT+="Original Path:   \$FILE\n"
+            REPORT+="Quarantine Path: \$Q_DIR/\$FILENAME\n"
+            REPORT+="-------------------------------------------\n"
+        done <<< "\$(echo "\$SCAN_RESULTS" | grep "FOUND" | awk -F: '{print \$1}')"
+
+        REPORT+="\n----------- SCAN SUMMARY -----------\n"
+        REPORT+="Files Checked:  \$FILES_TO_SCAN\n"
+        REPORT+="Infected Files: \$INFECTED_COUNT\n"
+        REPORT+="Scan Time:      \$SCAN_TIME\n"
+        REPORT+="------------------------------------"
+
+        echo -e "\$REPORT" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
     fi
 
     ENTRY="Date: \$NOW | Files: \$FILES_TO_SCAN | Infected: \$INFECTED_COUNT | Time: \$SCAN_TIME"
@@ -2003,7 +1993,7 @@ EOF
     ) | crontab -
 
     echo "[+] Setup Complete."
-}
+}  
 
 clamav_health_check() {
     check_root
