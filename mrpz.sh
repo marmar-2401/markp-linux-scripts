@@ -193,7 +193,7 @@ printf "${YELLOW}--histtimestampfix${NC}	# Corrects history timestamp variable i
 printf "${YELLOW}--coredumpfix${NC}	# Corrects coredump permissions\n\n"
 printf "${YELLOW}--setupclamav${NC}	# Configures ClamAV optimally\n\n"
 printf "${YELLOW}--restoreclamav${NC}	# Allows you to restore a quarantined file and whitelist it\n\n"
-printf "${YELLOW}--removeclamav${NC}	# Allows you to restore a quarantined file and whitelist it\n\n"
+printf "${YELLOW}--removeclamav${NC}	# Allows you to remove ClamAV installation\n\n"
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
 printf "${YELLOW}--auditdisc${NC}	# Description for misconfigured audit rules\n\n"
 printf "${YELLOW}--listndisc${NC}	# Description for oracle listener issues\n\n"
