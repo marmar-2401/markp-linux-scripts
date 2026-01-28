@@ -115,7 +115,7 @@ check_sccadm_group() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.3.3 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.3.4 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -164,6 +164,7 @@ printf "${MAGENTA} 1.3.0 | 01/26/2026 | - ClamAV checker added ${NC}\n"
 printf "${MAGENTA} 1.3.1 | 01/26/2026 | - ClamAV setup option added ${NC}\n"
 printf "${MAGENTA} 1.3.2 | 01/26/2026 | - ClamAV scan tester was added ${NC}\n"
 printf "${MAGENTA} 1.3.3 | 01/28/2026 | - ClamAV restore and whitelist option created ${NC}\n"
+printf "${MAGENTA} 1.3.4 | 01/28/2026 | - Created a clamav uninstaller ${NC}\n"
 }
 
 print_help() {
@@ -192,6 +193,7 @@ printf "${YELLOW}--histtimestampfix${NC}	# Corrects history timestamp variable i
 printf "${YELLOW}--coredumpfix${NC}	# Corrects coredump permissions\n\n"
 printf "${YELLOW}--setupclamav${NC}	# Configures ClamAV optimally\n\n"
 printf "${YELLOW}--restoreclamav${NC}	# Allows you to restore a quarantined file and whitelist it\n\n"
+printf "${YELLOW}--removeclamav${NC}	# Allows you to restore a quarantined file and whitelist it\n\n"
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
 printf "${YELLOW}--auditdisc${NC}	# Description for misconfigured audit rules\n\n"
 printf "${YELLOW}--listndisc${NC}	# Description for oracle listener issues\n\n"
@@ -1870,14 +1872,12 @@ setup_clamav() {
     local WHITE_LIST="/var/lib/clamav/whitelist.txt"
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
 
-    # 1. INSTALLATION
     echo "[+] Installing Components..."
     dnf install -y oracle-epel-release-el$(rpm -E %rhel) >/dev/null 2>&1
     dnf config-manager --set-enabled ol$(rpm -E %rhel)_developer_EPEL >/dev/null 2>&1 || true
     dnf makecache >/dev/null 2>&1
     dnf install -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
     
-    # --- USER SYNC BLOCK ---
     echo "[+] Synchronizing system users..."
     local RETRY=0
     while ! getent passwd clamscan >/dev/null; do
@@ -1893,13 +1893,11 @@ setup_clamav() {
         ((RETRY++))
     done
     udevadm settle 
-    # -----------------------
 
     if ! command -v mail &>/dev/null; then
         dnf install -y mailx >/dev/null 2>&1 || dnf install -y s-nail >/dev/null 2>&1
     fi
 
-    # 2. PREPARE ENVIRONMENT
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR"
     touch "$WHITE_LIST"
@@ -1918,7 +1916,6 @@ setup_clamav() {
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
 
-    # 3. CONFIGURE DAEMON
     echo "[+] Configuring ClamAV Daemon Settings..."
     if [ -f /etc/clamd.d/scan.conf ]; then
         sed -i 's/^Example/#Example/' /etc/clamd.d/scan.conf
@@ -1937,7 +1934,7 @@ setup_clamav() {
     freshclam >/dev/null 2>&1
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
-    # 4. DEPLOY SCANNER SCRIPT (Modified to create flag upon completion)
+    
     cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
 set -u
@@ -1992,7 +1989,6 @@ touch /var/lib/clamav/setup_complete
 rm -f "$LIST"
 EOF
 
-    # 5. DEPLOY MONITOR (Modified to ignore until first scan is complete)
     cat > /usr/local/bin/clamav_monitor.sh <<'EOF'
 #!/bin/bash
 EMAIL_ADDR="__EMAIL__"
@@ -2012,7 +2008,6 @@ for SVC in "${SERVICES[@]}"; do
 done
 EOF
 
-    # 6. AUTOMATION
     echo "[+] Configuring Cron Jobs..."
     cat > /etc/cron.d/clamav_jobs <<EOF
 0 * * * * root /usr/local/bin/hourly_secure_scan.sh Hourly
@@ -2025,8 +2020,7 @@ EOF
     chmod 700 /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh
     chmod 644 /etc/cron.d/clamav_jobs
     systemctl restart crond 2>/dev/null
-    
-    # Run the first scan in the background now so the monitor activates once it finishes
+	
     /usr/local/bin/hourly_secure_scan.sh "Initial-Setup" &
     
     echo "[+] ClamAV Setup Complete. Initial scan running in background; monitoring will activate once finished."
@@ -2043,7 +2037,7 @@ clamav_health_check() {
     printf "Updater (freshclam):  %-10s\n" "$(systemctl is-active clamav-freshclam)"
     
     echo -n "Last DB Update:        "
-    # Fixed: OL10 uses .cvd extension
+    
     if [ -f /var/lib/clamav/daily.cvd ]; then
         date -d "@$(stat -c %Y /var/lib/clamav/daily.cvd)" '+%Y-%m-%d %H:%M:%S'
     elif [ -f /var/lib/clamav/daily.cld ]; then
@@ -2077,7 +2071,7 @@ clamav_health_check() {
     echo "--- [Security & Permissions] ---"
     getfacl /root 2>/dev/null | grep -q "user:clamscan:--x" && echo "[PASS] Scanner can access /root." || echo "[FAIL] Scanner blocked from /root."
     
-    # Surgical fix: check if clamd is permissive OR if it is running unconfined (OL10)
+
     if (getsebool antivirus_can_scan_system 2>/dev/null | grep -q "on" || \
         semanage permissive -l 2>/dev/null | grep -q "clamd_t" || \
         ps -eZ | grep -v grep | grep clamd | grep -q "unconfined_service_t"); then
@@ -2088,7 +2082,6 @@ clamav_health_check() {
     
     echo ""
     echo "--- [Automation: Core Cron Jobs] ---"
-    # Fixed: Look in /etc/cron.d/ since that is where setup_clamav puts them
     local CRON_DATA
     CRON_DATA=$(cat /etc/cron.d/clamav_jobs 2>/dev/null)
 
@@ -2103,7 +2096,6 @@ clamav_health_check() {
     check_job "/usr/local/bin/clamav_monitor.sh" "Service Monitor"
     check_job "/usr/local/bin/hourly_secure_scan.sh" "Security Scanner"
     check_job "quarantine -type f -mtime +30 -delete" "Quarantine Cleanup"
-    # Fixed grep pattern to match the actual cron line "Weekly ClamAV Report:"
     check_job "Weekly ClamAV Report" "Weekly Report Email"
     
     echo "[INFO] Whitelisted Entries: $(wc -l < /var/lib/clamav/whitelist.txt 2>/dev/null || echo 0)"
@@ -2140,6 +2132,7 @@ test_clamav_setup() {
 
 clamav_restore_file() {
     check_root
+	confirm_action
     local Q_DIR="/var/lib/clamav/quarantine"
     local WHITE_LIST="/var/lib/clamav/whitelist.txt"
     
@@ -2162,6 +2155,38 @@ clamav_restore_file() {
     echo "$DEST/$FILE_NAME" >> "$WHITE_LIST"
     sort -u "$WHITE_LIST" -o "$WHITE_LIST"
     echo "[SUCCESS] $FILE_NAME restored and whitelisted."
+}
+
+uninstall_clamav() {
+    check_root
+	confirm_action
+    echo "[!] Warning: This will remove ClamAV, all logs, and quarantined files."
+    read -rp "Are you sure you want to proceed? (y/N): " CONFIRM
+    [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]] && exit 1
+
+    echo "[+] Stopping and disabling services..."
+    systemctl disable --now clamd@scan clamav-freshclam 2>/dev/null
+
+    echo "[+] Removing Cron jobs and scripts..."
+    rm -f /etc/cron.d/clamav_jobs
+    rm -f /usr/local/bin/hourly_secure_scan.sh
+    rm -f /usr/local/bin/clamav_monitor.sh
+    rm -f /etc/tmpfiles.d/clamav-daemon.conf
+    systemctl restart crond 2>/dev/null
+
+    echo "[+] Removing Packages..."
+    dnf remove -y clamav clamav-freshclam clamd >/dev/null 2>&1
+
+    echo "[+] Cleaning up directories and flags..."
+    rm -rf /var/log/clamav
+    rm -rf /var/lib/clamav
+    rm -f /var/lib/clamav/setup_complete
+
+    echo "[+] Reverting SELinux policies (optional)..."
+    setsebool -P antivirus_can_scan_system 0 2>/dev/null || true
+    semanage permissive -d clamd_t 2>/dev/null || true
+
+    echo "[+] ClamAV has been successfully uninstalled."
 }
 
 case "$1" in
@@ -2187,6 +2212,7 @@ case "$1" in
 	--setupclamav) setup_clamav ;;
 	--testclamav) test_clamav_setup ;;
 	--restoreclamav) clamav_restore_file ;;
+	--removeclamav) uninstall_clamav ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
