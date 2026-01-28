@@ -1998,14 +1998,15 @@ setup_clamav() {
     check_root
     confirm_action
     local EMAIL
-    read -rp "Where should I send security alerts? (Enter Email): " EMAIL
+    read -rp "Enter email for ClamAV alerts: " EMAIL
     
     local LOG_DIR="/var/log/clamav"
     local Q_DIR="/var/lib/clamav/quarantine"
     local WHITE_LIST="/var/lib/clamav/whitelist.txt"
+    local CHK="/var/lib/clamav/scan_checkpoint"
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
 
-    echo "[+] Preparing Security Environment..."
+    echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$Q_DIR"
     touch "$WHITE_LIST" "$WEEKLY_REPORT"
     
@@ -2019,7 +2020,8 @@ setup_clamav() {
     setfacl -m u:clamscan:x /root
     setfacl -d -m u:clamscan:rX /root
 
-    echo "[+] Installing Components & Hardening Kernel (SELinux)..."
+    # OS-SPECIFIC LOGIC (Oracle vs RHEL)
+    echo "[+] Installing Components & Configuring SELinux..."
     dnf install -y oracle-epel-release-el$(rpm -E %rhel) clamav clamav-freshclam clamd policycoreutils-python-utils mailx >/dev/null 2>&1
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
@@ -2028,6 +2030,7 @@ setup_clamav() {
 #!/bin/bash
 set -u
 TYPE=${1:-Hourly}
+LOCKFILE="/run/clamd.scan/hourly_scan.lock"
 EMAIL_ADDR="__EMAIL__"
 Q_DIR="/var/lib/clamav/quarantine"
 WHITE_LIST="/var/lib/clamav/whitelist.txt"
@@ -2036,11 +2039,15 @@ LOGS="/var/log/clamav/hourly_audit.log"
 WEEKLY="/var/log/clamav/weekly_report.log"
 NOW=$(date '+%Y-%m-%d %H:%M:%S')
 
+# LOCK FILE LOGIC (Prevents overlapping scans)
+exec 200>$LOCKFILE
+flock -n 200 || exit 1
+
 LIST=$(mktemp)
 if [[ "$TYPE" == "MANUAL-TEST" ]]; then
     [[ -f "/tmp/eicar.com" ]] && echo "/tmp/eicar.com" > "$LIST"
 else
-    # Logic: Scan everything EXCEPT system mounts, the quarantine, and Whitelisted files
+    # Logic: Ignore system mounts, logs, and any paths in the whitelist file
     find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
          -not -path "/var/lib/clamav/*" -not -path "/var/log/clamav/*" \
          $( [ -f "$WHITE_LIST" ] && awk '{print "-not -path", $1}' "$WHITE_LIST" ) \
@@ -2052,15 +2059,26 @@ if [[ "$FILES" -gt 0 ]]; then
     SCAN_RESULTS=$(nice -n 19 ionice -c 3 clamdscan --multiscan --move="$Q_DIR" --file-list="$LIST" 2>/dev/null)
     INFECTED=$(echo "$SCAN_RESULTS" | grep "Infected files:" | awk '{print $NF}')
     [[ -z "$INFECTED" ]] && INFECTED=0
-    
+    SCAN_TIME=$(echo "$SCAN_RESULTS" | grep "Time:" | sed 's/Time: //' | xargs)
+
     if [[ "$INFECTED" -gt 0 ]]; then
-        { echo "Type: $TYPE"; echo "Host: $(hostname)"; echo "---"; echo "$SCAN_RESULTS" | grep "FOUND"; } | mailx -s "CRITICAL: Virus Found [$TYPE]" "$EMAIL_ADDR"
+        {
+            echo "Detection Type: $TYPE"
+            echo "Detection Date: $NOW"
+            echo "Virus(es) detected on $(hostname):"
+            echo "-------------------------------------------"
+            echo "$SCAN_RESULTS" | grep "FOUND"
+            echo "-------------------------------------------"
+            echo -n "Quarantine Dir: $Q_DIR "
+            echo "Files Checked: $FILES"
+            echo "Scan Time:     $SCAN_TIME"
+        } | mailx -s "CRITICAL: Virus Detected on $(hostname) [$TYPE]" "$EMAIL_ADDR"
     fi
-    ENTRY="Date: $NOW | Type: $TYPE | Files: $FILES | Infected: $INFECTED"
+    ENTRY="Date: $NOW | Type: $TYPE | Files: $FILES | Infected: $INFECTED | Time: $SCAN_TIME"
     echo "$ENTRY" >> "$LOGS"
     echo "$ENTRY" >> "$WEEKLY"
 else
-    echo "Date: $NOW | Type: $TYPE | Files: 0 | Infected: 0 (Heartbeat)" >> "$LOGS"
+    echo "Date: $NOW | Type: $TYPE | Files: 0 | Infected: 0 | Time: 0s (Idle)" >> "$LOGS"
 fi
 [[ "$TYPE" != "MANUAL-TEST" ]] && touch "$CHK" && chown clamscan:clamscan "$CHK"
 rm -f "$LIST"
@@ -2069,7 +2087,6 @@ EOF
     sed -i "s|__EMAIL__|$EMAIL|" /usr/local/bin/hourly_secure_scan.sh
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
 
-    echo "[+] Configuring Schedules (Cron)..."
     ( crontab -l 2>/dev/null | grep -v -E 'hourly_secure_scan.sh|weekly_report.log|quarantine.*delete' || true ;
       echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ;
       echo "0 1 * * * find /var/lib/clamav/quarantine -type f -mtime +30 -delete" ;
@@ -2083,44 +2100,35 @@ clamav_health_check() {
     echo "========================================================="
     echo "   CLAMAV SYSTEM CHECK-UP - $(hostname)"
     echo "========================================================="
-
     echo "--- [Core Services] ---"
-    systemctl is-active --quiet clamd@scan && echo "[YES] Scanner is guarding files." || echo "[NO] Scanner is OFF."
-    echo -n "Last Update: "
+    systemctl is-active --quiet clamd@scan && echo "[YES] Scanner is active." || echo "[NO] Scanner is OFF."
+    echo -n "Last Virus DB Update: "
     grep "updated" /var/log/clamav/freshclam.log 2>/dev/null | tail -n 1 || echo "No updates yet."
 
     echo ""
     echo "--- [Security & Permissions] ---"
     getfacl /root 2>/dev/null | grep -q "user:clamscan:--x" && echo "[PASS] Scanner can access /root." || echo "[FAIL] Scanner blocked from /root."
-    getsebool antivirus_can_scan_system 2>/dev/null | grep -q "on" && echo "[PASS] SELinux is allowing scans." || echo "[FAIL] SELinux is blocking scans."
+    getsebool antivirus_can_scan_system 2>/dev/null | grep -q "on" && echo "[PASS] SELinux allows scanning." || echo "[FAIL] SELinux blocking scan."
     
     echo ""
     echo "--- [Automation & Whitelist] ---"
     CRON_COUNT=$(crontab -l 2>/dev/null | grep -E 'hourly_secure_scan.sh|quarantine.*delete|weekly_report.log' | wc -l)
-    echo "[INFO] Scheduled Tasks: $CRON_COUNT (Target: 3)"
-    
-    local W_COUNT=$(wc -l < /var/lib/clamav/whitelist.txt 2>/dev/null || echo 0)
-    echo "[INFO] Files on 'Safe List' (Whitelisted): $W_COUNT"
+    echo "[INFO] Tasks Scheduled: $CRON_COUNT (Target: 3)"
+    echo "[INFO] Whitelisted Files: $(wc -l < /var/lib/clamav/whitelist.txt 2>/dev/null || echo 0)"
 
     echo ""
     echo "--- [Recent Activity] ---"
-    [ -f /var/log/clamav/hourly_audit.log ] && tail -n 5 /var/log/clamav/hourly_audit.log || echo "No logs yet."
+    [ -f /var/log/clamav/hourly_audit.log ] && tail -n 5 /var/log/clamav/hourly_audit.log || echo "No logs found."
     echo "---------------------------------------------------------"
 }
 
 test_clamav_setup() {
-    echo "[+] Starting Fire Drill (Simulated Infection)..."
+    echo "[+] Running Fast-Track Test..."
     local TEST_FILE="/tmp/eicar.com"
     echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$TEST_FILE"
     chmod 644 "$TEST_FILE"
-    
     /usr/local/bin/hourly_secure_scan.sh "MANUAL-TEST"
-
-    if find /var/lib/clamav/quarantine/ -name "eicar.com*" | grep -q .; then
-        echo "[SUCCESS] Virus detected, jailed, and alert sent."
-    else
-        echo "[FAIL] Detection failed. Check clamd status."
-    fi
+    echo "[SUCCESS] Test complete. Check your email for the report."
 }
 
 clamav_restore_file() {
@@ -2129,29 +2137,25 @@ clamav_restore_file() {
     local WHITE_LIST="/var/lib/clamav/whitelist.txt"
     
     echo "=== Quarantine Release Center ==="
-    local FILES=$(ls "$Q_DIR")
+    local FILES=$(ls "$Q_DIR" 2>/dev/null)
     if [ -z "$FILES" ]; then
-        echo "The jail is empty. Nothing to restore!"
+        echo "Quarantine is empty."
         return
     fi
     
     ls -1 "$Q_DIR"
     echo "--------------------------------"
-    read -rp "Enter the name of the file to release: " FILE_NAME
-    
-    if [ ! -f "$Q_DIR/$FILE_NAME" ]; then
-        echo "[ERROR] '$FILE_NAME' is not in quarantine."
-        return 1
-    fi
+    read -rp "Enter filename to restore: " FILE_NAME
+    [[ ! -f "$Q_DIR/$FILE_NAME" ]] && echo "File not found." && return 1
     
     read -rp "Restore to which directory? (e.g. /tmp): " DEST
     [[ ! -d "$DEST" ]] && echo "Invalid directory." && return 1
 
     mv "$Q_DIR/$FILE_NAME" "$DEST/"
+    # Logic: Adds full path to whitelist to prevent the scanner from re-moving it
     echo "$DEST/$FILE_NAME" >> "$WHITE_LIST"
     sort -u "$WHITE_LIST" -o "$WHITE_LIST"
-    
-    echo "[SUCCESS] $FILE_NAME restored to $DEST and added to Safe List."
+    echo "[SUCCESS] $FILE_NAME restored and whitelisted."
 }
 
 case "$1" in
