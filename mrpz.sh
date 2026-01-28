@@ -1871,11 +1871,9 @@ setup_clamav() {
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
 
     # 1. INSTALLATION FIRST
-    # This ensures clamscan/clamupdate users are created before the script tries to use them
     echo "[+] Installing Components (This may take a moment)..."
     dnf install -y oracle-epel-release-el$(rpm -E %rhel) clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
     
-    # Package fallback logic: Ensures 'mail' command exists on OL9 and OL10
     if ! command -v mail &>/dev/null; then
         echo "[+] Installing Mail Utility (Fallback Logic)..."
         dnf install -y mailx >/dev/null 2>&1 || dnf install -y s-nail >/dev/null 2>&1
@@ -1891,17 +1889,30 @@ setup_clamav() {
     chown -R clamupdate:clamav "$LOG_DIR"
     chmod 775 "$LOG_DIR"
     
-    # Set ACLs
     setfacl -m u:clamscan:x /root
     setfacl -d -m u:clamscan:rX /root
 
-    # Create runtime directory (clamscan user now exists so this won't fail)
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
 
-    # 3. CONFIGURE SERVICES
+    # 3. CONFIGURE DAEMON (Universal RHEL 8/9/10 Fixes)
+    echo "[+] Configuring ClamAV Daemon Settings..."
+    if [ -f /etc/clamd.d/scan.conf ]; then
+        # Remove the 'Example' safety block
+        sed -i 's/^Example/#Example/' /etc/clamd.d/scan.conf
+        # Enable Local Socket for clamdscan communication
+        sed -i 's|^#LocalSocket /.*|LocalSocket /run/clamd.scan/clamd.sock|' /etc/clamd.d/scan.conf
+        # Set Socket permissions
+        sed -i 's|^#LocalSocketGroup .*|LocalSocketGroup clamav|' /etc/clamd.d/scan.conf
+        sed -i 's|^#LocalSocketMode .*|LocalSocketMode 660|' /etc/clamd.d/scan.conf
+    fi
+
     echo "[+] Configuring SELinux (Building Policy)..."
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
+    
+    # Run a quick database update so service doesn't fail on start
+    freshclam >/dev/null 2>&1
+    
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
     # 4. DEPLOY SCANNER SCRIPT
@@ -1938,7 +1949,6 @@ if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
     SCAN_TIME=$(echo "$SCAN_RESULTS" | grep "Time:" | sed 's/Time: //' | xargs)
 
     if [[ "$INFECTED_COUNT" -gt 0 ]]; then
-        # Formatting: Two spaces at the end of each line to bypass Outlook line-removal
         /usr/bin/mailx -s "CRITICAL: Virus Detected on $(hostname) [$TYPE]" "$EMAIL_ADDR" <<MAIL_CONTENT
 Detection Type: $TYPE  
 Detection Date: $NOW  
@@ -1951,7 +1961,6 @@ Quarantine Dir: $Q_DIR
 Scan Time:      $SCAN_TIME  
 MAIL_CONTENT
     fi
-    # Log Synchronization: Writing identical entry to both files
     ENTRY="Date: $NOW | Type: $TYPE | Files: $FILES_TO_SCAN | Infected: $INFECTED_COUNT | Time: $SCAN_TIME"
     echo "$ENTRY" >> "$WEEKLY"
     echo "$ENTRY" >> "$LOGS"
