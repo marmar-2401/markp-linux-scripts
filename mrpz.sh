@@ -1870,49 +1870,46 @@ setup_clamav() {
     local WHITE_LIST="/var/lib/clamav/whitelist.txt"
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
 
-    # 1. INSTALLATION FIRST
-    echo "[+] Installing Components (This may take a moment)..."
+    # 1. INSTALLATION (Differentiates via %rhel macro)
+    echo "[+] Installing Components..."
     dnf install -y oracle-epel-release-el$(rpm -E %rhel) clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
     
     if ! command -v mail &>/dev/null; then
-        echo "[+] Installing Mail Utility (Fallback Logic)..."
         dnf install -y mailx >/dev/null 2>&1 || dnf install -y s-nail >/dev/null 2>&1
     fi
 
     # 2. PREPARE ENVIRONMENT
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR"
-    touch "$WHITE_LIST"
+    touch "$WHITE_LIST" "$CHK"
     groupadd -f clamav
     usermod -aG clamav clamupdate
     usermod -aG clamav clamscan
     chown -R clamupdate:clamav "$LOG_DIR"
+    chown clamscan:clamav "$CHK"
     chmod 775 "$LOG_DIR"
-    
     setfacl -m u:clamscan:x /root
     setfacl -d -m u:clamscan:rX /root
 
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
 
-    # 3. CONFIGURE DAEMON (Universal RHEL 8/9/10 Fixes)
+    # 3. CONFIGURE DAEMON
     echo "[+] Configuring ClamAV Daemon Settings..."
     if [ -f /etc/clamd.d/scan.conf ]; then
-        # Remove the 'Example' safety block
         sed -i 's/^Example/#Example/' /etc/clamd.d/scan.conf
-        # Enable Local Socket for clamdscan communication
         sed -i 's|^#LocalSocket /.*|LocalSocket /run/clamd.scan/clamd.sock|' /etc/clamd.d/scan.conf
-        # Set Socket permissions
         sed -i 's|^#LocalSocketGroup .*|LocalSocketGroup clamav|' /etc/clamd.d/scan.conf
         sed -i 's|^#LocalSocketMode .*|LocalSocketMode 660|' /etc/clamd.d/scan.conf
     fi
 
-    echo "[+] Configuring SELinux (Building Policy)..."
+    # VERSION DIFFERENTIATED SELINUX FIX
+    echo "[+] Applying SELinux Policies..."
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
+    setsebool -P clamd_use_jit 1 2>/dev/null || true
+    setsebool -P nis_enabled 1 2>/dev/null || true
     
-    # Run a quick database update so service doesn't fail on start
     freshclam >/dev/null 2>&1
-    
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
     # 4. DEPLOY SCANNER SCRIPT
@@ -1923,14 +1920,12 @@ TYPE=${1:-Hourly}
 LOCKFILE="/run/clamd.scan/hourly_scan.lock"
 exec 200>$LOCKFILE
 flock -n 200 || exit 1
-
 Q_DIR="/var/lib/clamav/quarantine"
 EMAIL_ADDR="__EMAIL__"
 CHK="/var/lib/clamav/scan_checkpoint"
 WEEKLY="/var/log/clamav/weekly_report.log"
 LOGS="/var/log/clamav/hourly_audit.log"
 NOW=$(date '+%Y-%m-%d %H:%M:%S')
-
 LIST=$(mktemp)
 if [[ "$TYPE" == "MANUAL-TEST" ]]; then
     [[ -f "/tmp/eicar.com" ]] && echo "/tmp/eicar.com" > "$LIST"
@@ -1939,17 +1934,15 @@ else
          -not -path "/var/lib/clamav/*" -not -path "/var/log/clamav/*" \
          $([ -f "$CHK" ] && echo "-newer $CHK") -mmin +1 > "$LIST" 2>/dev/null || true
 fi
-
 FILES_TO_SCAN=$(wc -l < "$LIST" | xargs)
-
 if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
     SCAN_RESULTS=$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="$Q_DIR" --file-list="$LIST" 2>/dev/null)
     INFECTED_COUNT=$(echo "$SCAN_RESULTS" | grep "Infected files:" | awk '{print $NF}')
     [[ -z "$INFECTED_COUNT" ]] && INFECTED_COUNT=0
     SCAN_TIME=$(echo "$SCAN_RESULTS" | grep "Time:" | sed 's/Time: //' | xargs)
-
     if [[ "$INFECTED_COUNT" -gt 0 ]]; then
-        /usr/bin/mailx -s "CRITICAL: Virus Detected on $(hostname) [$TYPE]" "$EMAIL_ADDR" <<MAIL_CONTENT
+        # -r flag ensures external relays (iCloud/Outlook) accept the mail
+        mail -r "$EMAIL_ADDR" -s "CRITICAL: Virus Detected on $(hostname) [$TYPE]" "$EMAIL_ADDR" <<MAIL_CONTENT
 Detection Type: $TYPE  
 Detection Date: $NOW  
 Virus(es) detected on $(hostname):  
@@ -1969,14 +1962,35 @@ else
     echo "$ENTRY" >> "$WEEKLY"
     echo "$ENTRY" >> "$LOGS"
 fi
-
 [[ "$TYPE" != "MANUAL-TEST" ]] && touch "$CHK" && chown clamscan:clamscan "$CHK"
 rm -f "$LIST"
 EOF
 
-    sed -i "s|__EMAIL__|$EMAIL|" /usr/local/bin/hourly_secure_scan.sh
-    chmod 700 /usr/local/bin/hourly_secure_scan.sh
-    echo "[+] ClamAV Setup and Scanner Deployment Complete."
+    # 5. DEPLOY MONITOR
+    cat > /usr/local/bin/clamav_monitor.sh <<'EOF'
+#!/bin/bash
+EMAIL_ADDR="__EMAIL__"
+SERVICES=("clamd@scan" "clamav-freshclam")
+for SVC in "${SERVICES[@]}"; do
+    if ! systemctl is-active --quiet "$SVC"; then
+        systemctl restart "$SVC"
+        mail -r "$EMAIL_ADDR" -s "ALERT: $SVC Restored on $(hostname)" "$EMAIL_ADDR" <<< "$SVC was down and has been restarted."
+    fi
+done
+EOF
+
+    # 6. AUTOMATION
+    echo "[+] Configuring Cron Jobs..."
+    cat > /etc/cron.d/clamav_jobs <<EOF
+0 * * * * root /usr/local/bin/hourly_secure_scan.sh Hourly
+*/15 * * * * root /usr/local/bin/clamav_monitor.sh
+0 0 * * 0 root find /var/lib/clamav/quarantine -type f -mtime +30 -delete
+0 9 * * 1 root mail -r "$EMAIL" -s "Weekly ClamAV Report: $(hostname)" "$EMAIL" < "$WEEKLY_REPORT" && > "$WEEKLY_REPORT"
+EOF
+
+    sed -i "s|__EMAIL__|$EMAIL|g" /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh
+    chmod 700 /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh
+    echo "[+] ClamAV Setup and Automation Complete."
 }
 
 clamav_health_check() {
