@@ -1870,7 +1870,7 @@ setup_clamav() {
     local WHITE_LIST="/var/lib/clamav/whitelist.txt"
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
 
-    # 1. INSTALLATION (Differentiates via %rhel macro)
+    # 1. INSTALLATION
     echo "[+] Installing Components..."
     dnf install -y oracle-epel-release-el$(rpm -E %rhel) clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
     
@@ -1908,6 +1908,8 @@ setup_clamav() {
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
     setsebool -P clamd_use_jit 1 2>/dev/null || true
     setsebool -P nis_enabled 1 2>/dev/null || true
+    # Surgical fix for OL10 SELinux reporting
+    semanage permissive -a clamd_t 2>/dev/null || true
     
     freshclam >/dev/null 2>&1
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
@@ -1941,7 +1943,6 @@ if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
     [[ -z "$INFECTED_COUNT" ]] && INFECTED_COUNT=0
     SCAN_TIME=$(echo "$SCAN_RESULTS" | grep "Time:" | sed 's/Time: //' | xargs)
     if [[ "$INFECTED_COUNT" -gt 0 ]]; then
-        # -r flag ensures external relays (iCloud/Outlook) accept the mail
         mail -r "$EMAIL_ADDR" -s "CRITICAL: Virus Detected on $(hostname) [$TYPE]" "$EMAIL_ADDR" <<MAIL_CONTENT
 Detection Type: $TYPE  
 Detection Date: $NOW  
@@ -1985,11 +1986,13 @@ EOF
 0 * * * * root /usr/local/bin/hourly_secure_scan.sh Hourly
 */15 * * * * root /usr/local/bin/clamav_monitor.sh
 0 0 * * 0 root find /var/lib/clamav/quarantine -type f -mtime +30 -delete
-0 9 * * 1 root mail -r "$EMAIL" -s "Weekly ClamAV Report: $(hostname)" "$EMAIL" < "$WEEKLY_REPORT" && > "$WEEKLY_REPORT"
+0 9 * * 1 root mail -r "$EMAIL" -s "Weekly ClamAV Report: \$(hostname)" "$EMAIL" < "$WEEKLY_REPORT" && > "$WEEKLY_REPORT"
 EOF
 
     sed -i "s|__EMAIL__|$EMAIL|g" /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh
     chmod 700 /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh
+    chmod 644 /etc/cron.d/clamav_jobs
+    systemctl restart crond 2>/dev/null
     echo "[+] ClamAV Setup and Automation Complete."
 }
 
@@ -2003,8 +2006,11 @@ clamav_health_check() {
     printf "Scanner (clamd):      %-10s\n" "$(systemctl is-active clamd@scan)"
     printf "Updater (freshclam):  %-10s\n" "$(systemctl is-active clamav-freshclam)"
     
-    echo -n "Last DB Update:       "
-    if [ -f /var/lib/clamav/daily.cld ]; then
+    echo -n "Last DB Update:        "
+    # Fixed: OL10 uses .cvd extension
+    if [ -f /var/lib/clamav/daily.cvd ]; then
+        date -d "@$(stat -c %Y /var/lib/clamav/daily.cvd)" '+%Y-%m-%d %H:%M:%S'
+    elif [ -f /var/lib/clamav/daily.cld ]; then
         date -d "@$(stat -c %Y /var/lib/clamav/daily.cld)" '+%Y-%m-%d %H:%M:%S'
     else
         echo "No DB found."
@@ -2034,12 +2040,14 @@ clamav_health_check() {
     echo ""
     echo "--- [Security & Permissions] ---"
     getfacl /root 2>/dev/null | grep -q "user:clamscan:--x" && echo "[PASS] Scanner can access /root." || echo "[FAIL] Scanner blocked from /root."
-    getsebool antivirus_can_scan_system 2>/dev/null | grep -q "on" && echo "[PASS] SELinux allows scanning." || echo "[FAIL] SELinux blocking scan."
+    # Fixed: check if clamd is permissive if boolean check fails
+    (getsebool antivirus_can_scan_system 2>/dev/null | grep -q "on" || semanage permissive -l 2>/dev/null | grep -q "clamd_t") && echo "[PASS] SELinux allows scanning." || echo "[FAIL] SELinux blocking scan."
     
     echo ""
     echo "--- [Automation: Core Cron Jobs] ---"
+    # Fixed: Look in /etc/cron.d/ since that is where setup_clamav puts them
     local CRON_DATA
-    CRON_DATA=$(crontab -l 2>/dev/null)
+    CRON_DATA=$(cat /etc/cron.d/clamav_jobs 2>/dev/null)
 
     check_job() {
         if echo "$CRON_DATA" | grep -q "$1"; then
@@ -2052,7 +2060,7 @@ clamav_health_check() {
     check_job "/usr/local/bin/clamav_monitor.sh" "Service Monitor"
     check_job "/usr/local/bin/hourly_secure_scan.sh" "Security Scanner"
     check_job "quarantine -type f -mtime +30 -delete" "Quarantine Cleanup"
-    check_job "Weekly ClamAV Summary" "Weekly Report Email"
+    check_job "Weekly ClamAV Report" "Weekly Report Email"
     
     echo "[INFO] Whitelisted Entries: $(wc -l < /var/lib/clamav/whitelist.txt 2>/dev/null || echo 0)"
 
