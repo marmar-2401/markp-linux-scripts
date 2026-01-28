@@ -1870,10 +1870,18 @@ setup_clamav() {
     local WHITE_LIST="/var/lib/clamav/whitelist.txt"
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
 
-    # INSTALLATION FIRST: Required to create clamscan/clamupdate users on new systems
+    # 1. INSTALLATION FIRST
+    # This ensures clamscan/clamupdate users are created before the script tries to use them
     echo "[+] Installing Components (This may take a moment)..."
-    dnf install -y oracle-epel-release-el$(rpm -E %rhel) clamav clamav-freshclam clamd policycoreutils-python-utils mailx >/dev/null 2>&1
+    dnf install -y oracle-epel-release-el$(rpm -E %rhel) clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
+    
+    # Package fallback logic: Ensures 'mail' command exists on OL9 and OL10
+    if ! command -v mail &>/dev/null; then
+        echo "[+] Installing Mail Utility (Fallback Logic)..."
+        dnf install -y mailx >/dev/null 2>&1 || dnf install -y s-nail >/dev/null 2>&1
+    fi
 
+    # 2. PREPARE ENVIRONMENT
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR"
     touch "$WHITE_LIST"
@@ -1883,18 +1891,20 @@ setup_clamav() {
     chown -R clamupdate:clamav "$LOG_DIR"
     chmod 775 "$LOG_DIR"
     
-    # Corrected ACLs: Ensuring user exists before applying
+    # Set ACLs
     setfacl -m u:clamscan:x /root
     setfacl -d -m u:clamscan:rX /root
 
-    # Runtime directory creation (Now resolves clamscan user correctly)
+    # Create runtime directory (clamscan user now exists so this won't fail)
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
 
+    # 3. CONFIGURE SERVICES
     echo "[+] Configuring SELinux (Building Policy)..."
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
+    # 4. DEPLOY SCANNER SCRIPT
     cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
 set -u
@@ -1928,7 +1938,7 @@ if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
     SCAN_TIME=$(echo "$SCAN_RESULTS" | grep "Time:" | sed 's/Time: //' | xargs)
 
     if [[ "$INFECTED_COUNT" -gt 0 ]]; then
-        # Two spaces are added to the end of each line to force Outlook to respect breaks
+        # Formatting: Two spaces at the end of each line to bypass Outlook line-removal
         /usr/bin/mailx -s "CRITICAL: Virus Detected on $(hostname) [$TYPE]" "$EMAIL_ADDR" <<MAIL_CONTENT
 Detection Type: $TYPE  
 Detection Date: $NOW  
@@ -1941,7 +1951,7 @@ Quarantine Dir: $Q_DIR
 Scan Time:      $SCAN_TIME  
 MAIL_CONTENT
     fi
-    # Fix: Correctly logging to both files so they stay in sync
+    # Log Synchronization: Writing identical entry to both files
     ENTRY="Date: $NOW | Type: $TYPE | Files: $FILES_TO_SCAN | Infected: $INFECTED_COUNT | Time: $SCAN_TIME"
     echo "$ENTRY" >> "$WEEKLY"
     echo "$ENTRY" >> "$LOGS"
@@ -1959,6 +1969,7 @@ EOF
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
     echo "[+] ClamAV Setup and Scanner Deployment Complete."
 }
+
 clamav_health_check() {
     check_root
     echo "========================================================="
