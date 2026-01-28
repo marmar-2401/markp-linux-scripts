@@ -2149,16 +2149,33 @@ clamav_health_check() {
 test_clamav_setup() {
     echo "[+] Running Fast-Track Test..."
     local TEST_FILE="/tmp/eicar.com"
+    local Q_DIR="/var/lib/clamav/quarantine"
     local EMAIL_ADDR=$(grep "EMAIL_ADDR=" /usr/local/bin/hourly_secure_scan.sh | cut -d'"' -f2)
+    
+    # 1. Create the test virus
     echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$TEST_FILE"
     chmod 644 "$TEST_FILE"
-    SCAN_RESULTS=$(/usr/bin/clamdscan --multiscan --move="/var/lib/clamav/quarantine" "$TEST_FILE" 2>/dev/null)
+    
+    # 2. Scan and move
+    SCAN_RESULTS=$(/usr/bin/clamdscan --multiscan --move="$Q_DIR" "$TEST_FILE" 2>/dev/null)
+    
     if echo "$SCAN_RESULTS" | grep -q "FOUND"; then
         echo "[+] SUCCESS: EICAR detected."
-        echo "Test Success on $(hostname). Filesystem: $(df -h / | awk 'NR==2 {print $5}') full." | mailx -s "ClamAV Test Result: SUCCESS" "$EMAIL_ADDR"
-        echo "[+] Alert sent to $EMAIL_ADDR."
+        
+        # 3. Formulate the specific email you requested
+        {
+            echo "Test Success on $(hostname)"
+            echo "-----------------------------------"
+            echo "Result: Test virus FOUND and quarantined."
+            echo "Quarantine Directory: $Q_DIR"
+            echo ""
+            echo "Full Scan Output:"
+            echo "$SCAN_RESULTS" | grep "FOUND"
+        } | mailx -s "ClamAV Test Result: SUCCESS" "$EMAIL_ADDR"
+        
+        echo "[+] Detailed alert sent to $EMAIL_ADDR."
     else
-        echo "[FAIL]: Detection failed."
+        echo "[FAIL]: Detection failed. Ensure clamd@scan is active."
     fi
 }
 
