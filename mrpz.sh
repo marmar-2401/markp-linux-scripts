@@ -1878,11 +1878,8 @@ setup_clamav() {
     chmod 775 "$LOG_DIR"
 
     echo "[+] Setting ACLs for /root access and inheritance..."
-    # 1. Allow traversal into /root
     setfacl -m u:clamscan:x /root
-    # 2. Allow reading existing utility scripts
     [ -d "/root/utility-scripts" ] && setfacl -R -m u:clamscan:rX /root/utility-scripts
-    # 3. Set DEFAULT ACL so new files in /root are automatically readable by clamscan
     setfacl -d -m u:clamscan:rX /root
 
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
@@ -1916,21 +1913,6 @@ setup_clamav() {
     chown clamupdate:clamupdate "$LOG_DIR/freshclam.log"
     chown clamscan:clamscan "$LOG_DIR/clamd.log"
 
-    echo "[+] Configuring Log Rotation..."
-    cat > /etc/logrotate.d/clamav <<EOF
-$LOG_DIR/*.log {
-    weekly
-    rotate 4
-    compress
-    missingok
-    notifempty
-    create 0644 clamupdate clamav
-    postrotate
-        /usr/bin/systemctl reload clamd@scan 2>/dev/null || true
-    endscript
-}
-EOF
-
     echo "[+] Configuring SELinux..."
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
     setsebool -P clamd_use_jit 1 2>/dev/null || true
@@ -1958,7 +1940,6 @@ LOGS="$LOG_DIR/hourly_audit.log"
 NOW=\$(date '+%Y-%m-%d %H:%M:%S')
 
 LIST=\$(mktemp)
-# Excluded sssd, chrony, and dnf cache to prevent permission noise
 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" -not -path "$LOG_DIR/*" \\
      -not -path "\$Q_DIR/*" \\
@@ -1975,25 +1956,31 @@ if [[ "\$FILES_TO_SCAN" -gt 0 ]]; then
     SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep "Time:" | awk -F: '{print \$2}' | xargs)
 
     if [[ "\$INFECTED_COUNT" -gt 0 ]]; then
-        REPORT="Detection Date: \$NOW\n"
-        REPORT+="-------------------------------------------\n"
-        REPORT+="Virus(es) detected on \$(hostname):\n\n"
-        
-        while read -r FILE; do
-            [ -z "\$FILE" ] && continue
-            FILENAME=\$(basename "\$FILE")
-            REPORT+="Original Path:   \$FILE\n"
-            REPORT+="Quarantine Path: \$Q_DIR/\$FILENAME\n"
-            REPORT+="-------------------------------------------\n"
-        done <<< "\$(echo "\$SCAN_RESULTS" | grep "FOUND" | awk -F: '{print \$1}')"
+        EMAIL_BODY=\$(mktemp)
+        {
+            echo "Detection Date: \$NOW"
+            echo "-------------------------------------------"
+            echo "Virus(es) detected on \$(hostname):"
+            echo ""
+            echo "\$SCAN_RESULTS" | grep "FOUND" | while read -r LINE; do
+                FILE_PATH=\$(echo "\$LINE" | awk -F: '{print \$1}')
+                VIRUS_NAME=\$(echo "\$LINE" | awk -F: '{print \$2}' | xargs)
+                FILENAME=\$(basename "\$FILE_PATH")
+                echo "Original Path:   \$FILE_PATH"
+                echo "Virus Name:      \$VIRUS_NAME"
+                echo "Quarantine Path: \$Q_DIR/\$FILENAME"
+                echo "-------------------------------------------"
+            done
+            echo ""
+            echo "----------- SCAN SUMMARY -----------"
+            echo "Files Checked:  \$FILES_TO_SCAN"
+            echo "Infected Files: \$INFECTED_COUNT"
+            echo "Scan Time:      \$SCAN_TIME"
+            echo "------------------------------------"
+        } > "\$EMAIL_BODY"
 
-        REPORT+="\n----------- SCAN SUMMARY -----------\n"
-        REPORT+="Files Checked:  \$FILES_TO_SCAN\n"
-        REPORT+="Infected Files: \$INFECTED_COUNT\n"
-        REPORT+="Scan Time:      \$SCAN_TIME\n"
-        REPORT+="------------------------------------"
-
-        echo -e "\$REPORT" | mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR"
+        mailx -s "CRITICAL: Virus Detected on \$(hostname)" "\$EMAIL_ADDR" < "\$EMAIL_BODY"
+        rm -f "\$EMAIL_BODY"
     fi
 
     ENTRY="Date: \$NOW | Files: \$FILES_TO_SCAN | Infected: \$INFECTED_COUNT | Time: \$SCAN_TIME"
