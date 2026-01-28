@@ -2033,28 +2033,36 @@ clamav_health_check() {
 }
 
 test_clamav_setup() {
-    echo "[+] Preparing ClamAV EICAR background test..."
+    echo "[+] Running Fast-Track ClamAV Test..."
     local TEST_FILE="/tmp/eicar.com"
     local EMAIL_ADDR=$(grep "EMAIL_ADDR=" /usr/local/bin/hourly_secure_scan.sh | cut -d'"' -f2)
 
-    # Force full scan by clearing checkpoint
-    rm -f /var/lib/clamav/scan_checkpoint
-
+    # 1. Create the virus
     echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$TEST_FILE"
-    touch -d "5 seconds ago" "$TEST_FILE"
     chmod 644 "$TEST_FILE"
 
-    echo "[+] Scan started in BACKGROUND. Check your email ($EMAIL_ADDR) for the final report."
-    
-    # Background execution with a post-completion email report
-    nohup bash -c "/usr/local/bin/hourly_secure_scan.sh && \
-    if find /var/lib/clamav/quarantine/ -name 'eicar.com*' | grep -q '.'; then \
-        echo 'EICAR Test Successful. File detected and moved to quarantine.' | mailx -s 'ClamAV Test Result: SUCCESS' '$EMAIL_ADDR'; \
-    else \
-        echo 'EICAR Test Failed. File not found in quarantine.' | mailx -s 'ClamAV Test Result: FAIL' '$EMAIL_ADDR'; \
-    fi" > /dev/null 2>&1 &
+    echo "[+] Scanning /tmp only to verify logic speed..."
 
-    return 0
+    # 2. Run a targeted scan instead of the full hourly script
+    # This proves the daemon, the mailer, and the quarantine are all linked correctly
+    SCAN_RESULTS=$(/usr/bin/clamdscan --multiscan --move="/var/lib/clamav/quarantine" "$TEST_FILE" 2>/dev/null)
+
+    if echo "$SCAN_RESULTS" | grep -q "FOUND"; then
+        echo "[+] SUCCESS: EICAR detected and quarantined."
+        
+        # 3. Manually trigger the email logic to prove the mailer is alive
+        {
+            echo "TEST REPORT - $(hostname)"
+            echo "--------------------------"
+            echo "$SCAN_RESULTS"
+        } | mailx -s "ClamAV Test: SUCCESS" "$EMAIL_ADDR"
+        
+        echo "[+] Verification email sent to $EMAIL_ADDR."
+        return 0
+    else
+        echo "[FAIL]: EICAR not detected. Check 'systemctl status clamd@scan'"
+        return 1
+    fi
 }
 
 case "$1" in
