@@ -1864,7 +1864,7 @@ setup_clamav() {
 
     local LOG_DIR="/var/log/clamav"
     local QUARANTINE_DIR="/var/lib/clamav/quarantine"
-    local CHECKPOINT="/var/lib/clamav/scan_checkpoint"
+    local CHK="/var/lib/clamav/scan_checkpoint"
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
 
     echo "[+] Preparing Environment..."
@@ -1877,24 +1877,17 @@ setup_clamav() {
     chown -R clamupdate:clamav "$LOG_DIR"
     chmod 775 "$LOG_DIR"
 
+    # Grant clamscan permission to enter /root via ACLs
+    echo "[+] Setting ACLs for /root access..."
+    setfacl -m u:clamscan:x /root
+    # Note: We don't need to recursively grant R to all of /root yet; 
+    # clamdscan handles the file reading if it can reach the path.
+
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
 
     echo "[+] Configuring EPEL & Installing Components..."
-    if grep -q "Oracle Linux" /etc/os-release; then
-        dnf install -y oracle-epel-release-el$(rpm -E %rhel) >/dev/null 2>&1 || true
-    else
-        dnf install -y epel-release >/dev/null 2>&1 || true
-    fi
-
-    dnf install -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1 || { echo "[-] Core ClamAV install failed"; return 1; }
-
-    echo "[+] Installing Mail Utility..."
-    if dnf list available mailx >/dev/null 2>&1; then
-        dnf install -y mailx >/dev/null 2>&1 || true
-    else
-        dnf install -y s-nail >/dev/null 2>&1 || true
-    fi
+    dnf install -y oracle-epel-release-el$(rpm -E %rhel) clamav clamav-freshclam clamd policycoreutils-python-utils mailx >/dev/null 2>&1
 
     set -euo pipefail
 
@@ -1916,34 +1909,17 @@ setup_clamav() {
     chown clamupdate:clamupdate "$LOG_DIR/freshclam.log"
     chown clamscan:clamscan "$LOG_DIR/clamd.log"
 
-    echo "[+] Configuring Log Rotation..."
-    cat > /etc/logrotate.d/clamav <<EOF
-$LOG_DIR/*.log {
-    weekly
-    rotate 4
-    compress
-    missingok
-    notifempty
-    create 0644 clamupdate clamav
-    postrotate
-        /usr/bin/systemctl reload clamd@scan 2>/dev/null || true
-    endscript
-}
-EOF
-
     echo "[+] Configuring SELinux..."
-    setsebool -P antivirus_can_scan_system 1 >/dev/null 2>&1 || true
-    setsebool -P clamd_use_jit 1 >/dev/null 2>&1 || true
+    setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
+    setsebool -P clamd_use_jit 1 2>/dev/null || true
     semanage fcontext -a -t clamav_var_lib_t "/var/lib/clamav(/.*)?" 2>/dev/null || true
     semanage fcontext -a -t antivirus_log_t "$LOG_DIR(/.*)?" 2>/dev/null || true
     restorecon -Rv /var/lib/clamav "$LOG_DIR" >/dev/null 2>&1
 
     echo "[+] Starting Services..."
-    systemctl enable --now clamav-freshclam >/dev/null 2>&1 || true
-    systemctl reset-failed clamd@scan >/dev/null 2>&1
-    systemctl enable --now clamd@scan >/dev/null 2>&1 || true
+    systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
-    echo "[+] Deploying Clean-Report Scan Script..."
+    echo "[+] Deploying Secure Scan Script (Root Access Enabled)..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -1954,24 +1930,24 @@ flock -n 200 || exit 1
 SCAN_START_MARKER=\$(mktemp /tmp/clamscan_ts.XXXXXX)
 Q_DIR="$QUARANTINE_DIR"
 EMAIL_ADDR="$EMAIL"
-CHK="$CHECKPOINT"
+CHK="$CHK"
 WEEKLY="$WEEKLY_REPORT"
 LOGS="$LOG_DIR/hourly_audit.log"
 NOW=\$(date '+%Y-%m-%d %H:%M:%S')
 
 LIST=\$(mktemp)
+# /root is now INCLUDED in the scan
 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" -not -path "$LOG_DIR/*" \\
      -not -path "\$Q_DIR/*" \\
-     \$([ -f "\$CHK" ] && echo "-newer \$CHK") > "\$LIST" 2>/dev/null || true
+     \$([ -f "\$CHK" ] && echo "-newer \$CHK") \\
+     -mmin +1 > "\$LIST" 2>/dev/null || true
 
-# Strip whitespace from count to prevent integer comparison errors
 FILES_TO_SCAN=\$(wc -l < "\$LIST" | xargs)
 
 if [[ "\$FILES_TO_SCAN" -gt 0 ]]; then
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
     
-    # Grab only the first match of Infected files and strip non-digits
     INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep -m1 "Infected files" | grep -o '[0-9]*' || echo 0)
     SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep "Time:" | awk -F: '{print \$2}' | xargs)
 
