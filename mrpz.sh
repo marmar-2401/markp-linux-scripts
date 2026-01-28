@@ -2098,14 +2098,34 @@ clamav_health_check() {
     printf "Scanner (clamd):      %-10s\n" "$(systemctl is-active clamd@scan)"
     printf "Updater (freshclam):  %-10s\n" "$(systemctl is-active clamav-freshclam)"
     
-    # Logic: stat gets the raw time, date command strips the decimals
     echo -n "Last DB Update:       "
     if [ -f /var/lib/clamav/daily.cld ]; then
+        # Formats the date to YYYY-MM-DD HH:MM:SS with no decimals
         date -d "@$(stat -c %Y /var/lib/clamav/daily.cld)" '+%Y-%m-%d %H:%M:%S'
     else
         echo "No DB found."
     fi
 
+    echo ""
+    echo "--- [Directory Validation] ---"
+    check_dir() {
+        if [ -d "$1" ]; then
+            echo "[OK]   $1"
+        else
+            echo "[FAIL] $1 (Missing)"
+        fi
+    }
+    check_dir "/var/log/clamav"           # Logs
+    check_dir "/var/lib/clamav/quarantine" # Quarantine
+    check_dir "/run/clamd.scan"           # Socket/Lock Location
+    check_dir "/etc/clamd.d"              # Configuration Files
+
+    echo ""
+    echo "--- [Security & Permissions] ---"
+    # Re-added the root ACL and SELinux boolean checks
+    getfacl /root 2>/dev/null | grep -q "user:clamscan:--x" && echo "[PASS] Scanner can access /root." || echo "[FAIL] Scanner blocked from /root."
+    getsebool antivirus_can_scan_system 2>/dev/null | grep -q "on" && echo "[PASS] SELinux allows scanning." || echo "[FAIL] SELinux blocking scan."
+    
     echo ""
     echo "--- [Automation: Core Cron Jobs] ---"
     local CRON_DATA
@@ -2119,10 +2139,14 @@ clamav_health_check() {
         fi
     }
 
+    # Your 4 specific core tasks
     check_job "/usr/local/bin/clamav_monitor.sh" "Service Monitor (clamav_monitor.sh)"
     check_job "/usr/local/bin/hourly_secure_scan.sh" "Security Scanner (hourly_secure_scan.sh)"
     check_job "quarantine -type f -mtime +30 -delete" "Quarantine Cleanup (30-day)"
     check_job "Weekly ClamAV Summary" "Weekly Report Email"
+    
+    # Re-added Whitelist count
+    echo "[INFO] Whitelisted Files: $(wc -l < /var/lib/clamav/whitelist.txt 2>/dev/null || echo 0)"
 
     echo ""
     echo "--- [Recent Activity] ---"
