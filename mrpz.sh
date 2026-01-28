@@ -2081,7 +2081,7 @@ test_clamav_setup() {
     
     echo "---------------------------------------------------------"
     echo "[SUCCESS] The test scan has been finalized."
-    echo "[INFO] Please verify the email layout in your Outlook client."
+    echo "[INFO] Please verify the email layout"
     echo "[INFO] Logs have been updated in both hourly and weekly reports."
     echo "========================================================="
 }
