@@ -1877,9 +1877,13 @@ setup_clamav() {
     chown -R clamupdate:clamav "$LOG_DIR"
     chmod 775 "$LOG_DIR"
 
-    # CRITICAL: Grant clamscan 'hall pass' to enter /root for sudo-user audits
-    echo "[+] Setting ACLs for /root traversal..."
-    setfacl -m u:clamscan:x /root 2>/dev/null || echo "[!] ACL set failed; ensure 'acl' package is installed."
+    echo "[+] Setting ACLs for /root access and inheritance..."
+    # 1. Allow traversal into /root
+    setfacl -m u:clamscan:x /root
+    # 2. Allow reading existing utility scripts
+    [ -d "/root/utility-scripts" ] && setfacl -R -m u:clamscan:rX /root/utility-scripts
+    # 3. Set DEFAULT ACL so new files in /root are automatically readable by clamscan
+    setfacl -d -m u:clamscan:rX /root
 
     echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
@@ -1890,7 +1894,6 @@ setup_clamav() {
     else
         dnf install -y epel-release >/dev/null 2>&1 || true
     fi
-
     dnf install -y clamav clamav-freshclam clamd policycoreutils-python-utils mailx >/dev/null 2>&1
 
     set -euo pipefail
@@ -1928,7 +1931,7 @@ $LOG_DIR/*.log {
 }
 EOF
 
-    echo "[+] Configuring SELinux (Antivirus Booleans)..."
+    echo "[+] Configuring SELinux..."
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
     setsebool -P clamd_use_jit 1 2>/dev/null || true
     semanage fcontext -a -t clamav_var_lib_t "/var/lib/clamav(/.*)?" 2>/dev/null || true
@@ -1936,9 +1939,7 @@ EOF
     restorecon -Rv /var/lib/clamav "$LOG_DIR" >/dev/null 2>&1
 
     echo "[+] Starting Services..."
-    systemctl enable --now clamav-freshclam >/dev/null 2>&1 || true
-    systemctl reset-failed clamd@scan >/dev/null 2>&1
-    systemctl enable --now clamd@scan >/dev/null 2>&1 || true
+    systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
     echo "[+] Deploying Secure Scan Script..."
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
@@ -1957,11 +1958,11 @@ LOGS="$LOG_DIR/hourly_audit.log"
 NOW=\$(date '+%Y-%m-%d %H:%M:%S')
 
 LIST=\$(mktemp)
-# Scans all modified files EXCEPT core system mounts and quarantine itself
-# /root is INCLUDED here because of the ACL we set above
+# Excluded sssd, chrony, and dnf cache to prevent permission noise
 find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
      -not -path "/run/*" -not -path "/var/lib/clamav/*" -not -path "$LOG_DIR/*" \\
      -not -path "\$Q_DIR/*" \\
+     -not -path "/var/lib/sss/*" -not -path "/var/log/chrony/*" -not -path "/var/cache/dnf/*" \\
      \$([ -f "\$CHK" ] && echo "-newer \$CHK") \\
      -mmin +1 > "\$LIST" 2>/dev/null || true
 
@@ -2008,7 +2009,7 @@ EOF
     chmod 700 /usr/local/bin/hourly_secure_scan.sh
     chown root:root /usr/local/bin/hourly_secure_scan.sh
 
-    echo "[+] Configuring Cron Jobs..."
+    echo "[+] Configuring Cron..."
     ( crontab -l 2>/dev/null | grep -v -E 'hourly_secure_scan.sh|weekly_report.log' || true ;
       echo "0 * * * * /usr/local/bin/hourly_secure_scan.sh" ;
       echo "0 0 * * 1 mailx -s \"Weekly ClamAV Summary - \$(hostname)\" $EMAIL < $WEEKLY_REPORT && > $WEEKLY_REPORT"
