@@ -1872,7 +1872,11 @@ setup_clamav() {
 
     # 1. INSTALLATION
     echo "[+] Installing Components..."
-    dnf install -y oracle-epel-release-el$(rpm -E %rhel) clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
+    dnf install -y oracle-epel-release-el$(rpm -E %rhel) >/dev/null 2>&1
+    # FIX: Explicitly enable repo and refresh cache so clamav packages are found
+    dnf config-manager --set-enabled ol$(rpm -E %rhel)_developer_EPEL >/dev/null 2>&1 || true
+    dnf makecache >/dev/null 2>&1
+    dnf install -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
     
     # --- USER SYNC BLOCK ---
     # Wait up to 30 seconds for the OS to recognize the new users created by DNF
@@ -2015,8 +2019,6 @@ EOF
     systemctl restart crond 2>/dev/null
     echo "[+] ClamAV Setup and Automation Complete."
 }
-
-
 
 clamav_health_check() {
     check_root
