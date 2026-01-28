@@ -1932,8 +1932,8 @@ Virus(es) detected on $(hostname):
 -------------------------------------------  
 $(echo "$SCAN_RESULTS" | grep "FOUND")  
 -------------------------------------------  
-Quarantine Dir: $Q_DIR  
 Files Checked:  $FILES_TO_SCAN  
+Quarantine Dir: $Q_DIR  
 Scan Time:      $SCAN_TIME  
 MAIL_CONTENT
     fi
