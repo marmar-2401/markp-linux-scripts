@@ -2002,7 +2002,7 @@ EOF
 clamav_health_check() {
     check_root
     echo "========================================================="
-    echo "   CLAMAV SYSTEM CHECK-UP - $(hostname)"
+    echo "    CLAMAV SYSTEM CHECK-UP - $(hostname)"
     echo "========================================================="
     
     echo "--- [Core Services] ---"
@@ -2063,6 +2063,7 @@ clamav_health_check() {
     check_job "/usr/local/bin/clamav_monitor.sh" "Service Monitor"
     check_job "/usr/local/bin/hourly_secure_scan.sh" "Security Scanner"
     check_job "quarantine -type f -mtime +30 -delete" "Quarantine Cleanup"
+    # Fixed grep pattern to match the actual cron line "Weekly ClamAV Report:"
     check_job "Weekly ClamAV Report" "Weekly Report Email"
     
     echo "[INFO] Whitelisted Entries: $(wc -l < /var/lib/clamav/whitelist.txt 2>/dev/null || echo 0)"
