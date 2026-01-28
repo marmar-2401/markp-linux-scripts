@@ -1873,7 +1873,6 @@ setup_clamav() {
     # 1. INSTALLATION
     echo "[+] Installing Components..."
     dnf install -y oracle-epel-release-el$(rpm -E %rhel) >/dev/null 2>&1
-    # FIX: Explicitly enable repo and refresh cache so clamav packages are found
     dnf config-manager --set-enabled ol$(rpm -E %rhel)_developer_EPEL >/dev/null 2>&1 || true
     dnf makecache >/dev/null 2>&1
     dnf install -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
@@ -1908,7 +1907,6 @@ setup_clamav() {
     usermod -aG clamav clamupdate
     usermod -aG clamav clamscan
 
-    # FIX: Changed ownership to clamupdate so database downloads succeed
     chown -R clamupdate:clamav "$LOG_DIR"
     chown -R clamupdate:clamav /var/lib/clamav 
     chmod 775 "$LOG_DIR"
@@ -1935,12 +1933,11 @@ setup_clamav() {
     setsebool -P nis_enabled 1 2>/dev/null || true
     semanage permissive -a clamd_t 2>/dev/null || true
     
-    # FIX: Run freshclam FIRST so clamd has a database to load on start
     echo "[+] Initializing Database and Services..."
     freshclam >/dev/null 2>&1
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
-    # 4. DEPLOY SCANNER SCRIPT
+    # 4. DEPLOY SCANNER SCRIPT (Modified to create flag upon completion)
     cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
 #!/bin/bash
 set -u
@@ -1990,14 +1987,23 @@ else
     echo "$ENTRY" >> "$LOGS"
 fi
 [[ "$TYPE" != "MANUAL-TEST" ]] && touch "$CHK" && chown clamscan:clamscan "$CHK"
+# Create flag indicating the first scan (and setup) is officially complete
+touch /var/lib/clamav/setup_complete
 rm -f "$LIST"
 EOF
 
-    # 5. DEPLOY MONITOR
+    # 5. DEPLOY MONITOR (Modified to ignore until first scan is complete)
     cat > /usr/local/bin/clamav_monitor.sh <<'EOF'
 #!/bin/bash
 EMAIL_ADDR="__EMAIL__"
+FLAG="/var/lib/clamav/setup_complete"
 SERVICES=("clamd@scan" "clamav-freshclam")
+
+# Exit silently if the initial setup/scan hasn't finished yet
+if [ ! -f "$FLAG" ]; then
+    exit 0
+fi
+
 for SVC in "${SERVICES[@]}"; do
     if ! systemctl is-active --quiet "$SVC"; then
         systemctl restart "$SVC"
@@ -2019,7 +2025,11 @@ EOF
     chmod 700 /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh
     chmod 644 /etc/cron.d/clamav_jobs
     systemctl restart crond 2>/dev/null
-    echo "[+] ClamAV Setup and Automation Complete."
+    
+    # Run the first scan in the background now so the monitor activates once it finishes
+    /usr/local/bin/hourly_secure_scan.sh "Initial-Setup" &
+    
+    echo "[+] ClamAV Setup Complete. Initial scan running in background; monitoring will activate once finished."
 }
 
 clamav_health_check() {
