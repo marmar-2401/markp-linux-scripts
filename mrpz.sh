@@ -1881,12 +1881,14 @@ setup_clamav() {
     # 2. PREPARE ENVIRONMENT
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR"
-    touch "$WHITE_LIST" "$CHK"
+    # REMOVED: touch "$CHK" so the first scan is forced to be a FULL scan
+    touch "$WHITE_LIST"
     groupadd -f clamav
     usermod -aG clamav clamupdate
     usermod -aG clamav clamscan
     chown -R clamupdate:clamav "$LOG_DIR"
-    chown clamscan:clamav "$CHK"
+    # We still ensure the directory exists so chown doesn't fail on the path
+    chown clamscan:clamav /var/lib/clamav 
     chmod 775 "$LOG_DIR"
     setfacl -m u:clamscan:x /root
     setfacl -d -m u:clamscan:rX /root
@@ -1908,7 +1910,7 @@ setup_clamav() {
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
     setsebool -P clamd_use_jit 1 2>/dev/null || true
     setsebool -P nis_enabled 1 2>/dev/null || true
-    # Surgical fix for OL10 SELinux reporting
+    # Surgical fix for OL10 compatibility
     semanage permissive -a clamd_t 2>/dev/null || true
     
     freshclam >/dev/null 2>&1
@@ -1932,6 +1934,7 @@ LIST=$(mktemp)
 if [[ "$TYPE" == "MANUAL-TEST" ]]; then
     [[ -f "/tmp/eicar.com" ]] && echo "/tmp/eicar.com" > "$LIST"
 else
+    # Logic: If $CHK is missing, it scans everything.
     find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
          -not -path "/var/lib/clamav/*" -not -path "/var/log/clamav/*" \
          $([ -f "$CHK" ] && echo "-newer $CHK") -mmin +1 > "$LIST" 2>/dev/null || true
@@ -1963,6 +1966,7 @@ else
     echo "$ENTRY" >> "$WEEKLY"
     echo "$ENTRY" >> "$LOGS"
 fi
+# This creates the checkpoint ONLY AFTER the scan is finished.
 [[ "$TYPE" != "MANUAL-TEST" ]] && touch "$CHK" && chown clamscan:clamscan "$CHK"
 rm -f "$LIST"
 EOF
@@ -1995,7 +1999,6 @@ EOF
     systemctl restart crond 2>/dev/null
     echo "[+] ClamAV Setup and Automation Complete."
 }
-
 clamav_health_check() {
     check_root
     echo "========================================================="
