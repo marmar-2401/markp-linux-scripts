@@ -2098,8 +2098,13 @@ clamav_health_check() {
     printf "Scanner (clamd):      %-10s\n" "$(systemctl is-active clamd@scan)"
     printf "Updater (freshclam):  %-10s\n" "$(systemctl is-active clamav-freshclam)"
     
+    # Logic: stat gets the raw time, date command strips the decimals
     echo -n "Last DB Update:       "
-    stat -c %y /var/lib/clamav/daily.cld 2>/dev/null || echo "No DB found."
+    if [ -f /var/lib/clamav/daily.cld ]; then
+        date -d "@$(stat -c %Y /var/lib/clamav/daily.cld)" '+%Y-%m-%d %H:%M:%S'
+    else
+        echo "No DB found."
+    fi
 
     echo ""
     echo "--- [Automation: Core Cron Jobs] ---"
