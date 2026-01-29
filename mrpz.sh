@@ -2282,10 +2282,13 @@ uninstall_clamav() {
     dnf remove -y --no-plugins clamav clamav-freshclam clamd clamav-server clamav-server-systemd clamav-update >/dev/null 2>&1
 
     echo "[+] Purging Data and Quarantine..."
+  
+    fuser -k /var/log/clamav/freshclam.log /var/log/clamav/clamd.log 2>/dev/null
 
     rm -rf /var/lib/clamav /var/log/clamav /etc/clamd.d /run/clamd.scan /etc/freshclam.conf
-    find /etc -name "clamd.conf.rpmsave" -delete 2>/dev/null
-    find /etc -name "freshclam.conf.rpmsave" -delete 2>/dev/null
+    
+    find /etc -name "*clam*.rpmsave" -delete 2>/dev/null
+    find /etc -name "*clam*.rpmnew" -delete 2>/dev/null
 
     echo "[+] Removing System Users..."
 
@@ -2294,7 +2297,7 @@ uninstall_clamav() {
             userdel -rf "$U" 2>/dev/null
         fi
     done
-	
+    
     for G in clamav clamscan virusgroup; do
         getent group "$G" >/dev/null && groupdel "$G" 2>/dev/null
     done
