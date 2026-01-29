@@ -1949,7 +1949,6 @@ setup_clamav() {
 
     echo "[+] Applying SELinux Policies..."
     
-    # ADJUSTED: Added Mail Lock fix to the existing Rename policy
     cat > clamav_quarantine_fix.te <<EOF
 module clamav_quarantine_fix 1.0;
 require {
@@ -1976,6 +1975,10 @@ EOF
     semanage permissive -a clamd_t 2>/dev/null || true
     
     echo "[+] Initializing Database and Services..."
+    # ADDED: Systemd Timeout Override to prevent "Failed to start" false positives
+    mkdir -p /etc/systemd/system/clamd@scan.service.d/
+    echo -e "[Service]\nTimeoutStartSec=300" > /etc/systemd/system/clamd@scan.service.d/override.conf
+
     freshclam >/dev/null 2>&1
     systemctl daemon-reload
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
