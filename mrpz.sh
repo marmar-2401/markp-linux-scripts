@@ -2005,7 +2005,7 @@ fi
 for SVC in "${SERVICES[@]}"; do
     if ! systemctl is-active --quiet "$SVC"; then
         systemctl restart "$SVC"
-        mail -s "ALERT: $SVC Restored on $(hostname)" -S from="$EMAIL_ADDR" "$EMAIL_ADDR" <<< "$SVC was down and has been restarted."
+        mail -s "ALERT: $SVC was attempted to be restored on $(hostname)" -S from="$EMAIL_ADDR" "$EMAIL_ADDR" <<< "$SVC was down and has been attempted to be restarted. Please reach out to a system administrator to check the health of the ClamAV virus scanner."
     fi
 done
 EOF
@@ -2024,7 +2024,6 @@ EOF
     chmod 644 /etc/cron.d/clamav_jobs
     systemctl restart crond 2>/dev/null
     
-    # Removed the background Initial-Setup scan to prevent locking and delays
     touch /var/lib/clamav/setup_complete
     
     echo "[+] ClamAV Setup Complete. Monitoring is now active."
