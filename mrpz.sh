@@ -2004,11 +2004,14 @@ else
 fi
 FILES_TO_SCAN=\$(wc -l < "\$LIST" | xargs)
 if [[ "\$FILES_TO_SCAN" -gt 0 ]]; then
-    # ADDED --quiet to suppress 'OK' messages while maintaining summary for parsing
+    START_TIME=\$SECONDS
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --quiet --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
-    INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep "Infected files:" | awk '{print \$NF}')
+    # FIX: Use grep -c "FOUND" for foolproof infected counting across RHEL 8, 9, 10
+    INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep -c "FOUND")
     [[ -z "\$INFECTED_COUNT" ]] && INFECTED_COUNT=0
+    # FIX: Fallback for Scan Time parsing
     SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep -i "Time:" | cut -d':' -f2- | xargs)
+    [[ -z "\$SCAN_TIME" ]] && SCAN_TIME="\$((\$SECONDS - \$START_TIME))s"
     if [[ "\$INFECTED_COUNT" -gt 0 ]]; then
         mail -s "CRITICAL: Virus Detected on \$(hostname) [\$TYPE]" -S from="\$EMAIL_ADDR" "\$EMAIL_ADDR" <<MAIL_CONTENT
 Detection Type: \$TYPE  
