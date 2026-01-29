@@ -1866,25 +1866,32 @@ setup_clamav() {
     local EMAIL
     read -rp "Please enter the email address for ClamAV alerts: " EMAIL
 
+    local RHEL_VER=$(rpm -E %rhel)
     local LOG_DIR="/var/log/clamav"
     local QUARANTINE_DIR="/var/lib/clamav/quarantine"
     local CHK="/var/lib/clamav/scan_checkpoint"
     local WHITE_LIST="/var/lib/clamav/whitelist.txt"
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
 
-    echo "[+] Installing Components..."
-    dnf install -y oracle-epel-release-el$(rpm -E %rhel) >/dev/null 2>&1
-    dnf config-manager --set-enabled ol$(rpm -E %rhel)_developer_EPEL >/dev/null 2>&1 || true
+    echo "[+] Installing Components for RHEL/OL $RHEL_VER..."
+    
+    # RHEL 10 Specific Repo Setup
+    if [ "$RHEL_VER" -eq 10 ]; then
+        dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm >/dev/null 2>&1
+        /usr/bin/crb enable >/dev/null 2>&1
+    else
+        dnf install -y oracle-epel-release-el"$RHEL_VER" >/dev/null 2>&1
+        dnf config-manager --set-enabled ol"$RHEL_VER"_developer_EPEL >/dev/null 2>&1 || true
+    fi
     
     # Fix for OL8 Berkeley DB corruption recovery
     rm -f /var/lib/rpm/__db.* 2>/dev/null
     
-    # Added server packages required specifically for Oracle Linux 8
-    dnf install -y clamav clamav-freshclam clamd clamav-server clamav-server-systemd policycoreutils-python-utils >/dev/null 2>&1
+    # Universal Package Install (Handles RHEL 10 naming and OL8 server needs)
+    dnf install -y clamav clamav-freshclam clamav-update clamd clamav-server clamav-server-systemd policycoreutils-python-utils >/dev/null 2>&1
     
     echo "[+] Synchronizing system users..."
     local RETRY=0
-    # Added check for 'clamav' user as it is the primary on many OL8 builds
     while ! getent passwd clamscan >/dev/null && ! getent passwd clamav >/dev/null; do
         if [ $RETRY -gt 15 ]; then
             echo "[!] Timeout: Creating ClamAV users manually..."
@@ -1904,11 +1911,10 @@ setup_clamav() {
     fi
 
     echo "[+] Preparing Environment..."
-    mkdir -p "$LOG_DIR" "$QUARANTINE_DIR"
+    mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" "/run/clamd.scan"
     touch "$WHITE_LIST"
     groupadd -f clamav
     
-    # Surgical Fix: Dynamic user discovery to prevent usermod/chown errors on OL8
     local SCAN_USER="clamscan"
     getent passwd clamscan >/dev/null || SCAN_USER="clamav"
 
@@ -1918,10 +1924,8 @@ setup_clamav() {
         fi
     done
 
-    chown -R "$SCAN_USER":clamav "$LOG_DIR"
-    chown -R "$SCAN_USER":clamav /var/lib/clamav 
-    chmod -R 775 "$LOG_DIR"
-    chmod -R 775 /var/lib/clamav
+    chown -R "$SCAN_USER":clamav "$LOG_DIR" /var/lib/clamav "/run/clamd.scan"
+    chmod -R 775 "$LOG_DIR" /var/lib/clamav
     
     setfacl -m u:"$SCAN_USER":--x /root
     setfacl -d -m u:"$SCAN_USER":r-X /root
@@ -1930,19 +1934,23 @@ setup_clamav() {
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
 
     echo "[+] Configuring ClamAV Daemon Settings..."
-    # Fix: Ensure scan.conf template is populated on OL8
-    if [ ! -f /etc/clamd.d/scan.conf ] && [ -f /usr/share/clamav/template/clamd.conf ]; then
-        cp /usr/share/clamav/template/clamd.conf /etc/clamd.d/scan.conf
+    CONF_FILE="/etc/clamd.d/scan.conf"
+    if [ ! -f "$CONF_FILE" ]; then
+        cp /usr/share/doc/clamav*/clamd.conf "$CONF_FILE" 2>/dev/null || cp /usr/share/clamav/template/clamd.conf "$CONF_FILE" 2>/dev/null
     fi
 
-    if [ -f /etc/clamd.d/scan.conf ]; then
-        sed -i 's/^Example/#Example/' /etc/clamd.d/scan.conf
-        sed -i 's|^#LocalSocket /.*|LocalSocket /run/clamd.scan/clamd.sock|' /etc/clamd.d/scan.conf
-        sed -i 's|^#LocalSocketGroup .*|LocalSocketGroup clamav|' /etc/clamd.d/scan.conf
-        sed -i 's|^#LocalSocketMode .*|LocalSocketMode 660|' /etc/clamd.d/scan.conf
+    if [ -f "$CONF_FILE" ]; then
+        sed -i 's/^Example/#Example/' "$CONF_FILE"
+        sed -i 's|^#LocalSocket /.*|LocalSocket /run/clamd.scan/clamd.sock|' "$CONF_FILE"
+        sed -i 's|^#LocalSocketGroup .*|LocalSocketGroup clamav|' "$CONF_FILE"
+        sed -i 's|^#LocalSocketMode .*|LocalSocketMode 660|' "$CONF_FILE"
+        # RHEL 10 Force: ensures server type is defined even if template is empty
+        grep -q "^LocalSocket" "$CONF_FILE" || echo "LocalSocket /run/clamd.scan/clamd.sock" >> "$CONF_FILE"
     fi
 
     echo "[+] Applying SELinux Policies..."
+    # Relabel for RHEL 10 stability
+    restorecon -R /var/lib/clamav /var/log/clamav /run/clamd.scan 2>/dev/null
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
     setsebool -P clamd_use_jit 1 2>/dev/null || true
     setsebool -P nis_enabled 1 2>/dev/null || true
@@ -1953,6 +1961,7 @@ setup_clamav() {
     systemctl daemon-reload
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
+    # --- [ HEREDOC Generation ] ---
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
