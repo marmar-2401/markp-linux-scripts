@@ -1888,7 +1888,8 @@ setup_clamav() {
     
     echo "[+] Synchronizing system users..."
     local RETRY=0
-    while ! getent passwd clamscan >/dev/null && ! getent passwd clamav >/dev/null; do
+    # FIXED: Now checks for BOTH clamscan AND clamupdate to ensure identity sync
+    while { ! getent passwd clamscan >/dev/null || ! getent passwd clamupdate >/dev/null; }; do
         if [ $RETRY -gt 15 ]; then
             groupadd -f clamav
             groupadd -f clamscan
@@ -1920,6 +1921,9 @@ setup_clamav() {
     done
 
     chown -R "$SCAN_USER":clamav "$LOG_DIR" /var/lib/clamav "/run/clamd.scan"
+    # Ensure clamupdate specifically owns the lib dir for freshclam access
+    getent passwd clamupdate >/dev/null && chown -R clamupdate:clamav /var/lib/clamav
+    
     chmod -R 775 "$LOG_DIR" /var/lib/clamav
     
     setfacl -m u:"$SCAN_USER":--x /root
@@ -1940,7 +1944,7 @@ setup_clamav() {
 
     if [ -f "$CONF_FILE" ]; then
         sed -i 's/^Example/#Example/' "$CONF_FILE"
-        sed -i 's/User <USER>/User clamscan/' "$CONF_FILE"
+        sed -i "s/User <USER>/User $SCAN_USER/" "$CONF_FILE"
         sed -i 's|^#LocalSocket /.*|LocalSocket /run/clamd.scan/clamd.sock|' "$CONF_FILE"
         sed -i 's|^#LocalSocketGroup .*|LocalSocketGroup clamav|' "$CONF_FILE"
         sed -i 's|^#LocalSocketMode .*|LocalSocketMode 660|' "$CONF_FILE"
@@ -1975,7 +1979,6 @@ EOF
     semanage permissive -a clamd_t 2>/dev/null || true
     
     echo "[+] Initializing Database and Services..."
-    # ADDED: Systemd Timeout Override to prevent "Failed to start" false positives
     mkdir -p /etc/systemd/system/clamd@scan.service.d/
     echo -e "[Service]\nTimeoutStartSec=300" > /etc/systemd/system/clamd@scan.service.d/override.conf
 
