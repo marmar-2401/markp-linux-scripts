@@ -2165,67 +2165,62 @@ uninstall_clamav() {
     read -rp "Are you sure you want to proceed? (y/N): " CONFIRM
     [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]] && exit 1
 
-    # 1. Stop Cron first to prevent "parting gift" alert emails
-    echo "[+] Temporarily stopping Cron to prevent race-condition alerts..."
+    # 1. Self-Healing Lock Breaker (from our previous fix)
+    echo "[+] Clearing potential system locks and ghost processes..."
+    pkill -9 dnf 2>/dev/null
+    pkill -9 yum 2>/dev/null
+    rm -f /var/lib/dnf/lock /var/lib/rpm/.rpm.lock 2>/dev/null
+    
+    echo "[+] Temporarily stopping Cron..."
     systemctl stop crond 2>/dev/null
 
     echo "[+] Stopping services and killing active processes..."
     systemctl disable --now clamd@scan clamav-freshclam 2>/dev/null
-    
-    # Kill everything: the client, the updater, the main engine, and the scan script
     pkill -9 clamdscan 2>/dev/null
     pkill -9 freshclam 2>/dev/null
     pkill -9 clamd 2>/dev/null
     pkill -9 -f hourly_secure_scan.sh 2>/dev/null
-    
-    # FIX: Force kill any background dnf metadata syncs (makecache) holding the RPM lock
-    pkill -9 dnf 2>/dev/null
-    
-    sleep 2 # Wait for file locks to release
+    sleep 2 
 
-    echo "[+] Cleaning up Cron Jobs (All Types)..."
-    if [ -f /etc/cron.d/clamav_jobs ]; then
-        rm -f /etc/cron.d/clamav_jobs
-        echo "    - Removed /etc/cron.d/clamav_jobs"
-    fi
+    echo "[+] Cleaning up Cron Jobs..."
+    # Clean up the file-based cron job
+    rm -f /etc/cron.d/clamav_jobs
 
+    # FIX: Robust Crontab Removal
     if crontab -l &>/dev/null; then
         local TMP_CRON=$(mktemp)
-        crontab -l | grep -vE "hourly_secure_scan.sh|clamav_monitor.sh" > "$TMP_CRON"
+        # Filter out the scripts AND anything mentioning "clam" just to be safe
+        crontab -l | grep -vE "hourly_secure_scan.sh|clamav_monitor.sh|clamav" > "$TMP_CRON"
         
         if [ ! -s "$TMP_CRON" ]; then
             crontab -r 2>/dev/null
-            echo "    - Root crontab emptied and removed."
+            echo "    - Root crontab cleared."
         else
             crontab "$TMP_CRON"
-            echo "    - ClamAV entries removed from root crontab."
+            echo "    - ClamAV entries stripped from crontab."
         fi
         rm -f "$TMP_CRON"
     fi
 
     echo "[+] Removing Scripts and Environment..."
-    rm -f /usr/local/bin/hourly_secure_scan.sh
-    rm -f /usr/local/bin/clamav_monitor.sh
-    rm -f /etc/tmpfiles.d/clamav-daemon.conf
+    rm -f /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh /etc/tmpfiles.d/clamav-daemon.conf
 
     echo "[+] Removing Packages..."
-    dnf remove -y clamav clamav-freshclam clamd >/dev/null 2>&1
+    dnf remove -y --no-plugins clamav clamav-freshclam clamd >/dev/null 2>&1
 
     echo "[+] Purging Data and Quarantine..."
-    rm -rf /var/lib/clamav
-    rm -rf /var/log/clamav
+    rm -rf /var/lib/clamav /var/log/clamav
 
     echo "[+] Removing System Users..."
-    userdel -r clamscan 2>/dev/null
-    userdel -r clamupdate 2>/dev/null
-    groupdel clamav 2>/dev/null
-    groupdel clamscan 2>/dev/null
+    userdel -f clamscan 2>/dev/null
+    userdel -f clamupdate 2>/dev/null
+    groupdel clamav 2>/dev/null 2>&1
+    groupdel clamscan 2>/dev/null 2>&1
 
     echo "[+] Reverting SELinux Policies..."
     setsebool -P antivirus_can_scan_system 0 2>/dev/null || true
     semanage permissive -d clamd_t 2>/dev/null || true
 
-   
     echo "[+] Restarting Cron..."
     systemctl start crond 2>/dev/null
 
