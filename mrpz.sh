@@ -2253,28 +2253,34 @@ uninstall_clamav() {
 
     echo "[+] Removing Scripts and Environment..."
     rm -f /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh /etc/tmpfiles.d/clamav-daemon.conf
-    # ADDED: Remove systemd override directory
     rm -rf /etc/systemd/system/clamd@scan.service.d
 
     echo "[+] Removing Packages..."
-
     dnf remove -y --no-plugins clamav clamav-freshclam clamd clamav-server clamav-server-systemd clamav-update >/dev/null 2>&1
 
     echo "[+] Purging Data and Quarantine..."
-    rm -rf /var/lib/clamav /var/log/clamav /etc/clamd.d /run/clamd.scan
+    # ADJUSTED: Added /etc/freshclam.conf and any .rpmsave/.rpmnew remnants
+    rm -rf /var/lib/clamav /var/log/clamav /etc/clamd.d /run/clamd.scan /etc/freshclam.conf
+    find /etc -name "clamd.conf.rpmsave" -delete 2>/dev/null
+    find /etc -name "freshclam.conf.rpmsave" -delete 2>/dev/null
 
     echo "[+] Removing System Users..."
-    userdel -f clamscan 2>/dev/null
-    userdel -f clamupdate 2>/dev/null
-    userdel -f clamav 2>/dev/null
+    # ADJUSTED: Added a loop to ensure all ClamAV-related users are purged
+    for U in clamupdate clamscan clamav; do
+        if getent passwd "$U" >/dev/null; then
+            userdel -rf "$U" 2>/dev/null
+        fi
+    done
 
-    getent group clamav >/dev/null && groupdel clamav 2>/dev/null
-    getent group clamscan >/dev/null && groupdel clamscan 2>/dev/null
+    # ADJUSTED: Specifically targeting the groups we found earlier
+    for G in clamav clamscan virusgroup; do
+        getent group "$G" >/dev/null && groupdel "$G" 2>/dev/null
+    done
 
     echo "[+] Reverting SELinux Policies..."
-    # ADDED: Specifically unload the custom quarantine fix module
     semodule -r clamav_quarantine_fix 2>/dev/null
     setsebool -P antivirus_can_scan_system 0 2>/dev/null || true
+    setsebool -P clamd_use_jit 0 2>/dev/null || true
     semanage permissive -d clamd_t 2>/dev/null || true
 
     systemctl daemon-reload
