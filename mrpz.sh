@@ -1860,11 +1860,14 @@ fi
 }
 
 setup_clamav() {
-    # Surgical Add: Remove any existing cronjobs with the word 'clam'
+ 
+    check_root
+    confirm_action
+   
     echo "[+] Cleaning up existing ClamAV cronjobs..."
     crontab -l 2>/dev/null | sed '/clam/d' | crontab - 2>/dev/null || true
 
-    # Surgical Add: Clean up rogue services before starting
+    
     echo "[+] Cleaning legacy and rogue ClamAV instances..."
     systemctl disable --now clamd clamav-daemon clamav-freshclam 2>/dev/null
     pkill -9 clamd 2>/dev/null
@@ -1884,8 +1887,7 @@ setup_clamav() {
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
 
     echo "[+] Installing Components for RHEL/OL $RHEL_VER..."
-    
-    # RHEL 10 Specific Repo Setup
+   
     if [ "$RHEL_VER" -eq 10 ]; then
         dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm >/dev/null 2>&1
         /usr/bin/crb enable >/dev/null 2>&1
@@ -1894,10 +1896,10 @@ setup_clamav() {
         dnf config-manager --set-enabled ol"$RHEL_VER"_developer_EPEL >/dev/null 2>&1 || true
     fi
     
-    # Fix for OL8 Berkeley DB corruption recovery
+
     rm -f /var/lib/rpm/__db.* 2>/dev/null
     
-    # Universal Package Install
+
     dnf install -y clamav clamav-freshclam clamav-update clamd clamav-server clamav-server-systemd policycoreutils-python-utils >/dev/null 2>&1
     
     echo "[+] Synchronizing system users..."
@@ -1969,7 +1971,7 @@ setup_clamav() {
     systemctl daemon-reload
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
-    # --- [ HEREDOC Generation ] ---
+
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -2212,7 +2214,7 @@ uninstall_clamav() {
     systemctl stop crond 2>/dev/null
 
     echo "[+] Stopping services and killing active processes..."
-    # Kill both your version AND generic/legacy service names
+   
     systemctl disable --now clamd@scan clamav-freshclam clamd clamav-daemon clamav-freshclam.service 2>/dev/null
     pkill -9 clamdscan 2>/dev/null
     pkill -9 freshclam 2>/dev/null
@@ -2241,7 +2243,7 @@ uninstall_clamav() {
     rm -f /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh /etc/tmpfiles.d/clamav-daemon.conf
 
     echo "[+] Removing Packages..."
-    # Added clamav-server and clamav-server-systemd to catch legacy RHEL 8 installs
+
     dnf remove -y --no-plugins clamav clamav-freshclam clamd clamav-server clamav-server-systemd clamav-update >/dev/null 2>&1
 
     echo "[+] Purging Data and Quarantine..."
