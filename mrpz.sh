@@ -1873,9 +1873,6 @@ setup_clamav() {
     pkill -9 clamd 2>/dev/null
     rm -f /run/clamd.scan/clamd.sock 2>/dev/null
 
-    check_root
-    confirm_action
-
     local EMAIL
     read -rp "Please enter the email address for ClamAV alerts: " EMAIL
 
