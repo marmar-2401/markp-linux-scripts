@@ -2003,9 +2003,10 @@ FILES_TO_SCAN=\$(wc -l < "\$LIST" | xargs)
 if [[ "\$FILES_TO_SCAN" -gt 0 ]]; then
     # --quiet flag to prevent log flooding
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --quiet --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
+    # ESCAPED: \$NF
     INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep "Infected files:" | awk '{print \$NF}')
     [[ -z "\$INFECTED_COUNT" ]] && INFECTED_COUNT=0
-    # Fixed SCAN_TIME for RHEL 10 compatibility
+    # ESCAPED: \$2
     SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep -i "Time:" | awk -F': ' '{print \$2}' | xargs)
     if [[ "\$INFECTED_COUNT" -gt 0 ]]; then
         mail -s "CRITICAL: Virus Detected on \$(hostname) [\$TYPE]" -S from="\$EMAIL_ADDR" "\$EMAIL_ADDR" <<MAIL_CONTENT
