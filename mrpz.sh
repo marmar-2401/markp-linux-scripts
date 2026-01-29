@@ -2165,18 +2165,23 @@ uninstall_clamav() {
     read -rp "Are you sure you want to proceed? (y/N): " CONFIRM
     [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]] && exit 1
 
-   
+    # 1. Stop Cron first to prevent "parting gift" alert emails
     echo "[+] Temporarily stopping Cron to prevent race-condition alerts..."
     systemctl stop crond 2>/dev/null
 
     echo "[+] Stopping services and killing active processes..."
     systemctl disable --now clamd@scan clamav-freshclam 2>/dev/null
     
+    # Kill everything: the client, the updater, the main engine, and the scan script
     pkill -9 clamdscan 2>/dev/null
     pkill -9 freshclam 2>/dev/null
     pkill -9 clamd 2>/dev/null
     pkill -9 -f hourly_secure_scan.sh 2>/dev/null
-    sleep 2 
+    
+    # FIX: Force kill any background dnf metadata syncs (makecache) holding the RPM lock
+    pkill -9 dnf 2>/dev/null
+    
+    sleep 2 # Wait for file locks to release
 
     echo "[+] Cleaning up Cron Jobs (All Types)..."
     if [ -f /etc/cron.d/clamav_jobs ]; then
@@ -2203,7 +2208,6 @@ uninstall_clamav() {
     rm -f /usr/local/bin/clamav_monitor.sh
     rm -f /etc/tmpfiles.d/clamav-daemon.conf
 
-    # MOVED: Remove packages BEFORE purging data to prevent RPM hangs
     echo "[+] Removing Packages..."
     dnf remove -y clamav clamav-freshclam clamd >/dev/null 2>&1
 
@@ -2214,16 +2218,14 @@ uninstall_clamav() {
     echo "[+] Removing System Users..."
     userdel -r clamscan 2>/dev/null
     userdel -r clamupdate 2>/dev/null
-    # Redirecting groupdel errors in case they were already removed by userdel
     groupdel clamav 2>/dev/null
     groupdel clamscan 2>/dev/null
 
     echo "[+] Reverting SELinux Policies..."
     setsebool -P antivirus_can_scan_system 0 2>/dev/null || true
-    # Use -d to delete the permissive record
     semanage permissive -d clamd_t 2>/dev/null || true
 
-    # 4. Restart Cron now that the scripts are gone
+   
     echo "[+] Restarting Cron..."
     systemctl start crond 2>/dev/null
 
