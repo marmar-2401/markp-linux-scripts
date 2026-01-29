@@ -1875,12 +1875,17 @@ setup_clamav() {
     echo "[+] Installing Components..."
     dnf install -y oracle-epel-release-el$(rpm -E %rhel) >/dev/null 2>&1
     dnf config-manager --set-enabled ol$(rpm -E %rhel)_developer_EPEL >/dev/null 2>&1 || true
-    dnf makecache >/dev/null 2>&1
-    dnf install -y clamav clamav-freshclam clamd policycoreutils-python-utils >/dev/null 2>&1
+    
+    # Fix for OL8 Berkeley DB corruption recovery
+    rm -f /var/lib/rpm/__db.* 2>/dev/null
+    
+    # Added server packages required specifically for Oracle Linux 8
+    dnf install -y clamav clamav-freshclam clamd clamav-server clamav-server-systemd policycoreutils-python-utils >/dev/null 2>&1
     
     echo "[+] Synchronizing system users..."
     local RETRY=0
-    while ! getent passwd clamscan >/dev/null; do
+    # Added check for 'clamav' user as it is the primary on many OL8 builds
+    while ! getent passwd clamscan >/dev/null && ! getent passwd clamav >/dev/null; do
         if [ $RETRY -gt 15 ]; then
             echo "[!] Timeout: Creating ClamAV users manually..."
             groupadd -f clamav
@@ -1902,22 +1907,34 @@ setup_clamav() {
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR"
     touch "$WHITE_LIST"
     groupadd -f clamav
-    usermod -aG clamav clamupdate
-    usermod -aG clamav clamscan
+    
+    # Surgical Fix: Dynamic user discovery to prevent usermod/chown errors on OL8
+    local SCAN_USER="clamscan"
+    getent passwd clamscan >/dev/null || SCAN_USER="clamav"
 
-    # SURGICAL FIX: Change owner to clamscan so the daemon can move files
-    chown -R clamscan:clamav "$LOG_DIR"
-    chown -R clamscan:clamav /var/lib/clamav 
+    for U in clamupdate clamscan clamav; do
+        if getent passwd "$U" >/dev/null; then
+            usermod -aG clamav "$U" 2>/dev/null
+        fi
+    done
+
+    chown -R "$SCAN_USER":clamav "$LOG_DIR"
+    chown -R "$SCAN_USER":clamav /var/lib/clamav 
     chmod -R 775 "$LOG_DIR"
     chmod -R 775 /var/lib/clamav
     
-    setfacl -m u:clamscan:--x /root
-    setfacl -d -m u:clamscan:r-X /root
+    setfacl -m u:"$SCAN_USER":--x /root
+    setfacl -d -m u:"$SCAN_USER":r-X /root
 
-    echo "d /run/clamd.scan 0755 clamscan clamscan -" > /etc/tmpfiles.d/clamav-daemon.conf
+    echo "d /run/clamd.scan 0755 $SCAN_USER clamav -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
 
     echo "[+] Configuring ClamAV Daemon Settings..."
+    # Fix: Ensure scan.conf template is populated on OL8
+    if [ ! -f /etc/clamd.d/scan.conf ] && [ -f /usr/share/clamav/template/clamd.conf ]; then
+        cp /usr/share/clamav/template/clamd.conf /etc/clamd.d/scan.conf
+    fi
+
     if [ -f /etc/clamd.d/scan.conf ]; then
         sed -i 's/^Example/#Example/' /etc/clamd.d/scan.conf
         sed -i 's|^#LocalSocket /.*|LocalSocket /run/clamd.scan/clamd.sock|' /etc/clamd.d/scan.conf
@@ -1933,62 +1950,63 @@ setup_clamav() {
     
     echo "[+] Initializing Database and Services..."
     freshclam >/dev/null 2>&1
+    systemctl daemon-reload
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
-    cat > /usr/local/bin/hourly_secure_scan.sh <<'EOF'
+    cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
-TYPE=${1:-Hourly}
+TYPE=\${1:-Hourly}
 LOCKFILE="/run/clamd.scan/hourly_scan.lock"
-exec 200>$LOCKFILE
+exec 200>\$LOCKFILE
 flock -n 200 || exit 1
 Q_DIR="/var/lib/clamav/quarantine"
 EMAIL_ADDR="__EMAIL__"
 CHK="/var/lib/clamav/scan_checkpoint"
 WEEKLY="/var/log/clamav/weekly_report.log"
 LOGS="/var/log/clamav/hourly_audit.log"
-NOW=$(date '+%Y-%m-%d %H:%M:%S')
-LIST=$(mktemp)
-if [[ "$TYPE" == "MANUAL-TEST" ]]; then
+NOW=\$(date '+%Y-%m-%d %H:%M:%S')
+LIST=\$(mktemp)
+if [[ "\$TYPE" == "MANUAL-TEST" ]]; then
     TEST_FILE="/var/lib/clamav/eicar.com"
-    echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$TEST_FILE"
-    chown clamscan:clamav "$TEST_FILE"
-    echo "$TEST_FILE" > "$LIST"
+    echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}\$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!\$H+H*' > "\$TEST_FILE"
+    chown $SCAN_USER:clamav "\$TEST_FILE"
+    echo "\$TEST_FILE" > "\$LIST"
 else
     find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
          -not -path "/var/lib/clamav/*" -not -path "/var/log/clamav/*" \
-         $([ -f "$CHK" ] && echo "-newer $CHK") -mmin +1 > "$LIST" 2>/dev/null || true
+         \$([ -f "\$CHK" ] && echo "-newer \$CHK") -mmin +1 > "\$LIST" 2>/dev/null || true
 fi
-FILES_TO_SCAN=$(wc -l < "$LIST" | xargs)
-if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
-    SCAN_RESULTS=$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="$Q_DIR" --file-list="$LIST" 2>/dev/null)
-    INFECTED_COUNT=$(echo "$SCAN_RESULTS" | grep "Infected files:" | awk '{print $NF}')
-    [[ -z "$INFECTED_COUNT" ]] && INFECTED_COUNT=0
-    SCAN_TIME=$(echo "$SCAN_RESULTS" | grep "Time:" | sed 's/Time: //' | xargs)
-    if [[ "$INFECTED_COUNT" -gt 0 ]]; then
-        mail -s "CRITICAL: Virus Detected on $(hostname) [$TYPE]" -S from="$EMAIL_ADDR" "$EMAIL_ADDR" <<MAIL_CONTENT
-Detection Type: $TYPE  
-Detection Date: $NOW  
-Virus(es) detected on $(hostname):  
+FILES_TO_SCAN=\$(wc -l < "\$LIST" | xargs)
+if [[ "\$FILES_TO_SCAN" -gt 0 ]]; then
+    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
+    INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep "Infected files:" | awk '{print \$NF}')
+    [[ -z "\$INFECTED_COUNT" ]] && INFECTED_COUNT=0
+    SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep "Time:" | sed 's/Time: //' | xargs)
+    if [[ "\$INFECTED_COUNT" -gt 0 ]]; then
+        mail -s "CRITICAL: Virus Detected on \$(hostname) [\$TYPE]" -S from="\$EMAIL_ADDR" "\$EMAIL_ADDR" <<MAIL_CONTENT
+Detection Type: \$TYPE  
+Detection Date: \$NOW  
+Virus(es) detected on \$(hostname):  
 -------------------------------------------  
-$(echo "$SCAN_RESULTS" | grep "FOUND")  
+\$(echo "\$SCAN_RESULTS" | grep "FOUND")  
 -------------------------------------------  
-Files Checked:  $FILES_TO_SCAN  
-Quarantine Dir: $Q_DIR  
-Scan Time:      $SCAN_TIME  
+Files Checked:  \$FILES_TO_SCAN  
+Quarantine Dir: \$Q_DIR  
+Scan Time:      \$SCAN_TIME  
 MAIL_CONTENT
     fi
-    ENTRY="Date: $NOW | Type: $TYPE | Files: $FILES_TO_SCAN | Infected: $INFECTED_COUNT | Time: $SCAN_TIME"
-    echo "$ENTRY" >> "$WEEKLY"
-    echo "$ENTRY" >> "$LOGS"
+    ENTRY="Date: \$NOW | Type: \$TYPE | Files: \$FILES_TO_SCAN | Infected: \$INFECTED_COUNT | Time: \$SCAN_TIME"
+    echo "\$ENTRY" >> "\$WEEKLY"
+    echo "\$ENTRY" >> "\$LOGS"
 else
-    ENTRY="Date: $NOW | Type: $TYPE | Files: 0 | Infected: 0 | Time: 0s (Idle)"
-    echo "$ENTRY" >> "$WEEKLY"
-    echo "$ENTRY" >> "$LOGS"
+    ENTRY="Date: \$NOW | Type: \$TYPE | Files: 0 | Infected: 0 | Time: 0s (Idle)"
+    echo "\$ENTRY" >> "\$WEEKLY"
+    echo "\$ENTRY" >> "\$LOGS"
 fi
-[[ "$TYPE" != "MANUAL-TEST" ]] && touch "$CHK" && chown clamscan:clamscan "$CHK"
+[[ "\$TYPE" != "MANUAL-TEST" ]] && touch "\$CHK" && chown $SCAN_USER:clamav "\$CHK"
 touch /var/lib/clamav/setup_complete
-rm -f "$LIST"
+rm -f "\$LIST"
 EOF
 
     cat > /usr/local/bin/clamav_monitor.sh <<'EOF'
