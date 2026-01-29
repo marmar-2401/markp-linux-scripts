@@ -1949,17 +1949,20 @@ setup_clamav() {
 
     echo "[+] Applying SELinux Policies..."
     
-  
+    # ADJUSTED: Added Mail Lock fix to the existing Rename policy
     cat > clamav_quarantine_fix.te <<EOF
 module clamav_quarantine_fix 1.0;
 require {
     type clamd_t;
     type admin_home_t;
-    class file { rename unlink setattr getattr read open };
+    type system_mail_t;
+    type clamd_var_run_t;
+    class file { rename unlink setattr getattr read open write };
     class dir { write remove_name add_name };
 }
 allow clamd_t admin_home_t:dir { write remove_name add_name };
 allow clamd_t admin_home_t:file { rename unlink setattr getattr read open };
+allow system_mail_t clamd_var_run_t:file { read write open getattr };
 EOF
     checkmodule -M -m -o clamav_quarantine_fix.mod clamav_quarantine_fix.te
     semodule_package -o clamav_quarantine_fix.pp -m clamav_quarantine_fix.mod
@@ -1976,7 +1979,6 @@ EOF
     freshclam >/dev/null 2>&1
     systemctl daemon-reload
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
-
 
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
@@ -2004,7 +2006,6 @@ else
 fi
 FILES_TO_SCAN=\$(wc -l < "\$LIST" | xargs)
 if [[ "\$FILES_TO_SCAN" -gt 0 ]]; then
-    # Removed --quiet to restore parsing; added grep -v to filter out OK lines
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null | grep -v ": OK$")
     INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep "Infected files:" | awk '{print \$NF}')
     [[ -z "\$INFECTED_COUNT" ]] && INFECTED_COUNT=0
