@@ -1929,12 +1929,10 @@ setup_clamav() {
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
 
     echo "[+] Configuring ClamAV Daemon Settings..."
-    # ERROR HANDLING: Ensure parent directory exists for RHEL 10
     mkdir -p /etc/clamd.d/
     CONF_FILE="/etc/clamd.d/scan.conf"
 
     if [ ! -f "$CONF_FILE" ]; then
-        # ERROR HANDLING: Multi-path search for clamd template
         cp /usr/share/doc/clamav*/clamd.conf "$CONF_FILE" 2>/dev/null || \
         cp /usr/share/doc/clamd*/clamd.conf "$CONF_FILE" 2>/dev/null || \
         cp /usr/share/clamav/template/clamd.conf "$CONF_FILE" 2>/dev/null
@@ -1942,7 +1940,6 @@ setup_clamav() {
 
     if [ -f "$CONF_FILE" ]; then
         sed -i 's/^Example/#Example/' "$CONF_FILE"
-        # CLI VERIFIED FIX: Explicitly replace <USER> placeholder to prevent service failure
         sed -i 's/User <USER>/User clamscan/' "$CONF_FILE"
         sed -i 's|^#LocalSocket /.*|LocalSocket /run/clamd.scan/clamd.sock|' "$CONF_FILE"
         sed -i 's|^#LocalSocketGroup .*|LocalSocketGroup clamav|' "$CONF_FILE"
@@ -1951,6 +1948,24 @@ setup_clamav() {
     fi
 
     echo "[+] Applying SELinux Policies..."
+    
+    # FIX: Targeted Policy for /root Rename Access
+    cat > clamav_quarantine_fix.te <<EOF
+module clamav_quarantine_fix 1.0;
+require {
+    type clamd_t;
+    type admin_home_t;
+    class file { rename unlink setattr getattr read open };
+    class dir { write remove_name add_name };
+}
+allow clamd_t admin_home_t:dir { write remove_name add_name };
+allow clamd_t admin_home_t:file { rename unlink setattr getattr read open };
+EOF
+    checkmodule -M -m -o clamav_quarantine_fix.mod clamav_quarantine_fix.te
+    semodule_package -o clamav_quarantine_fix.pp -m clamav_quarantine_fix.mod
+    semodule -i clamav_quarantine_fix.pp
+    rm -f clamav_quarantine_fix.te clamav_quarantine_fix.mod clamav_quarantine_fix.pp
+
     restorecon -R /var/lib/clamav /var/log/clamav /run/clamd.scan 2>/dev/null
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
     setsebool -P clamd_use_jit 1 2>/dev/null || true
@@ -1984,16 +1999,14 @@ if [[ "\$TYPE" == "MANUAL-TEST" ]]; then
     echo "\$TEST_FILE" > "\$LIST"
 else
     find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
-         -not -path "/var/lib/clamav/*" -not -path "/var/log/clamav/*" \\
-         \$([ -f "\$CHK" ] && echo "-newer \$CHK") -mmin +1 > "\$LIST" 2>/dev/null || true
+          -not -path "/var/lib/clamav/*" -not -path "/var/log/clamav/*" \\
+          \$([ -f "\$CHK" ] && echo "-newer \$CHK") -mmin +1 > "\$LIST" 2>/dev/null || true
 fi
 FILES_TO_SCAN=\$(wc -l < "\$LIST" | xargs)
 if [[ "\$FILES_TO_SCAN" -gt 0 ]]; then
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
-    # FIX: Correct escaping for \$NF
     INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep "Infected files:" | awk '{print \$NF}')
     [[ -z "\$INFECTED_COUNT" ]] && INFECTED_COUNT=0
-    # FIX: Use cut to handle variable spacing in RHEL 10
     SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep -i "Time:" | cut -d':' -f2- | xargs)
     if [[ "\$INFECTED_COUNT" -gt 0 ]]; then
         mail -s "CRITICAL: Virus Detected on \$(hostname) [\$TYPE]" -S from="\$EMAIL_ADDR" "\$EMAIL_ADDR" <<MAIL_CONTENT
