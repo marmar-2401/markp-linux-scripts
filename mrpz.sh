@@ -1888,7 +1888,6 @@ setup_clamav() {
     
     echo "[+] Synchronizing system users..."
     local RETRY=0
-    # FIXED: Now checks for BOTH clamscan AND clamupdate to ensure identity sync
     while { ! getent passwd clamscan >/dev/null || ! getent passwd clamupdate >/dev/null; }; do
         if [ $RETRY -gt 15 ]; then
             groupadd -f clamav
@@ -1921,7 +1920,6 @@ setup_clamav() {
     done
 
     chown -R "$SCAN_USER":clamav "$LOG_DIR" /var/lib/clamav "/run/clamd.scan"
-    # Ensure clamupdate specifically owns the lib dir for freshclam access
     getent passwd clamupdate >/dev/null && chown -R clamupdate:clamav /var/lib/clamav
     
     chmod -R 775 "$LOG_DIR" /var/lib/clamav
@@ -1979,6 +1977,25 @@ EOF
     semanage permissive -a clamd_t 2>/dev/null || true
     
     echo "[+] Initializing Database and Services..."
+    # FIX 1: Ensure freshclam.conf exists (Purge often deletes this)
+    if [ ! -f "/etc/freshclam.conf" ]; then
+        cat > /etc/freshclam.conf <<EOF
+DatabaseDirectory /var/lib/clamav
+UpdateLogFile /var/log/clamav/freshclam.log
+LogFileMaxSize 2M
+LogTime yes
+DatabaseOwner clamupdate
+DNSDatabaseInfo current.cvd.clamav.net
+DatabaseMirror database.clamav.net
+MaxAttempts 3
+ConnectTimeout 30
+ReceiveTimeout 60
+EOF
+    fi
+    sed -i 's/^Example/#Example/' /etc/freshclam.conf 2>/dev/null
+    chown clamupdate:clamav /etc/freshclam.conf
+
+    # FIX 2: Give systemd enough time to load the 100MB+ DB into RAM
     mkdir -p /etc/systemd/system/clamd@scan.service.d/
     echo -e "[Service]\nTimeoutStartSec=300" > /etc/systemd/system/clamd@scan.service.d/override.conf
 
