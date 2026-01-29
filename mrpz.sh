@@ -2165,18 +2165,18 @@ uninstall_clamav() {
     read -rp "Are you sure you want to proceed? (y/N): " CONFIRM
     [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]] && exit 1
 
-    # 1. Stop Cron first to prevent "parting gift" alert emails
+   
     echo "[+] Temporarily stopping Cron to prevent race-condition alerts..."
     systemctl stop crond 2>/dev/null
 
     echo "[+] Stopping services and killing active processes..."
     systemctl disable --now clamd@scan clamav-freshclam 2>/dev/null
     
-    # Kill everything: the client, the updater, AND the main engine
     pkill -9 clamdscan 2>/dev/null
     pkill -9 freshclam 2>/dev/null
     pkill -9 clamd 2>/dev/null
-    sleep 2 # Wait for file locks to release
+    pkill -9 -f hourly_secure_scan.sh 2>/dev/null
+    sleep 2 
 
     echo "[+] Cleaning up Cron Jobs (All Types)..."
     if [ -f /etc/cron.d/clamav_jobs ]; then
@@ -2186,7 +2186,6 @@ uninstall_clamav() {
 
     if crontab -l &>/dev/null; then
         local TMP_CRON=$(mktemp)
-        # Use -E for extended regex to handle multiple scripts at once
         crontab -l | grep -vE "hourly_secure_scan.sh|clamav_monitor.sh" > "$TMP_CRON"
         
         if [ ! -s "$TMP_CRON" ]; then
@@ -2204,13 +2203,13 @@ uninstall_clamav() {
     rm -f /usr/local/bin/clamav_monitor.sh
     rm -f /etc/tmpfiles.d/clamav-daemon.conf
 
-    echo "[+] Purging Data and Quarantine..."
-    # The 'rm -rf' on the parent dir is usually enough once clamd is truly dead
-    rm -rf /var/lib/clamav
-    rm -rf /var/log/clamav
-
+    # MOVED: Remove packages BEFORE purging data to prevent RPM hangs
     echo "[+] Removing Packages..."
     dnf remove -y clamav clamav-freshclam clamd >/dev/null 2>&1
+
+    echo "[+] Purging Data and Quarantine..."
+    rm -rf /var/lib/clamav
+    rm -rf /var/log/clamav
 
     echo "[+] Removing System Users..."
     userdel -r clamscan 2>/dev/null
