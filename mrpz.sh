@@ -2165,11 +2165,11 @@ uninstall_clamav() {
     read -rp "Are you sure you want to proceed? (y/N): " CONFIRM
     [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]] && exit 1
 
-    # 1. Self-Healing Lock Breaker (from our previous fix)
     echo "[+] Clearing potential system locks and ghost processes..."
     pkill -9 dnf 2>/dev/null
+    pkill -9 dnf5 2>/dev/null
     pkill -9 yum 2>/dev/null
-    rm -f /var/lib/dnf/lock /var/lib/rpm/.rpm.lock 2>/dev/null
+    rm -f /var/lib/dnf/lock /var/lib/dnf5/lock /var/lib/rpm/.rpm.lock 2>/dev/null
     
     echo "[+] Temporarily stopping Cron..."
     systemctl stop crond 2>/dev/null
@@ -2183,13 +2183,10 @@ uninstall_clamav() {
     sleep 2 
 
     echo "[+] Cleaning up Cron Jobs..."
-    # Clean up the file-based cron job
     rm -f /etc/cron.d/clamav_jobs
 
-    # FIX: Robust Crontab Removal
     if crontab -l &>/dev/null; then
         local TMP_CRON=$(mktemp)
-        # Filter out the scripts AND anything mentioning "clam" just to be safe
         crontab -l | grep -vE "hourly_secure_scan.sh|clamav_monitor.sh|clamav" > "$TMP_CRON"
         
         if [ ! -s "$TMP_CRON" ]; then
@@ -2214,12 +2211,17 @@ uninstall_clamav() {
     echo "[+] Removing System Users..."
     userdel -f clamscan 2>/dev/null
     userdel -f clamupdate 2>/dev/null
-    groupdel clamav 2>/dev/null 2>&1
-    groupdel clamscan 2>/dev/null 2>&1
+    
+
+    getent group clamav >/dev/null && groupdel clamav 2>/dev/null
+    getent group clamscan >/dev/null && groupdel clamscan 2>/dev/null
 
     echo "[+] Reverting SELinux Policies..."
     setsebool -P antivirus_can_scan_system 0 2>/dev/null || true
     semanage permissive -d clamd_t 2>/dev/null || true
+
+    systemctl daemon-reload
+    systemctl reset-failed 2>/dev/null
 
     echo "[+] Restarting Cron..."
     systemctl start crond 2>/dev/null
