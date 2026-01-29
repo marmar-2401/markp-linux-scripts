@@ -2202,7 +2202,8 @@ uninstall_clamav() {
     systemctl stop crond 2>/dev/null
 
     echo "[+] Stopping services and killing active processes..."
-    systemctl disable --now clamd@scan clamav-freshclam 2>/dev/null
+    # Kill both your version AND generic/legacy service names
+    systemctl disable --now clamd@scan clamav-freshclam clamd clamav-daemon clamav-freshclam.service 2>/dev/null
     pkill -9 clamdscan 2>/dev/null
     pkill -9 freshclam 2>/dev/null
     pkill -9 clamd 2>/dev/null
@@ -2230,15 +2231,16 @@ uninstall_clamav() {
     rm -f /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh /etc/tmpfiles.d/clamav-daemon.conf
 
     echo "[+] Removing Packages..."
-    dnf remove -y --no-plugins clamav clamav-freshclam clamd >/dev/null 2>&1
+    # Added clamav-server and clamav-server-systemd to catch legacy RHEL 8 installs
+    dnf remove -y --no-plugins clamav clamav-freshclam clamd clamav-server clamav-server-systemd clamav-update >/dev/null 2>&1
 
     echo "[+] Purging Data and Quarantine..."
-    rm -rf /var/lib/clamav /var/log/clamav
+    rm -rf /var/lib/clamav /var/log/clamav /etc/clamd.d /run/clamd.scan
 
     echo "[+] Removing System Users..."
     userdel -f clamscan 2>/dev/null
     userdel -f clamupdate 2>/dev/null
-    
+    userdel -f clamav 2>/dev/null
 
     getent group clamav >/dev/null && groupdel clamav 2>/dev/null
     getent group clamscan >/dev/null && groupdel clamscan 2>/dev/null
