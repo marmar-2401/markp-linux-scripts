@@ -1907,6 +1907,10 @@ setup_clamav() {
 
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" "/run/clamd.scan"
+    
+    # FIX FOR OL10: Service fails if these logs don't exist for lchown check
+    touch "$LOG_DIR/freshclam.log" "$LOG_DIR/clamd.log"
+    
     touch "$WHITE_LIST"
     groupadd -f clamav
     
@@ -1922,7 +1926,11 @@ setup_clamav() {
     chown -R "$SCAN_USER":clamav "$LOG_DIR" /var/lib/clamav "/run/clamd.scan"
     getent passwd clamupdate >/dev/null && chown -R clamupdate:clamav /var/lib/clamav
     
+    # Ensure specific log ownership for the update user
+    chown clamupdate:clamav "$LOG_DIR/freshclam.log"
+    
     chmod -R 775 "$LOG_DIR" /var/lib/clamav
+    chmod 640 "$LOG_DIR/freshclam.log"
     
     setfacl -m u:"$SCAN_USER":--x /root
     setfacl -d -m u:"$SCAN_USER":r-X /root
@@ -1977,7 +1985,7 @@ EOF
     semanage permissive -a clamd_t 2>/dev/null || true
     
     echo "[+] Initializing Database and Services..."
-    # FIX 1: Ensure freshclam.conf exists (Purge often deletes this)
+ 
     if [ ! -f "/etc/freshclam.conf" ]; then
         cat > /etc/freshclam.conf <<EOF
 DatabaseDirectory /var/lib/clamav
@@ -1995,7 +2003,6 @@ EOF
     sed -i 's/^Example/#Example/' /etc/freshclam.conf 2>/dev/null
     chown clamupdate:clamav /etc/freshclam.conf
 
-    # FIX 2: Give systemd enough time to load the 100MB+ DB into RAM
     mkdir -p /etc/systemd/system/clamd@scan.service.d/
     echo -e "[Service]\nTimeoutStartSec=300" > /etc/systemd/system/clamd@scan.service.d/override.conf
 
@@ -2095,7 +2102,6 @@ EOF
     
     echo "[+] ClamAV Setup Complete. Monitoring is now active."
 }
-
 clamav_health_check() {
     check_root
     echo "========================================================="
@@ -2276,20 +2282,19 @@ uninstall_clamav() {
     dnf remove -y --no-plugins clamav clamav-freshclam clamd clamav-server clamav-server-systemd clamav-update >/dev/null 2>&1
 
     echo "[+] Purging Data and Quarantine..."
-    # ADJUSTED: Added /etc/freshclam.conf and any .rpmsave/.rpmnew remnants
+
     rm -rf /var/lib/clamav /var/log/clamav /etc/clamd.d /run/clamd.scan /etc/freshclam.conf
     find /etc -name "clamd.conf.rpmsave" -delete 2>/dev/null
     find /etc -name "freshclam.conf.rpmsave" -delete 2>/dev/null
 
     echo "[+] Removing System Users..."
-    # ADJUSTED: Added a loop to ensure all ClamAV-related users are purged
+
     for U in clamupdate clamscan clamav; do
         if getent passwd "$U" >/dev/null; then
             userdel -rf "$U" 2>/dev/null
         fi
     done
-
-    # ADJUSTED: Specifically targeting the groups we found earlier
+	
     for G in clamav clamscan virusgroup; do
         getent group "$G" >/dev/null && groupdel "$G" 2>/dev/null
     done
