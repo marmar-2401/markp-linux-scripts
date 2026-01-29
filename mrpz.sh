@@ -1860,16 +1860,8 @@ fi
 }
 
 setup_clamav() {
-    # Always check permissions and confirm first
     check_root
     confirm_action
-
-    # Surgical Add: Clean up rogue services, cronjobs, and existing sockets
-    echo "[+] Cleaning up existing ClamAV environment..."
-    crontab -l 2>/dev/null | sed '/clam/d' | crontab - 2>/dev/null || true
-    systemctl disable --now clamd clamav-daemon clamav-freshclam 2>/dev/null
-    pkill -9 clamd 2>/dev/null
-    rm -f /run/clamd.scan/clamd.sock 2>/dev/null
 
     local EMAIL
     read -rp "Please enter the email address for ClamAV alerts: " EMAIL
@@ -1892,14 +1884,12 @@ setup_clamav() {
     fi
     
     rm -f /var/lib/rpm/__db.* 2>/dev/null
-    
     dnf install -y clamav clamav-freshclam clamav-update clamd clamav-server clamav-server-systemd policycoreutils-python-utils >/dev/null 2>&1
     
     echo "[+] Synchronizing system users..."
     local RETRY=0
     while ! getent passwd clamscan >/dev/null && ! getent passwd clamav >/dev/null; do
         if [ $RETRY -gt 15 ]; then
-            echo "[!] Timeout: Creating ClamAV users manually..."
             groupadd -f clamav
             groupadd -f clamscan
             useradd -r -g clamscan -G clamav -s /sbin/nologin -c "Clamav Tool" clamscan 2>/dev/null
@@ -1939,22 +1929,19 @@ setup_clamav() {
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
 
     echo "[+] Configuring ClamAV Daemon Settings..."
-    CONF_FILE="/etc/clamd.d/scan.conf"
-    
-    # Ensure directory exists (fixes RHEL 10 copy failure)
+    # ERROR HANDLING: Ensure parent directory exists for RHEL 10
     mkdir -p /etc/clamd.d/
+    CONF_FILE="/etc/clamd.d/scan.conf"
 
     if [ ! -f "$CONF_FILE" ]; then
-        cp /usr/share/doc/clamd/clamd.conf "$CONF_FILE" 2>/dev/null || \
+        # ERROR HANDLING: Multi-path search for clamd template
         cp /usr/share/doc/clamav*/clamd.conf "$CONF_FILE" 2>/dev/null || \
+        cp /usr/share/doc/clamd*/clamd.conf "$CONF_FILE" 2>/dev/null || \
         cp /usr/share/clamav/template/clamd.conf "$CONF_FILE" 2>/dev/null
     fi
 
     if [ -f "$CONF_FILE" ]; then
         sed -i 's/^Example/#Example/' "$CONF_FILE"
-        # RHEL 10 generic user placeholder fix
-        sed -i 's/User <USER>/User clamscan/' "$CONF_FILE"
-        
         sed -i 's|^#LocalSocket /.*|LocalSocket /run/clamd.scan/clamd.sock|' "$CONF_FILE"
         sed -i 's|^#LocalSocketGroup .*|LocalSocketGroup clamav|' "$CONF_FILE"
         sed -i 's|^#LocalSocketMode .*|LocalSocketMode 660|' "$CONF_FILE"
@@ -1994,20 +1981,18 @@ if [[ "\$TYPE" == "MANUAL-TEST" ]]; then
     chown $SCAN_USER:clamav "\$TEST_FILE"
     echo "\$TEST_FILE" > "\$LIST"
 else
-    # Heredoc escape handling for find command
     find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
          -not -path "/var/lib/clamav/*" -not -path "/var/log/clamav/*" \\
          \$([ -f "\$CHK" ] && echo "-newer \$CHK") -mmin +1 > "\$LIST" 2>/dev/null || true
 fi
 FILES_TO_SCAN=\$(wc -l < "\$LIST" | xargs)
 if [[ "\$FILES_TO_SCAN" -gt 0 ]]; then
-    # --quiet flag to prevent log flooding
-    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --quiet --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
-    # ESCAPED: \$NF
+    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
+    # FIX: Correct escaping for \$NF
     INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep "Infected files:" | awk '{print \$NF}')
     [[ -z "\$INFECTED_COUNT" ]] && INFECTED_COUNT=0
-    # ESCAPED: \$2
-    SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep -i "Time:" | awk -F': ' '{print \$2}' | xargs)
+    # FIX: Use cut to handle variable spacing in RHEL 10
+    SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep -i "Time:" | cut -d':' -f2- | xargs)
     if [[ "\$INFECTED_COUNT" -gt 0 ]]; then
         mail -s "CRITICAL: Virus Detected on \$(hostname) [\$TYPE]" -S from="\$EMAIL_ADDR" "\$EMAIL_ADDR" <<MAIL_CONTENT
 Detection Type: \$TYPE  
