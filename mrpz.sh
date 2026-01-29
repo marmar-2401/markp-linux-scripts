@@ -1990,7 +1990,7 @@ NOW=\$(date '+%Y-%m-%d %H:%M:%S')
 LIST=\$(mktemp)
 if [[ "\$TYPE" == "MANUAL-TEST" ]]; then
     TEST_FILE="/var/lib/clamav/eicar.com"
-    echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}\$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!\$H+H*' > "\$TEST_FILE"
+    echo 'X5O!P%@AP[4\\PZX54(P^)7CC)7}\$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!\$H+H*' > "\$TEST_FILE"
     chown $SCAN_USER:clamav "\$TEST_FILE"
     echo "\$TEST_FILE" > "\$LIST"
 else
@@ -2005,7 +2005,8 @@ if [[ "\$FILES_TO_SCAN" -gt 0 ]]; then
     SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --quiet --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
     INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep "Infected files:" | awk '{print \$NF}')
     [[ -z "\$INFECTED_COUNT" ]] && INFECTED_COUNT=0
-    SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep "Time:" | sed 's/Time: //' | xargs)
+    # Fixed SCAN_TIME for RHEL 10 compatibility
+    SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep -i "Time:" | awk -F': ' '{print \$2}' | xargs)
     if [[ "\$INFECTED_COUNT" -gt 0 ]]; then
         mail -s "CRITICAL: Virus Detected on \$(hostname) [\$TYPE]" -S from="\$EMAIL_ADDR" "\$EMAIL_ADDR" <<MAIL_CONTENT
 Detection Type: \$TYPE  
