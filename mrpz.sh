@@ -1905,10 +1905,11 @@ setup_clamav() {
     usermod -aG clamav clamupdate
     usermod -aG clamav clamscan
 
-    chown -R clamupdate:clamav "$LOG_DIR"
-    chown -R clamupdate:clamav /var/lib/clamav 
-    chmod 775 "$LOG_DIR"
-    chmod 775 /var/lib/clamav
+    # SURGICAL FIX: Change owner to clamscan so the daemon can move files
+    chown -R clamscan:clamav "$LOG_DIR"
+    chown -R clamscan:clamav /var/lib/clamav 
+    chmod -R 775 "$LOG_DIR"
+    chmod -R 775 /var/lib/clamav
     
     setfacl -m u:clamscan:--x /root
     setfacl -d -m u:clamscan:r-X /root
@@ -1949,7 +1950,6 @@ LOGS="/var/log/clamav/hourly_audit.log"
 NOW=$(date '+%Y-%m-%d %H:%M:%S')
 LIST=$(mktemp)
 if [[ "$TYPE" == "MANUAL-TEST" ]]; then
-    # Create test file in a location the daemon namespace can actually see
     TEST_FILE="/var/lib/clamav/eicar.com"
     echo 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > "$TEST_FILE"
     chown clamscan:clamav "$TEST_FILE"
@@ -1966,7 +1966,6 @@ if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
     [[ -z "$INFECTED_COUNT" ]] && INFECTED_COUNT=0
     SCAN_TIME=$(echo "$SCAN_RESULTS" | grep "Time:" | sed 's/Time: //' | xargs)
     if [[ "$INFECTED_COUNT" -gt 0 ]]; then
-        # Force the 'from' address to ensure corporate relay acceptance
         mail -s "CRITICAL: Virus Detected on $(hostname) [$TYPE]" -S from="$EMAIL_ADDR" "$EMAIL_ADDR" <<MAIL_CONTENT
 Detection Type: $TYPE  
 Detection Date: $NOW  
