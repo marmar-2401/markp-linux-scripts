@@ -1942,6 +1942,8 @@ setup_clamav() {
 
     if [ -f "$CONF_FILE" ]; then
         sed -i 's/^Example/#Example/' "$CONF_FILE"
+        # CLI VERIFIED FIX: Explicitly replace <USER> placeholder to prevent service failure
+        sed -i 's/User <USER>/User clamscan/' "$CONF_FILE"
         sed -i 's|^#LocalSocket /.*|LocalSocket /run/clamd.scan/clamd.sock|' "$CONF_FILE"
         sed -i 's|^#LocalSocketGroup .*|LocalSocketGroup clamav|' "$CONF_FILE"
         sed -i 's|^#LocalSocketMode .*|LocalSocketMode 660|' "$CONF_FILE"
