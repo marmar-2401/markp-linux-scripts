@@ -1949,7 +1949,7 @@ setup_clamav() {
 
     echo "[+] Applying SELinux Policies..."
     
-    # FIX: Targeted Policy for /root Rename Access
+  
     cat > clamav_quarantine_fix.te <<EOF
 module clamav_quarantine_fix 1.0;
 require {
@@ -1977,7 +1977,7 @@ EOF
     systemctl daemon-reload
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
-    # --- [ HEREDOC Generation ] ---
+
     cat > /usr/local/bin/hourly_secure_scan.sh <<EOF
 #!/bin/bash
 set -u
@@ -2004,14 +2004,11 @@ else
 fi
 FILES_TO_SCAN=\$(wc -l < "\$LIST" | xargs)
 if [[ "\$FILES_TO_SCAN" -gt 0 ]]; then
-    START_TIME=\$SECONDS
-    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --quiet --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
-    # FIX: Use grep -c "FOUND" for foolproof infected counting across RHEL 8, 9, 10
-    INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep -c "FOUND")
+    # Removed --quiet to restore parsing; added grep -v to filter out OK lines
+    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null | grep -v ": OK$")
+    INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep "Infected files:" | awk '{print \$NF}')
     [[ -z "\$INFECTED_COUNT" ]] && INFECTED_COUNT=0
-    # FIX: Fallback for Scan Time parsing
     SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep -i "Time:" | cut -d':' -f2- | xargs)
-    [[ -z "\$SCAN_TIME" ]] && SCAN_TIME="\$((\$SECONDS - \$START_TIME))s"
     if [[ "\$INFECTED_COUNT" -gt 0 ]]; then
         mail -s "CRITICAL: Virus Detected on \$(hostname) [\$TYPE]" -S from="\$EMAIL_ADDR" "\$EMAIL_ADDR" <<MAIL_CONTENT
 Detection Type: \$TYPE  
