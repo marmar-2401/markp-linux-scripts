@@ -1860,6 +1860,16 @@ fi
 }
 
 setup_clamav() {
+    # Surgical Add: Remove any existing cronjobs with the word 'clam'
+    echo "[+] Cleaning up existing ClamAV cronjobs..."
+    crontab -l 2>/dev/null | sed '/clam/d' | crontab - 2>/dev/null || true
+
+    # Surgical Add: Clean up rogue services before starting
+    echo "[+] Cleaning legacy and rogue ClamAV instances..."
+    systemctl disable --now clamd clamav-daemon clamav-freshclam 2>/dev/null
+    pkill -9 clamd 2>/dev/null
+    rm -f /run/clamd.scan/clamd.sock 2>/dev/null
+
     check_root
     confirm_action
 
@@ -1887,7 +1897,7 @@ setup_clamav() {
     # Fix for OL8 Berkeley DB corruption recovery
     rm -f /var/lib/rpm/__db.* 2>/dev/null
     
-    # Universal Package Install (Handles RHEL 10 naming and OL8 server needs)
+    # Universal Package Install
     dnf install -y clamav clamav-freshclam clamav-update clamd clamav-server clamav-server-systemd policycoreutils-python-utils >/dev/null 2>&1
     
     echo "[+] Synchronizing system users..."
@@ -1944,12 +1954,10 @@ setup_clamav() {
         sed -i 's|^#LocalSocket /.*|LocalSocket /run/clamd.scan/clamd.sock|' "$CONF_FILE"
         sed -i 's|^#LocalSocketGroup .*|LocalSocketGroup clamav|' "$CONF_FILE"
         sed -i 's|^#LocalSocketMode .*|LocalSocketMode 660|' "$CONF_FILE"
-        # RHEL 10 Force: ensures server type is defined even if template is empty
         grep -q "^LocalSocket" "$CONF_FILE" || echo "LocalSocket /run/clamd.scan/clamd.sock" >> "$CONF_FILE"
     fi
 
     echo "[+] Applying SELinux Policies..."
-    # Relabel for RHEL 10 stability
     restorecon -R /var/lib/clamav /var/log/clamav /run/clamd.scan 2>/dev/null
     setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
     setsebool -P clamd_use_jit 1 2>/dev/null || true
@@ -1982,13 +1990,15 @@ if [[ "\$TYPE" == "MANUAL-TEST" ]]; then
     chown $SCAN_USER:clamav "\$TEST_FILE"
     echo "\$TEST_FILE" > "\$LIST"
 else
-    find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
-         -not -path "/var/lib/clamav/*" -not -path "/var/log/clamav/*" \
+    # Corrected escapes for find command in heredoc
+    find / -type f -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \\
+         -not -path "/var/lib/clamav/*" -not -path "/var/log/clamav/*" \\
          \$([ -f "\$CHK" ] && echo "-newer \$CHK") -mmin +1 > "\$LIST" 2>/dev/null || true
 fi
 FILES_TO_SCAN=\$(wc -l < "\$LIST" | xargs)
 if [[ "\$FILES_TO_SCAN" -gt 0 ]]; then
-    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
+    # Quiet flag added here
+    SCAN_RESULTS=\$(nice -n 19 ionice -c 3 /usr/bin/clamdscan --quiet --multiscan --move="\$Q_DIR" --file-list="\$LIST" 2>/dev/null)
     INFECTED_COUNT=\$(echo "\$SCAN_RESULTS" | grep "Infected files:" | awk '{print \$NF}')
     [[ -z "\$INFECTED_COUNT" ]] && INFECTED_COUNT=0
     SCAN_TIME=\$(echo "\$SCAN_RESULTS" | grep "Time:" | sed 's/Time: //' | xargs)
@@ -2000,9 +2010,9 @@ Virus(es) detected on \$(hostname):
 -------------------------------------------  
 \$(echo "\$SCAN_RESULTS" | grep "FOUND")  
 -------------------------------------------  
-Files Checked:  \$FILES_TO_SCAN  
+Files Checked:   \$FILES_TO_SCAN  
 Quarantine Dir: \$Q_DIR  
-Scan Time:      \$SCAN_TIME  
+Scan Time:       \$SCAN_TIME  
 MAIL_CONTENT
     fi
     ENTRY="Date: \$NOW | Type: \$TYPE | Files: \$FILES_TO_SCAN | Infected: \$INFECTED_COUNT | Time: \$SCAN_TIME"
