@@ -2250,6 +2250,8 @@ uninstall_clamav() {
 
     echo "[+] Removing Scripts and Environment..."
     rm -f /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh /etc/tmpfiles.d/clamav-daemon.conf
+    # ADDED: Remove systemd override directory
+    rm -rf /etc/systemd/system/clamd@scan.service.d
 
     echo "[+] Removing Packages..."
 
@@ -2267,6 +2269,8 @@ uninstall_clamav() {
     getent group clamscan >/dev/null && groupdel clamscan 2>/dev/null
 
     echo "[+] Reverting SELinux Policies..."
+    # ADDED: Specifically unload the custom quarantine fix module
+    semodule -r clamav_quarantine_fix 2>/dev/null
     setsebool -P antivirus_can_scan_system 0 2>/dev/null || true
     semanage permissive -d clamd_t 2>/dev/null || true
 
