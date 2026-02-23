@@ -115,7 +115,7 @@ check_sccadm_group() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.3.4 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.3.3 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -158,13 +158,12 @@ printf "${MAGENTA} 1.2.4 | 11/24/2025 | - Added EXT FS checker to --oscheck and 
 printf "${MAGENTA} 1.2.5 | 11/25/2025 | - Added History Time Stamp Fix Option${NC}\n"
 printf "${MAGENTA} 1.2.6 | 11/25/2025 | - Added History Time Stamp Checker${NC}\n"
 printf "${MAGENTA} 1.2.7 | 12/23/2025 | - Added coredump check and permission fix${NC}\n"
-printf "${MAGENTA} 1.2.8 | 12/29/2025 | - Added XFS Filesystem Checker ${NC}\n"
-printf "${MAGENTA} 1.2.9 | 01/07/2026 | - Swap size checker added ${NC}\n"
-printf "${MAGENTA} 1.3.0 | 01/26/2026 | - ClamAV checker added ${NC}\n"
-printf "${MAGENTA} 1.3.1 | 01/26/2026 | - ClamAV setup option added ${NC}\n"
-printf "${MAGENTA} 1.3.2 | 01/26/2026 | - ClamAV scan tester was added ${NC}\n"
-printf "${MAGENTA} 1.3.3 | 01/28/2026 | - ClamAV restore and whitelist option created ${NC}\n"
-printf "${MAGENTA} 1.3.4 | 01/28/2026 | - Created a clamav uninstaller ${NC}\n"
+printf "${MAGENTA} 1.2.8 | 01/07/2026 | - Swap size checker added ${NC}\n"
+printf "${MAGENTA} 1.2.9 | 01/26/2026 | - ClamAV checker added ${NC}\n"
+printf "${MAGENTA} 1.3.0 | 01/26/2026 | - ClamAV setup option added ${NC}\n"
+printf "${MAGENTA} 1.3.1 | 01/26/2026 | - ClamAV scan tester was added ${NC}\n"
+printf "${MAGENTA} 1.3.2 | 01/28/2026 | - ClamAV restore and whitelist option created ${NC}\n"
+printf "${MAGENTA} 1.3.3 | 01/28/2026 | - Created a clamav uninstaller ${NC}\n"
 }
 
 print_help() {
@@ -183,7 +182,6 @@ printf "${YELLOW}--bootreport <ENVUSER>${NC}	# Creates a report on commonly view
 printf "${YELLOW}--linfo${NC}	# Creates a system information archive with important details\n\n"
 printf "${YELLOW}--hugeusage${NC}	# Checks the details regarding the hughpage usage on system\n\n"
 printf "${YELLOW}--badextfs${NC}	# Gives you a list of corrupted EXT FS\n\n"
-printf "${YELLOW}--badxfsfs${NC}	# Gives you a list of corrupted XFS FS\n\n"
 printf "${YELLOW}--clamavcheck${NC}	# Gives you status of clamav\n\n"
 printf "${YELLOW}--testclamav${NC}	# Makes sure clamav is configured correctly scanning\n\n"
 printf "\n${MAGENTA}System Configuration Options:${NC}\n"
@@ -481,7 +479,7 @@ else
 fi
 }
 
-#Problem Decription Section
+
 print_auditdisc() {
 check_root
 check_dependencies "printf"
@@ -1252,32 +1250,6 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "EXT FS Check" "!!BAD!!" "FS Appear Unhealthy (Run 'bash mrpz.sh --badextfs')"
 fi
 
-local XFS_SCRUB_PKG_NAME="xfsprogs-xfs_scrub.x86_64"
-
-if rpm -q "$XFS_SCRUB_PKG_NAME" > /dev/null 2>&1; then
-	local XFS_SCRUB_STATUS="Good"
-    
-    while read -r MNT; do
-        [[ -z "$MNT" ]] && continue
-        
-        xfs_scrub -n "$MNT" > /dev/null 2>&1
-        
-        if [ $? -ne 0 ]; then
-            local XFS_SCRUB_STATUS="Bad"
-            break
-        fi
-    done < <(lsblk -rn -o MOUNTPOINT,FSTYPE | grep 'xfs' | awk '{print $1}')
-
-    if [ "$XFS_SCRUB_STATUS" = "Good" ]; then
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "XFS FS Check" "!!GOOD!!" "Filesystems Appear OK"
-    else
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "XFS FS Check" "!!BAD!!" "FS Appear Unhealthy (Run 'bash mrpz.sh --badxfsfs')"
-    fi
-else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "XFS FS Check" "!!BAD!!" "'xfsprogs' Needs Installed (Must Be > Linux 9)"
-fi
-
-
 local SEARCH_LINE='export HISTTIMEFORMAT="%F %T "'
 local CONFIG_FILE='/etc/bashrc'
 
@@ -1830,35 +1802,6 @@ setfacl -m g:sccadm:r /var/lib/systemd/coredump/*  >/dev/null 2>&1
 printf "${GREEN}Complete!${NC}\n"
 }
 
-print_badxfsfs() { 
-check_root
-local PACKAGE="xfsprogs-xfs_scrub.x86_64"
-
-if ! rpm -q "$PACKAGE" > /dev/null 2>&1; then
-    echo "Program 'xfsprogs' with the command 'xfs_scrub' must be installed to run."
-	echo "Please note this only works on Linux 9 and newer."
-    exit 1
-fi
-
-local BAD_DRIVES=""
-
-while read -r MNT DEV; do
-    [[ -z "$MNT" ]] && continue
-	xfs_scrub -n "$MNT" > /dev/null 2>&1
-    
-    if [ $? -ne 0 ]; then
-        BAD_DRIVES="${BAD_DRIVES}${DEV}\n"
-    fi
-done < <(lsblk -rnp -o MOUNTPOINT,NAME,FSTYPE | grep 'xfs' | awk '{print $1" "$2}')
-
-if [ -z "$BAD_DRIVES" ]; then
-	printf "${GREEN}XFS Integrity Check Status: Clean${NC}\n"
-else
-    printf "${RED}XFS Integrity Check Status: BAD${NC}\n"
-    echo -e "$BAD_DRIVES" | sed '/^$/d'
-fi
-}
-
 setup_clamav() {
     check_root
     confirm_action
@@ -2324,7 +2267,6 @@ case "$1" in
 	--devconsolefix) print_devconsolefix ;;
 	--oscheck) print_oscheck ;;
 	--badextfs) print_badextfs ;;
-	--badxfsfs) print_badxfsfs ;;
 	--harddetect) print_harddetect ;;
 	--mqfix) print_mqfix ;;
  	--backupdisc) print_backupdisc ;;
