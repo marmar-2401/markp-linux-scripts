@@ -1099,7 +1099,6 @@ else
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Rich Rules" "!!ATTN!!" "Firewall-cmd does not exist"
 fi
 
-# Threshold percentage (default 70%)
 local threshold=${1:-70}
 # Get total memory in MB
 local total_mem=$(free -m | awk '/^Mem:/ {print $2}')
@@ -1308,7 +1307,7 @@ print_shortoscheck() {
 }
 
 print_hugeusage() {
-# Threshold percentage (default 70%)
+
 threshold=${1:-70}
 
 # Get total memory in MB
@@ -1845,7 +1844,6 @@ setup_clamav() {
     echo "[+] Preparing Environment..."
     mkdir -p "$LOG_DIR" "$QUARANTINE_DIR" "/run/clamd.scan"
     
-    # FIX FOR OL10: Service fails if these logs don't exist for lchown check
     touch "$LOG_DIR/freshclam.log" "$LOG_DIR/clamd.log"
     
     touch "$WHITE_LIST"
@@ -1863,7 +1861,6 @@ setup_clamav() {
     chown -R "$SCAN_USER":clamav "$LOG_DIR" /var/lib/clamav "/run/clamd.scan"
     getent passwd clamupdate >/dev/null && chown -R clamupdate:clamav /var/lib/clamav
     
-    # Ensure specific log ownership for the update user
     chown clamupdate:clamav "$LOG_DIR/freshclam.log"
     
     chmod -R 775 "$LOG_DIR" /var/lib/clamav
