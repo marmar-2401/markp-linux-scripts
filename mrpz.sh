@@ -1035,12 +1035,6 @@ else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SSL LDAP/JAVA" "!!GOOD!!" "No LDAP Java certificates"
 fi
 
-if [ -d "/SCC/TPC/ssl" ] && [ -n "$(ls -A /SCC/TPC/ssl 2>/dev/null)" ]; then
-    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "SSL HTTPS" "!!ATTN!!" "HTTPS certificates exist 'ls -l /SCC/TPC/ssl' for more"
-else
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SSL HTTPS" "!!GOOD!!" "No HTTPS certificates"
-fi
-
 local bc_cpu_usage="bc"
 
 if rpm -q "$bc_cpu_usage" > /dev/null 2>&1; then
