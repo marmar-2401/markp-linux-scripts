@@ -115,7 +115,7 @@ check_sccadm_group() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.3.3 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.3.4 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -164,6 +164,7 @@ printf "${MAGENTA} 1.3.0 | 01/26/2026 | - ClamAV setup option added ${NC}\n"
 printf "${MAGENTA} 1.3.1 | 01/26/2026 | - ClamAV scan tester was added ${NC}\n"
 printf "${MAGENTA} 1.3.2 | 01/28/2026 | - ClamAV restore and whitelist option created ${NC}\n"
 printf "${MAGENTA} 1.3.3 | 01/28/2026 | - Created a clamav uninstaller ${NC}\n"
+printf "${MAGENTA} 1.3.4 | 03/03/2026 | - Added NFS Kerberos Checks ${NC}\n"
 }
 
 print_help() {
@@ -1291,6 +1292,27 @@ if [ "$SWAP_GB" -ge 16 ]; then
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!GOOD!!" "Swap size:$SWAP_GB GB"
 else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!BAD!!" "Swap is less than 16 GBs (Size:$SWAP_GB GB)"
+fi
+
+if ! grep -qs "nfs" /proc/mounts; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "NFS Kerberos Check" "!!GOOD!!" "No NFS mounts were detected on the system"
+else
+	local FAILED_FSTAB=$(grep "nfs" /etc/fstab | grep -v "^#" | grep -v "sec=sys")
+
+	if [ -n "$FAILED_FSTAB" ]; then
+		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NFS Default Sec" "!!BAD!!" "NFS entries in /etc/fstab are missing 'sec=sys'"
+	else 
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "NFS Default Sec" "!!GOOD!!" "Entries in /etc/fstab contain 'sec=sys'"
+	fi
+	
+	local GSSPROXY_STATUS=$(systemctl show -p LoadState gssproxy.service)
+	local RPCGSSD_STATUS=$(systemctl show -p LoadState rpc-gssd.service)
+
+	if [[ "$GSSPROXY_STATUS" == *"masked"* && "$RPCGSSD_STATUS" == *"masked"* ]]; then
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Kerberos Services Mask" "!!GOOD!!" "gssproxy & rpc-gssd are masked "
+	else
+		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Kerberos Services Mask" "!!BAD!!" "Make sure gssproxy & rpc-gssd are masked "
+	fi
 fi
 
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
