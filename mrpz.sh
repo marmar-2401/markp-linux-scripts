@@ -1309,9 +1309,9 @@ else
 	local RPCGSSD_STATUS=$(systemctl show -p LoadState rpc-gssd.service)
 
 	if [[ "$GSSPROXY_STATUS" == *"masked"* && "$RPCGSSD_STATUS" == *"masked"* ]]; then
-		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Kerberos Services Mask" "!!GOOD!!" "gssproxy & rpc-gssd are masked "
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Kerberos Unit Mask" "!!GOOD!!" "gssproxy & rpc-gssd are masked "
 	else
-		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Kerberos Services Mask" "!!BAD!!" "Make sure gssproxy & rpc-gssd are masked "
+		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Kerberos Unit Mask" "!!BAD!!" "Make sure gssproxy & rpc-gssd are masked "
 	fi
 fi
 
