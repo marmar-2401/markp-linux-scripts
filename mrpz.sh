@@ -162,7 +162,7 @@ printf "${MAGENTA} 1.2.8 | 01/07/2026 | - Swap size checker added ${NC}\n"
 printf "${MAGENTA} 1.2.9 | 01/26/2026 | - ClamAV checker added ${NC}\n"
 printf "${MAGENTA} 1.3.0 | 01/26/2026 | - ClamAV setup option added ${NC}\n"
 printf "${MAGENTA} 1.3.1 | 01/26/2026 | - ClamAV scan tester was added ${NC}\n"
-printf "${MAGENTA} 1.3.2 | 01/28/2026 | - ClamAV restore and whitelist option created ${NC}\n"
+printf "${MAGENTA} 1.3.2 | 01/28/2026 | - ClamAV whitelist option created ${NC}\n"
 printf "${MAGENTA} 1.3.3 | 01/28/2026 | - Created a clamav uninstaller ${NC}\n"
 printf "${MAGENTA} 1.3.4 | 03/03/2026 | - Added NFS Kerberos Checks ${NC}\n"
 }
@@ -191,8 +191,9 @@ printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on 
 printf "${YELLOW}--histtimestampfix${NC}	# Corrects history timestamp variable in /etc/bashrc\n\n"
 printf "${YELLOW}--coredumpfix${NC}	# Corrects coredump permissions\n\n"
 printf "${YELLOW}--setupclamav${NC}	# Configures ClamAV optimally\n\n"
-printf "${YELLOW}--restoreclamav${NC}	# Allows you to restore a quarantined file and whitelist it\n\n"
-printf "${YELLOW}--removeclamav${NC}	# Allows you to remove ClamAV installation\n\n"
+printf "${YELLOW}--restoreclamav${NC} # Allows you to restore a quarantined file and whitelist it\n\n"
+printf "${YELLOW}--removeclamav${NC} # Allows you to remove ClamAV installation\n\n"
+printf "${YELLOW}--whitelsclamav${NC} # Allows you to whitelist a false positive\n\n
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
 printf "${YELLOW}--auditdisc${NC}	# Description for misconfigured audit rules\n\n"
 printf "${YELLOW}--listndisc${NC}	# Description for oracle listener issues\n\n"
@@ -2432,6 +2433,136 @@ uninstall_clamav() {
 }
 
 
+clamav_whitelist_file() {
+    check_root
+
+    local WHITE_LIST="/var/lib/clamav/whitelist.txt"
+    local AUDIT_LOG="/var/log/clamav/infected_audit.log"
+
+    echo "========================================================="
+    echo "    CLAMAV WHITELIST MANAGER - $(hostname)"
+    echo "========================================================="
+
+    # Show current whitelist
+    echo ""
+    echo "--- [Current Whitelist] ---"
+    if [ -s "$WHITE_LIST" ]; then
+        nl -ba "$WHITE_LIST"
+    else
+        echo "  (empty — no paths whitelisted yet)"
+    fi
+    echo ""
+
+    echo "Options:"
+    echo "  1) Add a file path to the whitelist"
+    echo "  2) Remove a file path from the whitelist"
+    echo "  3) View full whitelist"
+    echo "  4) Exit"
+    echo ""
+    read -rp "Select option [1-4]: " OPT
+
+    case "$OPT" in
+        1)
+            echo ""
+            echo "Enter the FULL path of the file to whitelist."
+            echo "Example: /usr/lib/someapp/legit_binary"
+            read -rp "Full file path: " FILE_PATH
+
+            # Strip trailing whitespace
+            FILE_PATH="${FILE_PATH%"${FILE_PATH##*[![:space:]]}"}"
+
+            if [[ -z "$FILE_PATH" ]]; then
+                echo "[ERROR] No path entered. Exiting."
+                return 1
+            fi
+
+            if [[ ! -e "$FILE_PATH" ]]; then
+                echo "[WARN] Path does not currently exist on disk: $FILE_PATH"
+                read -rp "Add it anyway? (y/N): " CONFIRM_MISSING
+                [[ "$CONFIRM_MISSING" != "y" && "$CONFIRM_MISSING" != "Y" ]] && echo "Aborted." && return 0
+            fi
+
+            # Check for duplicates
+            if grep -qxF "$FILE_PATH" "$WHITE_LIST" 2>/dev/null; then
+                echo "[INFO] '$FILE_PATH' is already in the whitelist. No change made."
+                return 0
+            fi
+
+            echo "$FILE_PATH" >> "$WHITE_LIST"
+            sort -u "$WHITE_LIST" -o "$WHITE_LIST"
+
+            # Record the whitelisting action in the audit log
+            {
+                echo "=============================="
+                echo "Whitelist Addition: $(date '+%Y-%m-%d %H:%M:%S')"
+                echo "Path:  $FILE_PATH"
+                echo "By:    $(logname 2>/dev/null || echo root)"
+                echo "=============================="
+            } >> "$AUDIT_LOG"
+
+            echo ""
+            echo "[SUCCESS] '$FILE_PATH' has been added to the whitelist."
+            echo "[INFO]    Future scan alerts will suppress this path."
+            echo "[INFO]    Whitelist is active immediately — no restart required."
+            ;;
+
+        2)
+            if [ ! -s "$WHITE_LIST" ]; then
+                echo "[INFO] Whitelist is empty. Nothing to remove."
+                return 0
+            fi
+
+            echo ""
+            echo "Enter the exact path to remove (must match exactly as shown above):"
+            read -rp "Full file path: " REMOVE_PATH
+            REMOVE_PATH="${REMOVE_PATH%"${REMOVE_PATH##*[![:space:]]}"}"
+
+            if ! grep -qxF "$REMOVE_PATH" "$WHITE_LIST" 2>/dev/null; then
+                echo "[ERROR] '$REMOVE_PATH' was not found in the whitelist."
+                return 1
+            fi
+
+            # Remove the line using a temp file for safety
+            local TMP_WL
+            TMP_WL=$(mktemp)
+            grep -vxF "$REMOVE_PATH" "$WHITE_LIST" > "$TMP_WL"
+            mv "$TMP_WL" "$WHITE_LIST"
+
+            {
+                echo "=============================="
+                echo "Whitelist Removal: $(date '+%Y-%m-%d %H:%M:%S')"
+                echo "Path:  $REMOVE_PATH"
+                echo "By:    $(logname 2>/dev/null || echo root)"
+                echo "=============================="
+            } >> "$AUDIT_LOG"
+
+            echo "[SUCCESS] '$REMOVE_PATH' removed from whitelist."
+            echo "[INFO]    This path will be alerted on again in future scans."
+            ;;
+
+        3)
+            echo ""
+            if [ -s "$WHITE_LIST" ]; then
+                echo "Full whitelist ($WHITE_LIST):"
+                nl -ba "$WHITE_LIST"
+            else
+                echo "Whitelist is empty."
+            fi
+            ;;
+
+        4)
+            echo "Exiting whitelist manager."
+            ;;
+
+        *)
+            echo "[ERROR] Invalid option."
+            return 1
+            ;;
+    esac
+
+    echo "========================================================="
+}
+
 case "$1" in
 	--ver) print_version ;;
 	--help) print_help ;;
@@ -2453,7 +2584,7 @@ case "$1" in
 	--clamavcheck) clamav_health_check ;;
 	--setupclamav) setup_clamav ;;
 	--testclamav) test_clamav_setup ;;
-	--restoreclamav) clamav_restore_file ;;
+	--whitelsclamav) clamav_whitelist_file ;;
 	--removeclamav) uninstall_clamav ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
