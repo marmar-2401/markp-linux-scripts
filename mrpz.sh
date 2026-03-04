@@ -191,7 +191,6 @@ printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on 
 printf "${YELLOW}--histtimestampfix${NC}	# Corrects history timestamp variable in /etc/bashrc\n\n"
 printf "${YELLOW}--coredumpfix${NC}	# Corrects coredump permissions\n\n"
 printf "${YELLOW}--setupclamav${NC}	# Configures ClamAV optimally\n\n"
-printf "${YELLOW}--restoreclamav${NC} # Allows you to restore a quarantined file and whitelist it\n\n"
 printf "${YELLOW}--removeclamav${NC} # Allows you to remove ClamAV installation\n\n"
 printf "${YELLOW}--whitelsclamav${NC} # Allows you to whitelist a false positive\n\n"
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
