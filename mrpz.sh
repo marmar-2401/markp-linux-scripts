@@ -1295,24 +1295,26 @@ else
 fi
 
 if ! grep -qs "nfs" /proc/mounts; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "NFS Kerberos Check" "!!GOOD!!" "No NFS mounts were detected on the system"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "NFS Kerberos Check" "!!GOOD!!" "No NFS mounts were detected on the system"
 else
-	local FAILED_FSTAB=$(grep "nfs" /etc/fstab | grep -v "^#" | grep -v "sec=sys")
 
-	if [ -n "$FAILED_FSTAB" ]; then
-		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NFS Default Sec" "!!BAD!!" "NFS entries in /etc/fstab are missing 'sec=sys'"
-	else 
-		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "NFS Default Sec" "!!GOOD!!" "Entries in /etc/fstab contain 'sec=sys'"
-	fi
-	
-	local GSSPROXY_STATUS=$(systemctl show -p LoadState gssproxy.service)
-	local RPCGSSD_STATUS=$(systemctl show -p LoadState rpc-gssd.service)
-
-	if [[ "$GSSPROXY_STATUS" == *"masked"* && "$RPCGSSD_STATUS" == *"masked"* ]]; then
-		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Kerberos Unit Mask" "!!GOOD!!" "gssproxy & rpc-gssd are masked "
-	else
-		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Kerberos Unit Mask" "!!BAD!!" "Make sure gssproxy & rpc-gssd are masked "
-	fi
+    if [ -f /etc/fstab ]; then
+        local FAILED_FSTAB=$(grep -E '\s(nfs|nfs4)\s' /etc/fstab | grep -v "^#" | grep -v "sec=sys")
+        if [ -n "$FAILED_FSTAB" ]; then
+            printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NFS Default Sec" "!!BAD!!" "NFS entries in /etc/fstab are missing 'sec=sys'"
+        else 
+            printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "NFS Default Sec" "!!GOOD!!" "Entries in /etc/fstab contain 'sec=sys'"
+        fi
+    fi
+    
+    local GSSPROXY_STATUS=$(systemctl show -p LoadState gssproxy.service 2>/dev/null || echo "LoadState=not-found")
+    local RPCGSSD_STATUS=$(systemctl show -p LoadState rpc-gssd.service 2>/dev/null || echo "LoadState=not-found")
+    
+    if [[ "$GSSPROXY_STATUS" == *"masked"* && "$RPCGSSD_STATUS" == *"masked"* ]]; then
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "Kerberos Unit Mask" "!!GOOD!!" "gssproxy & rpc-gssd are masked"
+    else
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Kerberos Unit Mask" "!!BAD!!" "Make sure gssproxy & rpc-gssd are masked"
+    fi
 fi
 
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
