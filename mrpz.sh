@@ -1824,158 +1824,239 @@ setup_clamav() {
     local EMAIL
     read -rp "Please enter the email address for ClamAV alerts: " EMAIL
 
-    local RHEL_VER=$(rpm -E %rhel)
+    local RHEL_VER
+    RHEL_VER=$(rpm -E %rhel)
     local LOG_DIR="/var/log/clamav"
     local AUDIT_LOG="$LOG_DIR/infected_audit.log"
     local WEEKLY_REPORT="$LOG_DIR/weekly_report.log"
     local CHK="/var/lib/clamav/scan_checkpoint"
     local WHITE_LIST="/var/lib/clamav/whitelist.txt"
 
-    echo "[+] Installing Components for RHEL/OL $RHEL_VER..."
-
-    # dnf-plugins-core is required for 'dnf config-manager' on all versions
-    dnf install -y dnf-plugins-core >/dev/null 2>&1
+    echo ""
+    echo "========================================================="
+    echo "  ClamAV Installation — RHEL/OL $RHEL_VER"
+    echo "  Steps show elapsed time — do NOT cancel mid-install."
+    echo "  Total time: 5-25 min depending on network speed."
+    echo "========================================================="
+    echo ""
 
     # Detect Oracle Linux vs RHEL
     local IS_OL=0
     grep -qi "oracle" /etc/os-release 2>/dev/null && IS_OL=1
+    local DISTRO_LABEL="RHEL"
+    [ "$IS_OL" -eq 1 ] && DISTRO_LABEL="Oracle Linux"
+    echo "    Detected: $DISTRO_LABEL $RHEL_VER"
+    echo ""
 
-    # ---- EPEL + CRB/PowerTools per major version ----------------------
+    # ── Step 1: dnf prerequisites ─────────────────────────────────────────
+    echo "[Step 1/8] Installing dnf prerequisites..."
+    run_with_spinner "dnf-plugins-core" \
+        dnf install -y dnf-plugins-core || true
+    echo ""
+
+    # ── Step 2: EPEL + CRB repos ──────────────────────────────────────────
+    echo "[Step 2/8] Configuring EPEL and CRB repositories..."
+
+    if [ "$IS_OL" -eq 0 ]; then
+        check_network "dl.fedoraproject.org" || return 1
+    fi
+
     if [ "$RHEL_VER" -eq 10 ]; then
         if [ "$IS_OL" -eq 1 ]; then
-            dnf install -y oracle-epel-release-el10 >/dev/null 2>&1 || \
-            dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm >/dev/null 2>&1
-            dnf config-manager --set-enabled ol10_codeready_builder >/dev/null 2>&1 || \
-            dnf config-manager --set-enabled crb >/dev/null 2>&1 || true
+            run_with_spinner "EPEL 10 (Oracle)" \
+                dnf install -y oracle-epel-release-el10 || \
+            run_with_spinner "EPEL 10 (Fedora fallback)" \
+                dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm || true
+            run_with_spinner "CRB repo" \
+                bash -c 'dnf config-manager --set-enabled ol10_codeready_builder 2>/dev/null || dnf config-manager --set-enabled crb 2>/dev/null || true'
         else
-            dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm >/dev/null 2>&1
-            dnf config-manager --set-enabled crb >/dev/null 2>&1 || \
-            /usr/bin/crb enable >/dev/null 2>&1 || true
+            run_with_spinner "EPEL 10 (Fedora)" \
+                dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm || true
+            run_with_spinner "CRB repo" \
+                bash -c 'dnf config-manager --set-enabled crb 2>/dev/null || /usr/bin/crb enable 2>/dev/null || true'
         fi
     elif [ "$RHEL_VER" -eq 9 ]; then
         if [ "$IS_OL" -eq 1 ]; then
-            dnf install -y oracle-epel-release-el9 >/dev/null 2>&1
-            dnf config-manager --set-enabled ol9_developer_EPEL >/dev/null 2>&1 || true
-            dnf config-manager --set-enabled ol9_codeready_builder >/dev/null 2>&1 || true
+            run_with_spinner "EPEL 9 (Oracle)" \
+                dnf install -y oracle-epel-release-el9 || true
+            run_with_spinner "CRB repo" \
+                bash -c 'dnf config-manager --set-enabled ol9_developer_EPEL 2>/dev/null; dnf config-manager --set-enabled ol9_codeready_builder 2>/dev/null || true'
         else
-            dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm >/dev/null 2>&1
-            dnf config-manager --set-enabled crb >/dev/null 2>&1 || true
+            run_with_spinner "EPEL 9 (Fedora)" \
+                dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm || true
+            run_with_spinner "CRB repo" \
+                bash -c 'dnf config-manager --set-enabled crb 2>/dev/null || true'
         fi
     elif [ "$RHEL_VER" -eq 8 ]; then
         if [ "$IS_OL" -eq 1 ]; then
-            dnf install -y oracle-epel-release-el8 >/dev/null 2>&1
-            dnf config-manager --set-enabled ol8_developer_EPEL >/dev/null 2>&1 || true
-            dnf config-manager --set-enabled ol8_codeready_builder >/dev/null 2>&1 || true
+            run_with_spinner "EPEL 8 (Oracle)" \
+                dnf install -y oracle-epel-release-el8 || true
+            run_with_spinner "CRB repo" \
+                bash -c 'dnf config-manager --set-enabled ol8_developer_EPEL 2>/dev/null; dnf config-manager --set-enabled ol8_codeready_builder 2>/dev/null || true'
         else
-            dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm >/dev/null 2>&1
-            # RHEL8 uses 'powertools' on older minor versions, 'crb' on newer
-            dnf config-manager --set-enabled powertools >/dev/null 2>&1 || \
-            dnf config-manager --set-enabled crb >/dev/null 2>&1 || \
-            dnf config-manager --set-enabled codeready-builder-for-rhel-8-x86_64-rpms >/dev/null 2>&1 || true
+            run_with_spinner "EPEL 8 (Fedora)" \
+                dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm || true
+            run_with_spinner "PowerTools/CRB repo" \
+                bash -c 'dnf config-manager --set-enabled powertools 2>/dev/null || dnf config-manager --set-enabled crb 2>/dev/null || dnf config-manager --set-enabled codeready-builder-for-rhel-8-x86_64-rpms 2>/dev/null || true'
         fi
     fi
+    echo ""
 
+    # ── Step 3: Refresh metadata ──────────────────────────────────────────
+    echo "[Step 3/8] Refreshing package metadata..."
     rm -f /var/lib/rpm/__db.* 2>/dev/null
-    dnf makecache >/dev/null 2>&1
+    run_with_spinner "dnf makecache" dnf makecache
+    echo ""
 
-    # ---- Package install -----------------------------------------------
-    # NOTE: 'clamav-server' and 'clamav-server-systemd' are EL7-era names
-    # and do NOT exist in EPEL8/9/10. Omitted intentionally.
-    # --nobest on EL8 handles libjson-c version mismatches on minor versions < 8.6
+    # ── Step 4: Install packages ──────────────────────────────────────────
+    echo "[Step 4/8] Installing ClamAV packages..."
+    echo "    clamav, clamd, clamav-freshclam, clamav-update,"
+    echo "    policycoreutils-python-utils, setools-console"
+    echo ""
+
     local DNF_NOBEST=""
     [ "$RHEL_VER" -eq 8 ] && DNF_NOBEST="--nobest"
 
-    dnf install -y $DNF_NOBEST \
-        clamav \
-        clamav-freshclam \
-        clamav-update \
-        clamd \
-        policycoreutils-python-utils \
-        setools-console >/dev/null 2>&1
+    run_with_spinner "ClamAV packages" \
+        dnf install -y $DNF_NOBEST \
+            clamav clamd clamav-freshclam clamav-update \
+            policycoreutils-python-utils setools-console
 
-    # Abort early with a clear message if core packages failed
-    if ! command -v clamd &>/dev/null && ! command -v clamdscan &>/dev/null; then
-        echo "[ERROR] ClamAV installation failed. Verify EPEL is reachable for RHEL/OL $RHEL_VER and retry."
+    # Hard stop if clamdscan binary is missing after install
+    if ! command -v clamdscan &>/dev/null; then
+        echo ""
+        echo "    [ERROR] ClamAV install failed — clamdscan not found after install."
+        echo "    Possible causes:"
+        echo "      - EPEL not enabled:  dnf repolist | grep epel"
+        echo "      - RHEL subscription: subscription-manager status"
+        echo "      - CRB not enabled:   dnf repolist | grep -i crb"
+        echo "    Try manually: dnf install -y clamav clamd"
         return 1
     fi
 
-    echo "[+] Synchronizing system users..."
+    # /var/lib/clamav is created by RPM scriptlets during install.
+    # If it is missing the scriptlets did not run — force reinstall.
+    if [ ! -d "/var/lib/clamav" ]; then
+        echo ""
+        echo "    [WARN] /var/lib/clamav missing — RPM scriptlets may not have run."
+        echo "           Forcing reinstall to recreate it..."
+        run_with_spinner "Reinstall (scriptlet fix)" \
+            dnf reinstall -y clamav clamd clamav-freshclam clamav-update
+        if [ ! -d "/var/lib/clamav" ]; then
+            echo "    [ERROR] /var/lib/clamav still missing after reinstall."
+            echo "            Creating manually..."
+            mkdir -p /var/lib/clamav
+        fi
+    fi
+    echo ""
+
+    # ── Step 5: Users, groups, directories ───────────────────────────────
+    echo "[Step 5/8] Synchronizing users and preparing environment..."
+
+    # Wait up to 30s for package-created users to appear in NSS
     local RETRY=0
     while { ! getent passwd clamscan >/dev/null || ! getent passwd clamupdate >/dev/null; }; do
         if [ $RETRY -gt 15 ]; then
             groupadd -f clamav
             groupadd -f clamscan
-            useradd -r -g clamscan -G clamav -s /sbin/nologin -c "Clamav Tool" clamscan 2>/dev/null
-            useradd -r -g clamav -s /sbin/nologin -c "Clamav Tool" clamupdate 2>/dev/null
+            useradd -r -g clamscan -G clamav -s /sbin/nologin -c "ClamAV Scanner" clamscan  2>/dev/null
+            useradd -r -g clamav            -s /sbin/nologin -c "ClamAV Updater" clamupdate 2>/dev/null
             break
         fi
         sleep 2
         ((RETRY++))
     done
-    udevadm settle
+    udevadm settle 2>/dev/null || true
 
+    # Install a mail client if not present
     if ! command -v mail &>/dev/null; then
-        dnf install -y mailx >/dev/null 2>&1 || dnf install -y s-nail >/dev/null 2>&1
+        run_with_spinner "mail client (s-nail)" \
+            bash -c 'dnf install -y s-nail 2>/dev/null || dnf install -y mailx 2>/dev/null || true'
     fi
 
-    echo "[+] Preparing Environment..."
-    mkdir -p "$LOG_DIR" "/run/clamd.scan"
-    touch "$LOG_DIR/freshclam.log" "$LOG_DIR/clamd.log" "$AUDIT_LOG" "$WEEKLY_REPORT"
-    touch "$WHITE_LIST"
+    # Create all required directories before any touch/chown operations
+    mkdir -p "$LOG_DIR"                \
+             "/var/lib/clamav"         \
+             "/var/lib/clamav/quarantine" \
+             "/run/clamd.scan"         \
+             "/etc/clamd.d"
+
+    touch "$LOG_DIR/freshclam.log" \
+          "$LOG_DIR/clamd.log"     \
+          "$AUDIT_LOG"             \
+          "$WEEKLY_REPORT"         \
+          "$WHITE_LIST"
+
     groupadd -f clamav
 
     local SCAN_USER="clamscan"
     getent passwd clamscan >/dev/null || SCAN_USER="clamav"
 
     for U in clamupdate clamscan clamav; do
-        if getent passwd "$U" >/dev/null; then
-            usermod -aG clamav "$U" 2>/dev/null
-        fi
+        getent passwd "$U" >/dev/null && usermod -aG clamav "$U" 2>/dev/null
     done
 
-    chown -R "$SCAN_USER":clamav "$LOG_DIR" /var/lib/clamav "/run/clamd.scan"
+    chown -R "$SCAN_USER":clamav "$LOG_DIR" /var/lib/clamav /run/clamd.scan
     getent passwd clamupdate >/dev/null && chown -R clamupdate:clamav /var/lib/clamav
     chown clamupdate:clamav "$LOG_DIR/freshclam.log"
     chmod -R 775 "$LOG_DIR" /var/lib/clamav
     chmod 640 "$LOG_DIR/freshclam.log"
 
-    # Grant scanner execute/traverse into /root without full read
-    setfacl -m u:"$SCAN_USER":--x /root
+    # Give scanner execute/traverse on /root without full read access
+    setfacl -m  u:"$SCAN_USER":--x /root
     setfacl -d -m u:"$SCAN_USER":r-X /root
 
+    # tmpfiles rule to recreate /run/clamd.scan after every reboot
     echo "d /run/clamd.scan 0755 $SCAN_USER clamav -" > /etc/tmpfiles.d/clamav-daemon.conf
     systemd-tmpfiles --create /etc/tmpfiles.d/clamav-daemon.conf
 
-    echo "[+] Configuring ClamAV Daemon Settings..."
-    mkdir -p /etc/clamd.d/
-    CONF_FILE="/etc/clamd.d/scan.conf"
+    echo "    Users, groups, and directories: OK"
+    echo ""
+
+    # ── Configure clamd.conf ──────────────────────────────────────────────
+    echo "[+] Configuring ClamAV daemon settings..."
+    local CONF_FILE="/etc/clamd.d/scan.conf"
 
     if [ ! -f "$CONF_FILE" ]; then
-        cp /usr/share/doc/clamav*/clamd.conf "$CONF_FILE" 2>/dev/null || \
-        cp /usr/share/doc/clamd*/clamd.conf  "$CONF_FILE" 2>/dev/null || \
+        # Try known template locations in order
+        cp /usr/share/doc/clamav*/clamd.conf  "$CONF_FILE" 2>/dev/null || \
+        cp /usr/share/doc/clamd*/clamd.conf   "$CONF_FILE" 2>/dev/null || \
         cp /usr/share/clamav/template/clamd.conf "$CONF_FILE" 2>/dev/null
+
+        # If no template found anywhere, build a minimal working config
+        if [ ! -f "$CONF_FILE" ]; then
+            echo "    [WARN] No example clamd.conf found — generating minimal config"
+            cat > "$CONF_FILE" <<CONFEOF
+LocalSocket /run/clamd.scan/clamd.sock
+LocalSocketGroup clamav
+LocalSocketMode 660
+User $SCAN_USER
+MaxThreads 2
+MaxQueue 100
+ReadTimeout 180
+MaxDirectoryRecursion 20
+CONFEOF
+        fi
     fi
 
-    if [ -f "$CONF_FILE" ]; then
-        sed -i 's/^Example/#Example/'                                    "$CONF_FILE"
-        sed -i "s/User <USER>/User $SCAN_USER/"                          "$CONF_FILE"
-        sed -i 's|^#LocalSocket /.*|LocalSocket /run/clamd.scan/clamd.sock|' "$CONF_FILE"
-        sed -i 's|^#LocalSocketGroup .*|LocalSocketGroup clamav|'        "$CONF_FILE"
-        sed -i 's|^#LocalSocketMode .*|LocalSocketMode 660|'             "$CONF_FILE"
-        grep -q "^LocalSocket" "$CONF_FILE" || \
-            echo "LocalSocket /run/clamd.scan/clamd.sock" >> "$CONF_FILE"
+    # Apply settings — use anchored regex so partial matches don't fire
+    sed -i 's/^Example/#Example/'                                           "$CONF_FILE"
+    sed -i "s|^#\?User .*|User $SCAN_USER|"                                "$CONF_FILE"
+    sed -i 's|^#\?LocalSocket .*|LocalSocket /run/clamd.scan/clamd.sock|'  "$CONF_FILE"
+    sed -i 's|^#\?LocalSocketGroup .*|LocalSocketGroup clamav|'            "$CONF_FILE"
+    sed -i 's|^#\?LocalSocketMode .*|LocalSocketMode 660|'                 "$CONF_FILE"
+    grep -q "^LocalSocket"           "$CONF_FILE" || echo "LocalSocket /run/clamd.scan/clamd.sock" >> "$CONF_FILE"
+    grep -q "^MaxThreads"            "$CONF_FILE" || echo "MaxThreads 2"             >> "$CONF_FILE"
+    grep -q "^MaxQueue"              "$CONF_FILE" || echo "MaxQueue 100"             >> "$CONF_FILE"
+    grep -q "^ReadTimeout"           "$CONF_FILE" || echo "ReadTimeout 180"          >> "$CONF_FILE"
+    grep -q "^MaxDirectoryRecursion" "$CONF_FILE" || echo "MaxDirectoryRecursion 20" >> "$CONF_FILE"
+    echo "    clamd config: OK"
+    echo ""
 
-        # Resource limits inside the daemon itself
-        grep -q "^MaxThreads"       "$CONF_FILE" || echo "MaxThreads 2"            >> "$CONF_FILE"
-        grep -q "^MaxQueue"         "$CONF_FILE" || echo "MaxQueue 100"            >> "$CONF_FILE"
-        grep -q "^ReadTimeout"      "$CONF_FILE" || echo "ReadTimeout 180"         >> "$CONF_FILE"
-        grep -q "^MaxDirectoryRecursion" "$CONF_FILE" || echo "MaxDirectoryRecursion 20" >> "$CONF_FILE"
-    fi
-
-    # ----------------------------------------------------------------
-    # SELinux – broad privileged access policy for the scanner
-    # ----------------------------------------------------------------
-    echo "[+] Applying SELinux Policies..."
+    # ── Step 6: SELinux ───────────────────────────────────────────────────
+    echo "[Step 6/8] Compiling and applying SELinux policy module..."
+    echo "    (1-2 minutes on older hardware)"
+    echo ""
 
     cat > /tmp/clamav_priv.te <<'SEEOF'
 module clamav_priv 1.2;
@@ -1998,7 +2079,6 @@ require {
     class filesystem getattr;
 }
 
-# Allow scanner read access across common filesystem paths
 allow clamd_t admin_home_t:dir    { read open getattr search write remove_name add_name };
 allow clamd_t admin_home_t:file   { read open getattr rename unlink setattr write };
 allow clamd_t user_home_t:dir     { read open getattr search };
@@ -2009,29 +2089,32 @@ allow clamd_t var_log_t:file      { read open getattr };
 allow clamd_t proc_t:filesystem   getattr;
 allow clamd_t sysfs_t:filesystem  getattr;
 
-# Allow mail delivery from scan results
 allow system_mail_t clamd_var_run_t:file { read write open getattr };
 SEEOF
 
-    checkmodule -M -m -o /tmp/clamav_priv.mod /tmp/clamav_priv.te
-    semodule_package -o /tmp/clamav_priv.pp -m /tmp/clamav_priv.mod
-    semodule -i /tmp/clamav_priv.pp
+    run_with_spinner "checkmodule compile" \
+        checkmodule -M -m -o /tmp/clamav_priv.mod /tmp/clamav_priv.te
+    run_with_spinner "semodule_package" \
+        semodule_package -o /tmp/clamav_priv.pp -m /tmp/clamav_priv.mod
+    run_with_spinner "semodule install" \
+        semodule -i /tmp/clamav_priv.pp
     rm -f /tmp/clamav_priv.te /tmp/clamav_priv.mod /tmp/clamav_priv.pp
 
-    restorecon -R /var/lib/clamav /var/log/clamav /run/clamd.scan 2>/dev/null
+    run_with_spinner "restorecon file contexts" \
+        restorecon -R /var/lib/clamav /var/log/clamav /run/clamd.scan
 
-    # Core SELinux booleans for full-system scanning
-    setsebool -P antivirus_can_scan_system 1 2>/dev/null || true
-    setsebool -P clamd_use_jit            1 2>/dev/null || true
-    setsebool -P nis_enabled              1 2>/dev/null || true
+    run_with_spinner "SELinux booleans" \
+        bash -c 'setsebool -P antivirus_can_scan_system 1; setsebool -P clamd_use_jit 1; setsebool -P nis_enabled 1 || true'
 
-    # Put clamd_t in permissive mode so policy gaps don't block scans
-    semanage permissive -a clamd_t 2>/dev/null || true
+    run_with_spinner "clamd_t permissive domain" \
+        bash -c 'semanage permissive -a clamd_t 2>/dev/null || true'
+    echo ""
 
-    # ----------------------------------------------------------------
-    # freshclam config
-    # ----------------------------------------------------------------
-    echo "[+] Initializing Database and Services..."
+    # ── Step 7: freshclam config + database download ──────────────────────
+    echo "[Step 7/8] Downloading virus signature database..."
+    echo "    main.cvd ~90MB  daily.cvd ~25MB  bytecode.cvd ~300KB"
+    echo "    Progress is shown live — this is normal to take 5-15 minutes."
+    echo ""
 
     if [ ! -f "/etc/freshclam.conf" ]; then
         cat > /etc/freshclam.conf <<EOF
@@ -2050,28 +2133,48 @@ EOF
     sed -i 's/^Example/#Example/' /etc/freshclam.conf 2>/dev/null
     chown clamupdate:clamav /etc/freshclam.conf
 
+    check_network "database.clamav.net" || return 1
+
+    # Run freshclam with live output so the user can see download progress
+    freshclam --stdout 2>&1 | sed 's/^/    /'
+    local FC_RC=${PIPESTATUS[0]}
+    if [ $FC_RC -ne 0 ]; then
+        echo ""
+        echo "    [WARN] freshclam exited with code $FC_RC"
+        echo "           Database may be incomplete — will retry on next freshclam run."
+    fi
+    echo ""
+
+    # ── Systemd override — resource limits + reboot safety ───────────────
     mkdir -p /etc/systemd/system/clamd@scan.service.d/
     cat > /etc/systemd/system/clamd@scan.service.d/override.conf <<EOF
+[Unit]
+# Wait for tmpfiles to recreate /run/clamd.scan before starting.
+# Prevents socket creation failure on reboot (tmpfs is wiped at shutdown).
+After=systemd-tmpfiles-setup.service network.target
+Requires=systemd-tmpfiles-setup.service
+
 [Service]
 TimeoutStartSec=300
-# Hard resource caps on the daemon process itself
 CPUQuota=40%
-MemoryMax=512M
+MemoryMax=2048M
 Nice=19
 IOSchedulingClass=idle
+Restart=on-failure
+RestartSec=30
+# Belt-and-suspenders: recreate run dir on every start even if tmpfiles ran
+ExecStartPre=/bin/bash -c 'mkdir -p /run/clamd.scan && chown ${SCAN_USER}:clamav /run/clamd.scan && chmod 0755 /run/clamd.scan'
 EOF
 
-    freshclam >/dev/null 2>&1
     systemctl daemon-reload
     systemctl enable --now clamav-freshclam clamd@scan >/dev/null 2>&1
 
-    # Always remove any stale checkpoint so the first scheduled run
-    # performs a full system scan before switching to incremental mode.
+    # Delete checkpoint so first cron run does a full baseline scan
     rm -f "$CHK"
 
-    # ----------------------------------------------------------------
-    # Hourly scan script – AUDIT ONLY, no quarantine
-    # ----------------------------------------------------------------
+    # ── Step 8: Automation scripts + cron ─────────────────────────────────
+    echo "[Step 8/8] Writing automation scripts and cron jobs..."
+
     cat > /usr/local/bin/hourly_secure_scan.sh <<'SCANEOF'
 #!/bin/bash
 set -u
@@ -2079,31 +2182,26 @@ set -u
 TYPE=${1:-Hourly}
 LOCKFILE="/run/clamd.scan/hourly_scan.lock"
 exec 200>"$LOCKFILE"
-flock -n 200 || exit 1   # skip if a scan is already running
+flock -n 200 || exit 1   # skip if scan already running
 
 EMAIL_ADDR="__EMAIL__"
 CHK="/var/lib/clamav/scan_checkpoint"
 AUDIT_LOG="/var/log/clamav/infected_audit.log"
 WEEKLY="/var/log/clamav/weekly_report.log"
+WHITE_LIST="/var/lib/clamav/whitelist.txt"
 NOW=$(date '+%Y-%m-%d %H:%M:%S')
 LIST=$(mktemp)
 
-# ---- build file list ------------------------------------------------
+# ── Build file list ──────────────────────────────────────────────────────────
 if [[ "$TYPE" == "MANUAL-TEST" ]]; then
-    TEST_FILE="/tmp/eicar_test.com"
-    # EICAR test string (safe – not a real virus)
     printf 'X5O!P%%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*\n' \
-        > "$TEST_FILE"
-    echo "$TEST_FILE" > "$LIST"
+        > /tmp/eicar_test.com
+    echo "/tmp/eicar_test.com" > "$LIST"
 
 elif [[ ! -f "$CHK" ]]; then
-    # ---- FIRST RUN: full system scan --------------------------------
-    # No checkpoint exists yet — scan everything on the filesystem.
     TYPE="Full-Initial"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] No checkpoint found — performing initial full system scan." \
-        >> "$AUDIT_LOG"
-    find / \
-        -type f \
+    echo "$NOW [INFO] No checkpoint — performing initial full system scan." >> "$AUDIT_LOG"
+    find / -type f \
         -not -path "/proc/*"           \
         -not -path "/sys/*"            \
         -not -path "/dev/*"            \
@@ -2111,12 +2209,8 @@ elif [[ ! -f "$CHK" ]]; then
         -not -path "/var/log/clamav/*" \
         -not -path "/run/*"            \
         > "$LIST" 2>/dev/null || true
-
 else
-    # ---- SUBSEQUENT RUNS: incremental (only files changed since last scan) --
-    find / \
-        -type f \
-        -newer "$CHK" \
+    find / -type f -newer "$CHK" \
         -not -path "/proc/*"           \
         -not -path "/sys/*"            \
         -not -path "/dev/*"            \
@@ -2130,14 +2224,6 @@ fi
 FILES_TO_SCAN=$(wc -l < "$LIST" | xargs)
 
 if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
-
-    # ------------------------------------------------------------------
-    # Scan with throttling:
-    #   nice -n 19       → lowest CPU scheduling priority
-    #   ionice -c 3      → idle I/O class (only uses spare I/O bandwidth)
-    #   --multiscan      → use multiple threads (capped in clamd config)
-    #   NO --move / --remove → audit only, files stay in place
-    # ------------------------------------------------------------------
     SCAN_RESULTS=$(
         nice -n 19 ionice -c 3 \
         /usr/bin/clamdscan \
@@ -2148,14 +2234,26 @@ if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
 
     INFECTED_COUNT=$(echo "$SCAN_RESULTS" | grep "Infected files:" | awk '{print $NF}')
     [[ -z "$INFECTED_COUNT" ]] && INFECTED_COUNT=0
-
     SCAN_TIME=$(echo "$SCAN_RESULTS" | grep -i "Time:" | cut -d':' -f2- | xargs)
     FOUND_LINES=$(echo "$SCAN_RESULTS" | grep "FOUND")
 
-    # -- alert email (only on detections) --------------------------------
-    if [[ "$INFECTED_COUNT" -gt 0 ]]; then
+    # ── Whitelist filtering ──────────────────────────────────────────────
+    if [[ -s "$WHITE_LIST" && -n "$FOUND_LINES" ]]; then
+        FILTERED_FOUND=""
+        while IFS= read -r FOUND_LINE; do
+            FOUND_PATH=$(echo "$FOUND_LINE" | sed 's/: .* FOUND$//')
+            if grep -qxF "$FOUND_PATH" "$WHITE_LIST" 2>/dev/null; then
+                echo "$NOW [WHITELIST] Suppressed alert for: $FOUND_PATH" >> "$AUDIT_LOG"
+            else
+                FILTERED_FOUND="${FILTERED_FOUND}"$'\n'"${FOUND_LINE}"
+            fi
+        done <<< "$FOUND_LINES"
+        FOUND_LINES="${FILTERED_FOUND#$'\n'}"
+        INFECTED_COUNT=$(echo "$FOUND_LINES" | grep -c "FOUND" || echo 0)
+    fi
 
-        # Append to persistent audit log
+    # ── Alert on detections ──────────────────────────────────────────────
+    if [[ "$INFECTED_COUNT" -gt 0 ]]; then
         {
             echo "=============================="
             echo "Detection Event: $NOW"
@@ -2188,27 +2286,21 @@ Full audit log: $AUDIT_LOG
 MAIL_BODY
     fi
 
-    ENTRY="Date: $NOW | Type: $TYPE | Files: $FILES_TO_SCAN | Infected: $INFECTED_COUNT | Time: $SCAN_TIME"
-    echo "$ENTRY" >> "$WEEKLY"
-
+    echo "Date: $NOW | Type: $TYPE | Files: $FILES_TO_SCAN | Infected: $INFECTED_COUNT | Time: $SCAN_TIME" >> "$WEEKLY"
 else
-    ENTRY="Date: $NOW | Type: $TYPE | Files: 0 | Infected: 0 | Time: 0s (Idle)"
-    echo "$ENTRY" >> "$WEEKLY"
+    echo "Date: $NOW | Type: $TYPE | Files: 0 | Infected: 0 | Time: 0s (Idle)" >> "$WEEKLY"
 fi
 
-# Advance checkpoint only on real scans (not test runs)
-# This is what switches subsequent runs from Full → Incremental
-[[ "$TYPE" != "MANUAL-TEST" ]] && touch "$CHK" && \
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] Checkpoint updated — next run will be incremental." \
-        >> "$AUDIT_LOG"
+# Advance checkpoint (not on test runs)
+if [[ "$TYPE" != "MANUAL-TEST" ]]; then
+    touch "$CHK"
+    echo "$NOW [INFO] Checkpoint updated — next run will be incremental." >> "$AUDIT_LOG"
+fi
 
 touch /var/lib/clamav/setup_complete
 rm -f "$LIST"
 SCANEOF
 
-    # ----------------------------------------------------------------
-    # Service monitor script
-    # ----------------------------------------------------------------
     cat > /usr/local/bin/clamav_monitor.sh <<'MONEOF'
 #!/bin/bash
 EMAIL_ADDR="__EMAIL__"
@@ -2220,22 +2312,18 @@ SERVICES=("clamd@scan" "clamav-freshclam")
 for SVC in "${SERVICES[@]}"; do
     if ! systemctl is-active --quiet "$SVC"; then
         systemctl restart "$SVC"
-        mail -s "ALERT: $SVC was restarted on $(hostname)" \
+        mail -s "ALERT: $SVC restarted on $(hostname)" \
              -S from="$EMAIL_ADDR" "$EMAIL_ADDR" \
-             <<< "$SVC was found stopped and a restart was attempted. Please verify ClamAV health on $(hostname)."
+             <<< "$SVC was found stopped and restart was attempted on $(hostname). Please verify ClamAV health."
     fi
 done
 MONEOF
 
-    echo "[+] Configuring Cron Jobs..."
     cat > /etc/cron.d/clamav_jobs <<CRONEOF
 # ClamAV automated jobs
-# Hourly incremental scan (throttled via nice/ionice + systemd CPUQuota)
-0 * * * * root /usr/local/bin/hourly_secure_scan.sh Hourly
-# Service health monitor every 15 minutes
+0 * * * *   root /usr/local/bin/hourly_secure_scan.sh Hourly
 */15 * * * * root /usr/local/bin/clamav_monitor.sh
-# Weekly summary email every Monday at 09:00, then rotate the log
-0 9 * * 1 root mail -s "Weekly ClamAV Report: $(hostname)" -S from="__EMAIL__" "__EMAIL__" < /var/log/clamav/weekly_report.log && > /var/log/clamav/weekly_report.log
+0 9 * * 1   root mail -s "Weekly ClamAV Report: $(hostname)" -S from="__EMAIL__" "__EMAIL__" < /var/log/clamav/weekly_report.log && > /var/log/clamav/weekly_report.log
 CRONEOF
 
     sed -i "s|__EMAIL__|$EMAIL|g" \
@@ -2248,9 +2336,23 @@ CRONEOF
     systemctl restart crond 2>/dev/null
 
     touch /var/lib/clamav/setup_complete
-    echo "[+] ClamAV Setup Complete. Audit-only monitoring is now active."
+
+    echo ""
+    echo "========================================================="
+    echo "  ClamAV Setup Complete."
+    echo "  Audit-only monitoring is now active."
+    echo ""
+    echo "  Next steps:"
+    echo "    1. Wait for clamd to finish loading (active = ready):"
+    echo "       systemctl is-active clamd@scan"
+    echo "    2. Run a functionality test:"
+    echo "       bash $0 --testclamav"
+    echo "    3. Full health check:"
+    echo "       bash $0 --clamavcheck"
+    echo "========================================================="
 }
 
+# =============================================================================
 clamav_health_check() {
     check_root
     echo "========================================================="
@@ -2271,27 +2373,31 @@ clamav_health_check() {
     fi
 
     echo ""
-    echo "--- [Path & Resource Validation] ---"
-    check_path() {
-        [ -e "$1" ] && echo "[OK]   $1" || echo "[FAIL] $1 (Missing)"
-    }
+    echo "--- [Path & File Validation] ---"
+    check_path() { [ -e "$1" ] && echo "[OK]   $1" || echo "[FAIL] $1 (Missing)"; }
     check_path "/var/log/clamav"
     check_path "/var/log/clamav/infected_audit.log"
     check_path "/run/clamd.scan"
+    check_path "/run/clamd.scan/clamd.sock"
     check_path "/usr/local/bin/hourly_secure_scan.sh"
     check_path "/usr/local/bin/clamav_monitor.sh"
     check_path "/var/lib/clamav/whitelist.txt"
     check_path "/var/lib/clamav/scan_checkpoint"
+    check_path "/var/lib/clamav/setup_complete"
 
     echo ""
-    echo "--- [Resource Throttling] ---"
+    echo "--- [Resource Limits] ---"
     local OVERRIDE="/etc/systemd/system/clamd@scan.service.d/override.conf"
     if [ -f "$OVERRIDE" ]; then
-        grep -E "CPUQuota|MemoryMax|Nice|IOSchedulingClass" "$OVERRIDE" | \
-            sed 's/^/  /'
+        grep -E "CPUQuota|MemoryMax|Nice|IOSchedulingClass|Restart=" "$OVERRIDE" | sed 's/^/  /'
     else
         echo "[WARN] No systemd resource override found."
     fi
+
+    echo ""
+    echo "--- [Memory Usage (live)] ---"
+    systemctl show clamd@scan --property=MemoryCurrent 2>/dev/null | \
+        awk -F= '{if($2~/^[0-9]+$/) printf "  Current: %.0f MB\n",$2/1048576; else print "  Not running"}'
 
     echo ""
     echo "--- [Security & Permissions] ---"
@@ -2299,16 +2405,20 @@ clamav_health_check() {
         && echo "[PASS] Scanner can traverse /root." \
         || echo "[WARN] Scanner may be blocked from /root."
 
-    if getsebool antivirus_can_scan_system 2>/dev/null | grep -q "on" || \
-       semanage permissive -l 2>/dev/null | grep -q "clamd_t" || \
-       ps -eZ 2>/dev/null | grep clamd | grep -qv grep; then
-        echo "[PASS] SELinux allows scanning (permissive domain or boolean on)."
+    if semanage permissive -l 2>/dev/null | grep -q "clamd_t"; then
+        echo "[PASS] clamd_t is in permissive SELinux domain."
+    elif getsebool antivirus_can_scan_system 2>/dev/null | grep -q "on"; then
+        echo "[PASS] antivirus_can_scan_system boolean is on."
     else
-        echo "[FAIL] SELinux may be blocking scans."
+        echo "[WARN] SELinux status unclear — verify manually."
     fi
 
+    semodule -l 2>/dev/null | grep -q "clamav_priv" \
+        && echo "[PASS] clamav_priv SELinux module loaded." \
+        || echo "[WARN] clamav_priv module not found."
+
     echo ""
-    echo "--- [Automation: Cron Jobs] ---"
+    echo "--- [Cron Jobs] ---"
     local CRON_DATA
     CRON_DATA=$(cat /etc/cron.d/clamav_jobs 2>/dev/null)
     check_job() {
@@ -2316,122 +2426,72 @@ clamav_health_check() {
             && echo "[CONFIRMED] $2" \
             || echo "[MISSING]   $2"
     }
-    check_job "/usr/local/bin/clamav_monitor.sh"          "Service Monitor (every 15 min)"
-    check_job "/usr/local/bin/hourly_secure_scan.sh"       "Incremental Security Scanner (hourly)"
-    check_job "Weekly ClamAV Report"                       "Weekly Report Email (Monday 09:00)"
+    check_job "hourly_secure_scan.sh" "Hourly scanner"
+    check_job "clamav_monitor.sh"     "Service monitor (every 15 min)"
+    check_job "Weekly ClamAV Report"  "Weekly report email (Monday 09:00)"
 
     echo ""
-    echo "--- [Recent Activity] ---"
+    echo "--- [Recent Scan Activity (last 5)] ---"
     if [ -f /var/log/clamav/weekly_report.log ]; then
-        tail -n 5 /var/log/clamav/weekly_report.log
+        tail -5 /var/log/clamav/weekly_report.log
     else
         echo "No weekly log found."
     fi
 
     echo ""
-    echo "--- [Infected File Audit Log (last 10 entries)] ---"
+    echo "--- [Infected File Audit Log (last 30 lines)] ---"
     if [ -s /var/log/clamav/infected_audit.log ]; then
-        tail -n 30 /var/log/clamav/infected_audit.log
+        tail -30 /var/log/clamav/infected_audit.log
     else
         echo "No infections recorded yet."
     fi
-    echo "---------------------------------------------------------"
+    echo "========================================================="
 }
 
+# =============================================================================
 test_clamav_setup() {
+    check_root
     echo "========================================================="
-    echo "       CLAMAV FUNCTIONALITY TEST: INITIATING"
+    echo "       CLAMAV FUNCTIONALITY TEST"
     echo "========================================================="
-    echo "[+] Generating EICAR test signature at /tmp/eicar_test.com ..."
+
+    # Check clamd is actually ready before testing
+    if ! systemctl is-active --quiet clamd@scan; then
+        echo "[ERROR] clamd@scan is not running. Start it first:"
+        echo "        systemctl start clamd@scan"
+        return 1
+    fi
+
+    if ! clamdscan --ping 3 &>/dev/null; then
+        echo "[ERROR] clamd is not responding to ping."
+        echo "        It may still be loading signatures — check:"
+        echo "        systemctl status clamd@scan"
+        return 1
+    fi
+
+    echo "[+] clamd is running and responsive."
+    echo "[+] Generating EICAR test file at /tmp/eicar_test.com ..."
     printf 'X5O!P%%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*\n' \
         > /tmp/eicar_test.com
     chmod 644 /tmp/eicar_test.com
 
-    echo "[+] Executing manual scan trigger..."
+    echo "[+] Running manual scan..."
     /usr/local/bin/hourly_secure_scan.sh "MANUAL-TEST"
 
-    echo "---------------------------------------------------------"
-    echo "[SUCCESS] Test scan complete."
-    echo "[INFO] Check your email and /var/log/clamav/infected_audit.log"
-    echo "       File was NOT moved or deleted (audit-only mode)."
+    echo ""
+    if grep -q "MANUAL-TEST" /var/log/clamav/weekly_report.log 2>/dev/null || \
+       grep -q "eicar" /var/log/clamav/infected_audit.log 2>/dev/null; then
+        echo "[PASS] Detection confirmed in logs."
+    else
+        echo "[INFO] Check /var/log/clamav/infected_audit.log for detection entry."
+    fi
+
+    echo "[INFO] File was NOT moved or deleted (audit-only mode confirmed)."
+    echo "[INFO] An alert email should arrive at the configured address."
     echo "========================================================="
 }
 
-uninstall_clamav() {
-    check_root
-    echo "[!] Warning: This will remove ClamAV and all associated logs."
-    read -rp "Are you sure you want to proceed? (y/N): " CONFIRM
-    [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]] && exit 1
-
-    echo "[+] Clearing potential system locks..."
-    pkill -9 dnf 2>/dev/null; pkill -9 dnf5 2>/dev/null; pkill -9 yum 2>/dev/null
-    rm -f /var/lib/dnf/lock /var/lib/dnf5/lock /var/lib/rpm/.rpm.lock 2>/dev/null
-
-    echo "[+] Temporarily stopping Cron..."
-    systemctl stop crond 2>/dev/null
-
-    echo "[+] Stopping services..."
-    systemctl disable --now clamd@scan clamav-freshclam clamd \
-        clamav-daemon clamav-freshclam.service 2>/dev/null
-    pkill -9 clamdscan 2>/dev/null
-    pkill -9 freshclam 2>/dev/null
-    pkill -9 clamd     2>/dev/null
-    pkill -9 -f hourly_secure_scan.sh 2>/dev/null
-    sleep 2
-
-    echo "[+] Cleaning up Cron Jobs..."
-    rm -f /etc/cron.d/clamav_jobs
-    if crontab -l &>/dev/null; then
-        local TMP_CRON=$(mktemp)
-        crontab -l | grep -vE "hourly_secure_scan.sh|clamav_monitor.sh|clamav" > "$TMP_CRON"
-        if [ ! -s "$TMP_CRON" ]; then
-            crontab -r 2>/dev/null
-        else
-            crontab "$TMP_CRON"
-        fi
-        rm -f "$TMP_CRON"
-    fi
-
-    echo "[+] Removing Scripts and Environment..."
-    rm -f /usr/local/bin/hourly_secure_scan.sh \
-          /usr/local/bin/clamav_monitor.sh \
-          /etc/tmpfiles.d/clamav-daemon.conf
-    rm -rf /etc/systemd/system/clamd@scan.service.d
-
-    echo "[+] Removing Packages..."
-    # Remove all clamav-related packages; EL7 names are safe to attempt and will no-op if absent
-    dnf remove -y --no-plugins clamav clamav-freshclam clamd clamav-update >/dev/null 2>&1
-    dnf remove -y --no-plugins clamav-server clamav-server-systemd >/dev/null 2>&1 || true
-
-    echo "[+] Purging Data..."
-    fuser -k /var/log/clamav/freshclam.log /var/log/clamav/clamd.log 2>/dev/null
-    rm -rf /var/lib/clamav /var/log/clamav /etc/clamd.d /run/clamd.scan /etc/freshclam.conf
-    find /etc -name "*clam*.rpmsave" -delete 2>/dev/null
-    find /etc -name "*clam*.rpmnew"  -delete 2>/dev/null
-
-    echo "[+] Removing System Users..."
-    for U in clamupdate clamscan clamav; do
-        getent passwd "$U" >/dev/null && userdel -rf "$U" 2>/dev/null
-    done
-    for G in clamav clamscan virusgroup; do
-        getent group "$G" >/dev/null && groupdel "$G" 2>/dev/null
-    done
-
-    echo "[+] Reverting SELinux Policies..."
-    semodule -r clamav_priv       2>/dev/null || true
-    setsebool -P antivirus_can_scan_system 0 2>/dev/null || true
-    setsebool -P clamd_use_jit            0 2>/dev/null || true
-    semanage permissive -d clamd_t 2>/dev/null || true
-
-    systemctl daemon-reload
-    systemctl reset-failed 2>/dev/null
-
-    echo "[+] Restarting Cron..."
-    systemctl start crond 2>/dev/null
-    echo "[+] Uninstall Complete."
-}
-
-
+# =============================================================================
 clamav_whitelist_file() {
     check_root
 
@@ -2442,7 +2502,6 @@ clamav_whitelist_file() {
     echo "    CLAMAV WHITELIST MANAGER - $(hostname)"
     echo "========================================================="
 
-    # Show current whitelist
     echo ""
     echo "--- [Current Whitelist] ---"
     if [ -s "$WHITE_LIST" ]; then
@@ -2463,16 +2522,13 @@ clamav_whitelist_file() {
     case "$OPT" in
         1)
             echo ""
-            echo "Enter the FULL path of the file to whitelist."
+            echo "Enter the FULL absolute path of the file to whitelist."
             echo "Example: /usr/lib/someapp/legit_binary"
             read -rp "Full file path: " FILE_PATH
-
-            # Strip trailing whitespace
             FILE_PATH="${FILE_PATH%"${FILE_PATH##*[![:space:]]}"}"
 
             if [[ -z "$FILE_PATH" ]]; then
-                echo "[ERROR] No path entered. Exiting."
-                return 1
+                echo "[ERROR] No path entered."; return 1
             fi
 
             if [[ ! -e "$FILE_PATH" ]]; then
@@ -2481,16 +2537,13 @@ clamav_whitelist_file() {
                 [[ "$CONFIRM_MISSING" != "y" && "$CONFIRM_MISSING" != "Y" ]] && echo "Aborted." && return 0
             fi
 
-            # Check for duplicates
             if grep -qxF "$FILE_PATH" "$WHITE_LIST" 2>/dev/null; then
-                echo "[INFO] '$FILE_PATH' is already in the whitelist. No change made."
-                return 0
+                echo "[INFO] Already whitelisted. No change made."; return 0
             fi
 
             echo "$FILE_PATH" >> "$WHITE_LIST"
             sort -u "$WHITE_LIST" -o "$WHITE_LIST"
 
-            # Record the whitelisting action in the audit log
             {
                 echo "=============================="
                 echo "Whitelist Addition: $(date '+%Y-%m-%d %H:%M:%S')"
@@ -2499,29 +2552,20 @@ clamav_whitelist_file() {
                 echo "=============================="
             } >> "$AUDIT_LOG"
 
-            echo ""
-            echo "[SUCCESS] '$FILE_PATH' has been added to the whitelist."
-            echo "[INFO]    Future scan alerts will suppress this path."
-            echo "[INFO]    Whitelist is active immediately — no restart required."
+            echo "[SUCCESS] '$FILE_PATH' added to whitelist."
+            echo "[INFO]    Active immediately — no restart required."
             ;;
 
         2)
-            if [ ! -s "$WHITE_LIST" ]; then
-                echo "[INFO] Whitelist is empty. Nothing to remove."
-                return 0
-            fi
-
+            [ ! -s "$WHITE_LIST" ] && echo "[INFO] Whitelist is empty." && return 0
             echo ""
-            echo "Enter the exact path to remove (must match exactly as shown above):"
-            read -rp "Full file path: " REMOVE_PATH
+            read -rp "Full file path to remove: " REMOVE_PATH
             REMOVE_PATH="${REMOVE_PATH%"${REMOVE_PATH##*[![:space:]]}"}"
 
             if ! grep -qxF "$REMOVE_PATH" "$WHITE_LIST" 2>/dev/null; then
-                echo "[ERROR] '$REMOVE_PATH' was not found in the whitelist."
-                return 1
+                echo "[ERROR] '$REMOVE_PATH' not found in whitelist."; return 1
             fi
 
-            # Remove the line using a temp file for safety
             local TMP_WL
             TMP_WL=$(mktemp)
             grep -vxF "$REMOVE_PATH" "$WHITE_LIST" > "$TMP_WL"
@@ -2536,30 +2580,98 @@ clamav_whitelist_file() {
             } >> "$AUDIT_LOG"
 
             echo "[SUCCESS] '$REMOVE_PATH' removed from whitelist."
-            echo "[INFO]    This path will be alerted on again in future scans."
             ;;
 
         3)
             echo ""
             if [ -s "$WHITE_LIST" ]; then
-                echo "Full whitelist ($WHITE_LIST):"
                 nl -ba "$WHITE_LIST"
             else
                 echo "Whitelist is empty."
             fi
             ;;
 
-        4)
-            echo "Exiting whitelist manager."
-            ;;
-
-        *)
-            echo "[ERROR] Invalid option."
-            return 1
-            ;;
+        4) echo "Exiting." ;;
+        *) echo "[ERROR] Invalid option."; return 1 ;;
     esac
-
     echo "========================================================="
+}
+
+# =============================================================================
+uninstall_clamav() {
+    check_root
+
+    local IS_INSTALLED=0
+    rpm -q clamav &>/dev/null                      && IS_INSTALLED=1
+    rpm -q clamd  &>/dev/null                      && IS_INSTALLED=1
+    [ -f /var/lib/clamav/setup_complete ]          && IS_INSTALLED=1
+    [ -f /usr/local/bin/hourly_secure_scan.sh ]    && IS_INSTALLED=1
+
+    if [ "$IS_INSTALLED" -eq 0 ]; then
+        echo "[INFO] ClamAV does not appear to be installed. Nothing to remove."
+        return 0
+    fi
+
+    echo "[!] Warning: This will remove ClamAV and all associated logs."
+    read -rp "Are you sure? (y/N): " CONFIRM
+    [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]] && echo "Aborted." && return 0
+
+    # Only kill dnf if a lock file actually exists
+    if [ -f /var/lib/dnf/lock ] || [ -f /var/lib/dnf5/lock ] || [ -f /var/lib/rpm/.rpm.lock ]; then
+        pkill -9 dnf 2>/dev/null; pkill -9 dnf5 2>/dev/null; pkill -9 yum 2>/dev/null
+        rm -f /var/lib/dnf/lock /var/lib/dnf5/lock /var/lib/rpm/.rpm.lock 2>/dev/null
+    fi
+
+    systemctl stop crond 2>/dev/null
+    trap 'systemctl start crond 2>/dev/null' RETURN
+
+    systemctl disable --now clamd@scan clamav-freshclam clamd \
+        clamav-daemon clamav-freshclam.service 2>/dev/null
+    pkill -9 clamdscan 2>/dev/null
+    pkill -9 freshclam 2>/dev/null
+    pkill -9 clamd     2>/dev/null
+    pkill -9 -f hourly_secure_scan.sh 2>/dev/null
+    sleep 2
+
+    rm -f /etc/cron.d/clamav_jobs
+    if crontab -l &>/dev/null; then
+        local TMP_CRON
+        TMP_CRON=$(mktemp)
+        crontab -l | grep -vE "hourly_secure_scan|clamav_monitor|clamav" > "$TMP_CRON"
+        [ -s "$TMP_CRON" ] && crontab "$TMP_CRON" || crontab -r 2>/dev/null
+        rm -f "$TMP_CRON"
+    fi
+
+    rm -f /usr/local/bin/hourly_secure_scan.sh \
+          /usr/local/bin/clamav_monitor.sh      \
+          /etc/tmpfiles.d/clamav-daemon.conf
+    rm -rf /etc/systemd/system/clamd@scan.service.d
+
+    dnf remove -y --no-plugins clamav clamav-freshclam clamd clamav-update >/dev/null 2>&1
+    dnf remove -y --no-plugins clamav-server clamav-server-systemd >/dev/null 2>&1 || true
+
+    fuser -k /var/log/clamav/freshclam.log /var/log/clamav/clamd.log 2>/dev/null
+    rm -rf /var/lib/clamav /var/log/clamav /etc/clamd.d /run/clamd.scan /etc/freshclam.conf
+    find /etc -name "*clam*.rpmsave" -delete 2>/dev/null
+    find /etc -name "*clam*.rpmnew"  -delete 2>/dev/null
+
+    for U in clamupdate clamscan clamav; do
+        getent passwd "$U" >/dev/null && userdel -rf "$U" 2>/dev/null
+    done
+    for G in clamav clamscan virusgroup; do
+        getent group "$G" >/dev/null && groupdel "$G" 2>/dev/null
+    done
+
+    if semodule -l 2>/dev/null | grep -q "clamav_priv"; then
+        semodule -r clamav_priv 2>/dev/null || true
+        setsebool -P antivirus_can_scan_system 0 2>/dev/null || true
+        setsebool -P clamd_use_jit            0 2>/dev/null || true
+    fi
+    semanage permissive -d clamd_t 2>/dev/null || true
+
+    systemctl daemon-reload
+    systemctl reset-failed 2>/dev/null
+    echo "[+] Uninstall complete."
 }
 
 case "$1" in
