@@ -1853,6 +1853,21 @@ run_with_spinner() {
     return $RC
 }
 
+check_network() {
+    local HOST="$1"
+    printf "    Checking connectivity to %-36s" "$HOST ..."
+    if curl -s --max-time 10 --head "https://$HOST" >/dev/null 2>&1; then
+        echo " OK"
+        return 0
+    else
+        echo " FAILED"
+        echo ""
+        echo "    [ERROR] Cannot reach $HOST"
+        echo "            Check network, proxy settings, and DNS then retry."
+        return 1
+    fi
+}
+
 
 setup_clamav() {
     check_root
