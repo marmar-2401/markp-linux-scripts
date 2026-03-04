@@ -1817,6 +1817,43 @@ setfacl -m g:sccadm:r /var/lib/systemd/coredump/*  >/dev/null 2>&1
 printf "${GREEN}Complete!${NC}\n"
 }
 
+run_with_spinner() {
+    local LABEL="$1"; shift
+    local LOG
+    LOG=$(mktemp)
+    local SPIN=('|' '/' '-' '\')
+    local I=0
+    local START
+    START=$(date +%s)
+
+    "$@" >"$LOG" 2>&1 &
+    local PID=$!
+
+    while kill -0 "$PID" 2>/dev/null; do
+        local ELAPSED=$(( $(date +%s) - START ))
+        printf "\r    %-52s %s  %ds " "$LABEL" "${SPIN[$I]}" "$ELAPSED"
+        I=$(( (I+1) % 4 ))
+        sleep 0.3
+    done
+
+    wait "$PID"
+    local RC=$?
+    local ELAPSED=$(( $(date +%s) - START ))
+
+    if [ $RC -eq 0 ]; then
+        printf "\r    %-52s [DONE]  %ds\n" "$LABEL" "$ELAPSED"
+    else
+        printf "\r    %-52s [FAIL]  %ds\n" "$LABEL" "$ELAPSED"
+        echo ""
+        echo "    --- Error output ---"
+        tail -20 "$LOG" | sed 's/^/    /'
+        echo "    --------------------"
+    fi
+    rm -f "$LOG"
+    return $RC
+}
+
+
 setup_clamav() {
     check_root
     confirm_action
