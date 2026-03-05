@@ -115,7 +115,7 @@ check_sccadm_group() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.3.4 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.3.5 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -165,6 +165,7 @@ printf "${MAGENTA} 1.3.1 | 01/26/2026 | - ClamAV scan tester was added ${NC}\n"
 printf "${MAGENTA} 1.3.2 | 01/28/2026 | - ClamAV whitelist option created ${NC}\n"
 printf "${MAGENTA} 1.3.3 | 01/28/2026 | - Created a clamav uninstaller ${NC}\n"
 printf "${MAGENTA} 1.3.4 | 03/03/2026 | - Added NFS Kerberos Checks ${NC}\n"
+printf "${MAGENTA} 1.3.5 | 03/05/2026 | - Added ClamAV heartbeat and auto-restart enabler and disabler ${NC}\n"
 }
 
 print_help() {
@@ -193,6 +194,8 @@ printf "${YELLOW}--coredumpfix${NC}	# Corrects coredump permissions\n\n"
 printf "${YELLOW}--setupclamav${NC}	# Configures ClamAV optimally\n\n"
 printf "${YELLOW}--removeclamav${NC} # Allows you to remove ClamAV installation\n\n"
 printf "${YELLOW}--whitelsclamav${NC} # Allows you to whitelist a false positive\n\n"
+printf "${YELLOW}--clamavdisable${NC} # Disables ClamAV heartbeat and auto-restart\n\n"
+printf "${YELLOW}--clamavenable${NC} # Enables ClamAV heartbeat and auto-restart\n\n"
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
 printf "${YELLOW}--auditdisc${NC}	# Description for misconfigured audit rules\n\n"
 printf "${YELLOW}--listndisc${NC}	# Description for oracle listener issues\n\n"
@@ -2733,6 +2736,75 @@ uninstall_clamav() {
     echo "[+] Uninstall complete."
 }
 
+# =============================================================================
+clamav_disable_auto() {
+    check_root
+    confirm_action
+    echo "========================================================="
+    echo "    CLAMAV AUTO-RESTART & HEARTBEAT — DISABLE"
+    echo "========================================================="
+
+    # Stop and disable the monitor cron job
+    if [ -f /etc/cron.d/clamav_jobs ]; then
+        sed -i 's|^\(.*/clamav_monitor\.sh.*\)$|#\1|' /etc/cron.d/clamav_jobs
+        echo "[OK] Heartbeat monitor cron disabled."
+    else
+        echo "[WARN] /etc/cron.d/clamav_jobs not found."
+    fi
+
+    # Remove auto-restart from systemd override
+    local OVERRIDE="/etc/systemd/system/clamd@scan.service.d/override.conf"
+    if [ -f "$OVERRIDE" ]; then
+        sed -i 's|^Restart=.*|Restart=no|' "$OVERRIDE"
+        systemctl daemon-reload
+        echo "[OK] systemd auto-restart disabled (Restart=no)."
+    else
+        echo "[WARN] systemd override not found."
+    fi
+
+    echo ""
+    echo "  clamd will no longer restart automatically if it stops."
+    echo "  The heartbeat monitor will no longer send restart alerts."
+    echo "  Hourly scans continue to run normally."
+    echo ""
+    echo "  To re-enable: bash $0 --clamavenable"
+    echo "========================================================="
+}
+
+# =============================================================================
+clamav_enable_auto() {
+    check_root
+	confirm_action
+
+    echo "========================================================="
+    echo "    CLAMAV AUTO-RESTART & HEARTBEAT — ENABLE"
+    echo "========================================================="
+
+    # Re-enable the monitor cron job
+    if [ -f /etc/cron.d/clamav_jobs ]; then
+        sed -i 's|^#\(.*/clamav_monitor\.sh.*\)$|\1|' /etc/cron.d/clamav_jobs
+        echo "[OK] Heartbeat monitor cron re-enabled."
+    else
+        echo "[WARN] /etc/cron.d/clamav_jobs not found."
+    fi
+
+    # Restore auto-restart in systemd override
+    local OVERRIDE="/etc/systemd/system/clamd@scan.service.d/override.conf"
+    if [ -f "$OVERRIDE" ]; then
+        sed -i 's|^Restart=.*|Restart=on-failure|' "$OVERRIDE"
+        systemctl daemon-reload
+        echo "[OK] systemd auto-restart re-enabled (Restart=on-failure)."
+    else
+        echo "[WARN] systemd override not found."
+    fi
+
+    echo ""
+    echo "  clamd will now restart automatically on failure."
+    echo "  The heartbeat monitor will resume sending alerts."
+    echo "  To disable: bash $0 --clamavdisable"
+    echo "========================================================="
+}
+
 case "$1" in
 	--ver) print_version ;;
 	--help) print_help ;;
@@ -2756,6 +2828,8 @@ case "$1" in
 	--testclamav) test_clamav_setup ;;
 	--whitelsclamav) clamav_whitelist_file ;;
 	--removeclamav) uninstall_clamav ;;
+	--clamavdisable)  clamav_disable_auto ;;
+    --clamavenable)   clamav_enable_auto  ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
