@@ -2255,16 +2255,16 @@ if [[ "$TYPE" == "MANUAL-TEST" ]]; then
 elif [[ ! -f "$CHK" ]]; then
     TYPE="Full-Initial"
     echo "$NOW [INFO] No checkpoint — performing initial full system scan." >> "$AUDIT_LOG"
-    find / -type f \
+    find / -xdev -type f \
         -not -path "/proc/*"           \
         -not -path "/sys/*"            \
         -not -path "/dev/*"            \
         -not -path "/var/lib/clamav/*" \
         -not -path "/var/log/clamav/*" \
         -not -path "/run/*"            \
-        > "$LIST" 2>/dev/null || true
+        2>/dev/null | sort -u > "$LIST" || true
 else
-    find / -type f -newer "$CHK" \
+    find / -xdev -type f -newer "$CHK" \
         -not -path "/proc/*"           \
         -not -path "/sys/*"            \
         -not -path "/dev/*"            \
@@ -2272,7 +2272,7 @@ else
         -not -path "/var/log/clamav/*" \
         -not -path "/run/*"            \
         -mmin +1 \
-        > "$LIST" 2>/dev/null || true
+        2>/dev/null | sort -u > "$LIST" || true
 fi
 
 FILES_TO_SCAN=$(wc -l < "$LIST" | xargs)
