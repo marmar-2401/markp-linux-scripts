@@ -2286,6 +2286,11 @@ if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
             2>/dev/null
     )
 
+    SCAN_RESULTS=$(echo "$SCAN_RESULTS" \
+        | grep -v ": Permission denied\. ERROR$" \
+        | grep -v ": Access denied\. ERROR$"     \
+        | grep -v "File path check failure")
+
     INFECTED_COUNT=$(echo "$SCAN_RESULTS" | grep "Infected files:" | awk '{print $NF}')
     [[ -z "$INFECTED_COUNT" ]] && INFECTED_COUNT=0
     SCAN_TIME=$(echo "$SCAN_RESULTS" | grep -i "Time:" | cut -d':' -f2- | xargs)
