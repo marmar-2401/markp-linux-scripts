@@ -2213,10 +2213,8 @@ Requires=systemd-tmpfiles-setup.service
 
 [Service]
 TimeoutStartSec=300
-CPUQuota=40%
-MemoryMax=2048M
-Nice=19
-IOSchedulingClass=idle
+CPUQuota=60%
+Nice=17
 Restart=on-failure
 RestartSec=30
 # Belt-and-suspenders: recreate run dir on every start even if tmpfiles ran
@@ -2282,7 +2280,7 @@ FILES_TO_SCAN=$(wc -l < "$LIST" | xargs)
 
 if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
     SCAN_RESULTS=$(
-        nice -n 19 ionice -c 3 \
+        nice -n 17 ionice -c 3 \
         /usr/bin/clamdscan \
             --multiscan \
             --file-list="$LIST" \
