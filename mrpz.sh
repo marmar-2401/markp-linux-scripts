@@ -2256,7 +2256,7 @@ if [[ "$TYPE" == "MANUAL-TEST" ]]; then
 elif [[ ! -f "$CHK" ]]; then
     TYPE="Full-Initial"
     echo "$NOW [INFO] No checkpoint — performing initial full system scan." >> "$AUDIT_LOG"
-    find / -xdev -type f \
+    find / -type f \
         -not -path "/proc/*"           \
         -not -path "/sys/*"            \
         -not -path "/dev/*"            \
@@ -2265,7 +2265,7 @@ elif [[ ! -f "$CHK" ]]; then
         -not -path "/run/*"            \
         2>/dev/null | sort -u > "$LIST" || true
 else
-    find / -xdev -type f -newer "$CHK" \
+    find / -type f -newer "$CHK" \
         -not -path "/proc/*"           \
         -not -path "/sys/*"            \
         -not -path "/dev/*"            \
