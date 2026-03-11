@@ -2625,7 +2625,7 @@ clamav_health_check() {
     }
     check_job "hourly_secure_scan.sh" "Hourly scanner"
     check_job "clamav_monitor.sh"     "Service monitor (every 15 min)"
-    check_job "Weekly ClamAV Report"  "Weekly report email (Monday 09:00)"
+    check_job "clamav_weekly_report"  "Weekly report email (Monday 09:00)"
 
     echo ""
     echo "--- [Recent Scan Activity (last 5)] ---"
