@@ -1323,6 +1323,8 @@ printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!
 
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Backup" "!!ATTN!!" "Ensure system has a current backup"
 
+printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Grub2 Password" "!!ATTN!!" "In OCI make sure hosts have listed GRUB2 password set"
+
 printf "${GREEN}Check Complete!${NC}\n"
 }
 
