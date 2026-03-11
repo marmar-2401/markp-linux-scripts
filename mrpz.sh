@@ -2031,10 +2031,10 @@ setup_clamav() {
     fi
 
     # Create all required directories before any touch/chown operations
-    mkdir -p "$LOG_DIR"                \
-             "/var/lib/clamav"         \
+    mkdir -p "$LOG_DIR"                   \
+             "/var/lib/clamav"            \
              "/var/lib/clamav/quarantine" \
-             "/run/clamd.scan"         \
+             "/run/clamd.scan"            \
              "/etc/clamd.d"
 
     touch "$LOG_DIR/freshclam.log" \
@@ -2074,12 +2074,10 @@ setup_clamav() {
     local CONF_FILE="/etc/clamd.d/scan.conf"
 
     if [ ! -f "$CONF_FILE" ]; then
-        # Try known template locations in order
         cp /usr/share/doc/clamav*/clamd.conf  "$CONF_FILE" 2>/dev/null || \
         cp /usr/share/doc/clamd*/clamd.conf   "$CONF_FILE" 2>/dev/null || \
         cp /usr/share/clamav/template/clamd.conf "$CONF_FILE" 2>/dev/null
 
-        # If no template found anywhere, build a minimal working config
         if [ ! -f "$CONF_FILE" ]; then
             echo "    [WARN] No example clamd.conf found — generating minimal config"
             cat > "$CONF_FILE" <<CONFEOF
@@ -2095,17 +2093,16 @@ CONFEOF
         fi
     fi
 
-    # Apply settings — use anchored regex so partial matches don't fire
     sed -i 's/^Example/#Example/'                                           "$CONF_FILE"
     sed -i "s|^#\?User .*|User $SCAN_USER|"                                "$CONF_FILE"
     sed -i 's|^#\?LocalSocket .*|LocalSocket /run/clamd.scan/clamd.sock|'  "$CONF_FILE"
     sed -i 's|^#\?LocalSocketGroup .*|LocalSocketGroup clamav|'            "$CONF_FILE"
     sed -i 's|^#\?LocalSocketMode .*|LocalSocketMode 660|'                 "$CONF_FILE"
     grep -q "^LocalSocket"           "$CONF_FILE" || echo "LocalSocket /run/clamd.scan/clamd.sock" >> "$CONF_FILE"
-    grep -q "^MaxThreads"            "$CONF_FILE" || echo "MaxThreads 2"             >> "$CONF_FILE"
-    grep -q "^MaxQueue"              "$CONF_FILE" || echo "MaxQueue 100"             >> "$CONF_FILE"
-    grep -q "^ReadTimeout"           "$CONF_FILE" || echo "ReadTimeout 180"          >> "$CONF_FILE"
-    grep -q "^MaxDirectoryRecursion" "$CONF_FILE" || echo "MaxDirectoryRecursion 20" >> "$CONF_FILE"
+    grep -q "^MaxThreads"            "$CONF_FILE" || echo "MaxThreads 2"              >> "$CONF_FILE"
+    grep -q "^MaxQueue"              "$CONF_FILE" || echo "MaxQueue 100"              >> "$CONF_FILE"
+    grep -q "^ReadTimeout"           "$CONF_FILE" || echo "ReadTimeout 180"           >> "$CONF_FILE"
+    grep -q "^MaxDirectoryRecursion" "$CONF_FILE" || echo "MaxDirectoryRecursion 20"  >> "$CONF_FILE"
     echo "    clamd config: OK"
     echo ""
 
@@ -2191,7 +2188,6 @@ EOF
 
     check_network "database.clamav.net" || return 1
 
-    # Run freshclam with live output so the user can see download progress
     freshclam --stdout 2>&1 | sed 's/^/    /'
     local FC_RC=${PIPESTATUS[0]}
     if [ $FC_RC -ne 0 ]; then
@@ -2205,8 +2201,6 @@ EOF
     mkdir -p /etc/systemd/system/clamd@scan.service.d/
     cat > /etc/systemd/system/clamd@scan.service.d/override.conf <<EOF
 [Unit]
-# Wait for tmpfiles to recreate /run/clamd.scan before starting.
-# Prevents socket creation failure on reboot (tmpfs is wiped at shutdown).
 After=systemd-tmpfiles-setup.service network.target
 Requires=systemd-tmpfiles-setup.service
 
@@ -2216,7 +2210,6 @@ CPUQuota=60%
 Nice=17
 Restart=on-failure
 RestartSec=30
-# Belt-and-suspenders: recreate run dir on every start even if tmpfiles ran
 ExecStartPre=/bin/bash -c 'mkdir -p /run/clamd.scan && chown ${SCAN_USER}:clamav /run/clamd.scan && chmod 0755 /run/clamd.scan'
 EOF
 
@@ -2229,6 +2222,7 @@ EOF
     # ── Step 8: Automation scripts + cron ─────────────────────────────────
     echo "[Step 8/8] Writing automation scripts and cron jobs..."
 
+    # ── hourly_secure_scan.sh ─────────────────────────────────────────────
     cat > /usr/local/bin/hourly_secure_scan.sh <<'SCANEOF'
 #!/bin/bash
 set -u
@@ -2293,7 +2287,19 @@ if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
 
     INFECTED_COUNT=$(echo "$SCAN_RESULTS" | grep "Infected files:" | awk '{print $NF}')
     [[ -z "$INFECTED_COUNT" ]] && INFECTED_COUNT=0
-    SCAN_TIME=$(echo "$SCAN_RESULTS" | grep -i "Time:" | cut -d':' -f2- | xargs)
+
+    # ── Clean the Time field ─────────────────────────────────────────────
+    # clamdscan appends man-page output after long scans which corrupts the
+    # raw "Time:" line. Extract only the trailing (X m Y s) pattern which is
+    # always present and unambiguous, then reformat to "Xm Ys" for the log.
+    RAW_TIME=$(echo "$SCAN_RESULTS" | grep -i "^Time:" | tail -1)
+    SCAN_TIME=$(echo "$RAW_TIME" | grep -oP '\d+\s*m\s*\d+\s*s' | tail -1 | tr -s ' ')
+    # Fallback: if no (m s) pattern found, grab the seconds value only
+    if [[ -z "$SCAN_TIME" ]]; then
+        SCAN_TIME=$(echo "$RAW_TIME" | grep -oP '[\d.]+\s*sec' | tail -1)
+    fi
+    [[ -z "$SCAN_TIME" ]] && SCAN_TIME="unknown"
+
     FOUND_LINES=$(echo "$SCAN_RESULTS" | grep "FOUND")
 
     # ── Whitelist filtering ──────────────────────────────────────────────
@@ -2311,7 +2317,7 @@ if [[ "$FILES_TO_SCAN" -gt 0 ]]; then
         INFECTED_COUNT=$(echo "$FOUND_LINES" | grep -c "FOUND" || echo 0)
     fi
 
-    # ── Alert on detections ──────────────────────────────────────────────
+    # ── Immediate alert on detection ─────────────────────────────────────
     if [[ "$INFECTED_COUNT" -gt 0 ]]; then
         {
             echo "=============================="
@@ -2347,7 +2353,7 @@ MAIL_BODY
 
     echo "Date: $NOW | Type: $TYPE | Files: $FILES_TO_SCAN | Infected: $INFECTED_COUNT | Time: $SCAN_TIME" >> "$WEEKLY"
 else
-    echo "Date: $NOW | Type: $TYPE | Files: 0 | Infected: 0 | Time: 0s (Idle)" >> "$WEEKLY"
+    echo "Date: $NOW | Type: $TYPE | Files: 0 | Infected: 0 | Time: 0m 0s" >> "$WEEKLY"
 fi
 
 # Advance checkpoint (not on test runs)
@@ -2360,6 +2366,133 @@ touch /var/lib/clamav/setup_complete
 rm -f "$LIST"
 SCANEOF
 
+    # ── clamav_weekly_report.sh ───────────────────────────────────────────
+    cat > /usr/local/bin/clamav_weekly_report.sh <<'RPTEOF'
+#!/bin/bash
+# ─────────────────────────────────────────────
+#  ClamAV Weekly Summary Report
+# ─────────────────────────────────────────────
+EMAIL_ADDR="__EMAIL__"
+WEEKLY="/var/log/clamav/weekly_report.log"
+AUDIT_LOG="/var/log/clamav/infected_audit.log"
+HOST=$(hostname)
+NOW=$(date '+%Y-%m-%d %H:%M:%S')
+WEEK_START=$(date -d '7 days ago' '+%Y-%m-%d')
+WEEK_END=$(date '+%Y-%m-%d')
+
+[ ! -f "$WEEKLY" ] && exit 0
+
+# ── Parse weekly log entries ──────────────────
+TOTAL_FILES=0
+TOTAL_INFECTED=0
+TOTAL_SCANS=0
+INFECTED_EVENTS=""
+
+while IFS= read -r LINE; do
+    [[ -z "$LINE" ]] && continue
+    FILES=$(echo    "$LINE" | grep -oP '(?<=Files: )\d+')
+    INFECTED=$(echo "$LINE" | grep -oP '(?<=Infected: )\d+')
+
+    TOTAL_FILES=$(( TOTAL_FILES + ${FILES:-0} ))
+    TOTAL_INFECTED=$(( TOTAL_INFECTED + ${INFECTED:-0} ))
+    (( TOTAL_SCANS++ ))
+
+    TYPE=$(echo "$LINE" | grep -oP '(?<=Type: )[^|]+' | xargs)
+    DATE=$(echo "$LINE" | grep -oP '(?<=Date: )[^|]+'  | xargs)
+
+    if [[ "${INFECTED:-0}" -gt 0 ]]; then
+        INFECTED_EVENTS="${INFECTED_EVENTS}  !! ${DATE} | Type: ${TYPE} | Infected: ${INFECTED}\n"
+    fi
+done < "$WEEKLY"
+
+# Format total files with comma separators
+TOTAL_FILES_FMT=$(printf "%'d" "$TOTAL_FILES" 2>/dev/null || echo "$TOTAL_FILES")
+
+# ── Build health verdict ──────────────────────
+if [[ "$TOTAL_INFECTED" -eq 0 ]]; then
+    VERDICT_HEADER="✔  SYSTEM STATUS: CLEAN"
+    VERDICT_BODY="  No threats were detected during this reporting period."
+    SUBJECT="✔ ClamAV Weekly Report — CLEAN — $HOST"
+else
+    VERDICT_HEADER="✘  SYSTEM STATUS: ACTION REQUIRED"
+    VERDICT_BODY="  $TOTAL_INFECTED infected file(s) detected — manual remediation required.
+  Files have NOT been removed. Review the detection events below."
+    SUBJECT="✘ ClamAV Weekly Report — $TOTAL_INFECTED THREAT(S) DETECTED — $HOST"
+fi
+
+# ── Build scan table rows ─────────────────────
+TABLE_ROWS=""
+while IFS= read -r LINE; do
+    [[ -z "$LINE" ]] && continue
+    DATE=$(echo     "$LINE" | grep -oP '(?<=Date: )[^|]+'     | xargs)
+    TYPE=$(echo     "$LINE" | grep -oP '(?<=Type: )[^|]+'     | xargs)
+    FILES=$(echo    "$LINE" | grep -oP '(?<=Files: )[^|]+'    | xargs)
+    INFECTED=$(echo "$LINE" | grep -oP '(?<=Infected: )[^|]+' | xargs)
+    TIME=$(echo     "$LINE" | grep -oP '(?<=Time: ).+'        | xargs)
+    FLAG=""
+    [[ "${INFECTED:-0}" -gt 0 ]] && FLAG="  <-- THREAT"
+    TABLE_ROWS="${TABLE_ROWS}  $(printf '%-22s %-14s %8s %10s   %-18s%s\n' \
+        "$DATE" "$TYPE" "${FILES:-0}" "${INFECTED:-0}" "$TIME" "$FLAG")\n"
+done < "$WEEKLY"
+
+# ── Detection events block (only renders when threats exist) ──────────
+DETECTION_BLOCK=""
+if [[ -n "$INFECTED_EVENTS" ]]; then
+    DETECTION_BLOCK="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  DETECTION EVENTS THIS WEEK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+$(printf "%b" "$INFECTED_EVENTS")
+"
+fi
+
+# ── Compose and send email ────────────────────
+mail -s "$SUBJECT" -S from="$EMAIL_ADDR" "$EMAIL_ADDR" <<MAIL_BODY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CLAMAV WEEKLY SECURITY REPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Host        : $HOST
+  Report Date : $NOW
+  Period      : $WEEK_START  →  $WEEK_END
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  $VERDICT_HEADER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+$VERDICT_BODY
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  WEEKLY SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Total Scans Run    : $TOTAL_SCANS
+  Total Files Scanned: $TOTAL_FILES_FMT
+  Total Threats Found: $TOTAL_INFECTED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SCAN LOG
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  $(printf '%-22s %-14s %8s %10s   %-18s\n' "DATE" "TYPE" "FILES" "INFECTED" "DURATION")
+  $(printf '%0.s─' {1..78})
+$(printf "%b" "$TABLE_ROWS")
+${DETECTION_BLOCK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  AUDIT LOG — LAST 20 LINES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+$(tail -20 "$AUDIT_LOG" 2>/dev/null || echo "  No audit entries found.")
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Full audit log on host: $AUDIT_LOG
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MAIL_BODY
+
+# Clear the weekly log after sending so next week starts fresh
+> "$WEEKLY"
+RPTEOF
+
+    # ── clamav_monitor.sh ─────────────────────────────────────────────────
     cat > /usr/local/bin/clamav_monitor.sh <<'MONEOF'
 #!/bin/bash
 EMAIL_ADDR="__EMAIL__"
@@ -2378,19 +2511,24 @@ for SVC in "${SERVICES[@]}"; do
 done
 MONEOF
 
-    cat > /etc/cron.d/clamav_jobs <<CRONEOF
+    # ── cron jobs ─────────────────────────────────────────────────────────
+    cat > /etc/cron.d/clamav_jobs <<'CRONEOF'
 # ClamAV automated jobs
-0 * * * *   root /usr/local/bin/hourly_secure_scan.sh Hourly
-*/15 * * * * root /usr/local/bin/clamav_monitor.sh
-0 9 * * 1   root mail -s "Weekly ClamAV Report: $(hostname)" -S from="__EMAIL__" "__EMAIL__" < /var/log/clamav/weekly_report.log && > /var/log/clamav/weekly_report.log
+0    * * * *  root /usr/local/bin/hourly_secure_scan.sh Hourly
+*/15 * * * *  root /usr/local/bin/clamav_monitor.sh
+0    9 * * 1  root /usr/local/bin/clamav_weekly_report.sh
 CRONEOF
 
+    # Substitute email address into all scripts
     sed -i "s|__EMAIL__|$EMAIL|g" \
-        /usr/local/bin/hourly_secure_scan.sh \
-        /usr/local/bin/clamav_monitor.sh \
+        /usr/local/bin/hourly_secure_scan.sh   \
+        /usr/local/bin/clamav_monitor.sh        \
+        /usr/local/bin/clamav_weekly_report.sh  \
         /etc/cron.d/clamav_jobs
 
-    chmod 700 /usr/local/bin/hourly_secure_scan.sh /usr/local/bin/clamav_monitor.sh
+    chmod 700 /usr/local/bin/hourly_secure_scan.sh  \
+              /usr/local/bin/clamav_monitor.sh        \
+              /usr/local/bin/clamav_weekly_report.sh
     chmod 644 /etc/cron.d/clamav_jobs
     systemctl restart crond 2>/dev/null
 
