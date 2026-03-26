@@ -164,8 +164,9 @@ printf "${MAGENTA} 1.3.0 | 01/26/2026 | - ClamAV setup option added ${NC}\n"
 printf "${MAGENTA} 1.3.1 | 01/26/2026 | - ClamAV scan tester was added ${NC}\n"
 printf "${MAGENTA} 1.3.2 | 01/28/2026 | - ClamAV whitelist option created ${NC}\n"
 printf "${MAGENTA} 1.3.3 | 01/28/2026 | - Created a clamav uninstaller ${NC}\n"
-printf "${MAGENTA} 1.3.4 | 03/03/2026 | - Added NFS Kerberos Checks ${NC}\n"
-printf "${MAGENTA} 1.3.5 | 03/05/2026 | - Added ClamAV heartbeat and auto-restart enabler and disabler ${NC}\n"
+printf "${MAGENTA} 1.3.4 | 03/05/2026 | - Added ClamAV heartbeat and auto-restart enabler and disabler ${NC}\n"
+printf "${MAGENTA} 1.3.5 | 03/26/2026 | - Corrected ociregion check and created a fix option ${NC}\n"
+printf "${MAGENTA} 1.3.6 | 03/26/2026 | - Corrected ocidomain check and created a fix option ${NC}\n"
 }
 
 print_help() {
@@ -196,6 +197,8 @@ printf "${YELLOW}--removeclamav${NC} # Allows you to remove ClamAV installation\
 printf "${YELLOW}--whitelsclamav${NC} # Allows you to whitelist a false positive\n\n"
 printf "${YELLOW}--clamavdisable${NC} # Disables ClamAV heartbeat and auto-restart\n\n"
 printf "${YELLOW}--clamavenable${NC} # Enables ClamAV heartbeat and auto-restart\n\n"
+printf "${YELLOW}--ociregionfix${NC} # Replaces the leading . with a - for ociregion\n\n"
+printf "${YELLOW}--ocidomainfix${NC} # Corrects the ocidomain\n\n"
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
 printf "${YELLOW}--auditdisc${NC}	# Description for misconfigured audit rules\n\n"
 printf "${YELLOW}--listndisc${NC}	# Description for oracle listener issues\n\n"
@@ -1155,32 +1158,6 @@ else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Transparent Hugepage" "!!BAD!!" "[never] missing"
 fi
 
-if [[ "${HARDTYPE}" == "Oracle" ]]; then
-    if systemctl is-active --quiet ociip.service 2>/dev/null; then
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Ociip Service" "!!GOOD!!" "Running"
-    else
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Ociip Service" "!!BAD!!" "Not Running/installed"
-    fi
-	
-	local OCIREGION_FILE="/etc/yum/vars/ociregion"
-	local OCIREGION=$(cat "$OCIREGION_FILE" 2>/dev/null)
-
-	if [ -z "$OCIREGION" ]; then
-		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Ociregion" "!!BAD!!" "No Region"
-	else
-		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Ociregion" "!!GOOD!!" "${OCIREGION}"
-	fi
-
-	local OCIDOMAIN_FILE="/etc/yum/vars/ocidomain"
-	local OCIDOMAIN=$(cat "$OCIDOMAIN_FILE" 2>/dev/null)
-
-	if [ -z "$OCIDOMAIN" ]; then
-		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Ocidomain" "!!BAD!!" "No Domain"
-	else
-		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Ocidomain" "!!GOOD!!" "${OCIDOMAIN}"
-	fi		
-fi
-
 if [[ "${HARDTYPE}" == "AWS" && "${OSTYPE}" == *"Red Hat Enterprise Linux"* ]]; then	
 	local RHEL_AWS_HARDSET="/etc/yum/vars/releasever"
 	local RHEL_AWS_HARDSET_VALUE=$(cat "$RHEL_AWS_HARDSET" 2>/dev/null)
@@ -1297,27 +1274,28 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!BAD!!" "Swap is less than 16 GBs (Size:$SWAP_GB GB)"
 fi
 
-if ! grep -qs "nfs" /proc/mounts; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "NFS Kerberos Check" "!!GOOD!!" "No NFS mounts were detected on the system"
-else
-    if [ -f /etc/fstab ]; then
-        local FAILED_FSTAB=$(awk '!/^[[:space:]]*#/ && ($3=="nfs" || $3=="nfs4") && $4 !~ /(^|,)sec=sys(,|$)/' /etc/fstab)
-        if [ -n "$FAILED_FSTAB" ]; then
-            printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "NFS Default Sec" "!!BAD!!" "NFS entries in /etc/fstab are missing 'sec=sys'"
-        else
-            printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "NFS Default Sec" "!!GOOD!!" "Entries in /etc/fstab contain 'sec=sys'"
-        fi
-    fi
+if [[ "${HARDTYPE}" == "Oracle" ]]; then
 
-    local GSSPROXY_STATUS=$(systemctl show -p LoadState gssproxy.service 2>/dev/null || echo "LoadState=not-found")
-    local RPCGSSD_STATUS=$(systemctl show -p LoadState rpc-gssd.service 2>/dev/null || echo "LoadState=not-found")
+	local TARGET="/etc/yum/vars/ocidomain"
+	local EXPECTED="oracle.com"
+	local ACTUAL=$(cat "$TARGET" 2>/dev/null | xargs)
 
-    if [[ "$GSSPROXY_STATUS" == *"masked"* && "$RPCGSSD_STATUS" == *"masked"* ]]; then
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "Kerberos Unit Mask" "!!GOOD!!" "gssproxy & rpc-gssd are masked"
-    else
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Kerberos Unit Mask" "!!BAD!!" "Make sure gssproxy & rpc-gssd are masked"
-    fi
+	if [ "$ACTUAL" == "$EXPECTED" ]; then
+    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "OCI Domain" "!!GOOD!!" "OCI domain is set correctly to 'oracle.com'"
+	else
+    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "OCI Domain" "!!BAD!!" "OCI domain is set incorrectly run 'bash mrpz.sh --ocidomainfix' to fix"
+	fi
+
+	local FILE_VAL=$(cat /etc/yum/vars/ociregion 2>/dev/null)
+
+	if [[ "$FILE_VAL" == -* ]]; then
+    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "OCI Region" "!!GOOD!!" "OCI region contains a leading hyphen"
+	else
+    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "OCI Region" "!!BAD!!" "Missing hyphen to correct run 'bash mrpz.sh --ociregionfix"
+	fi
+
 fi
+
 
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
 
@@ -1807,8 +1785,55 @@ print_histtimestamp() {
         printf "${RED}ERROR: Failed to write HISTTIMEFORMAT to /etc/bashrc.${NC}\n" >&2
         return 1 
     fi
-
     printf "${GREEN}Complete!${NC}\n"
+}
+
+print_ociregionfix() {
+    check_root
+    confirm_action
+
+	local FILE_PATH="/etc/yum/vars/ociregion"
+	local BACKUP_EXT=".bak"
+
+	if [ ! -f "$FILE_PATH" ]; then
+		printf "${RED}Error: "$FILE_PATH" not found.${NC}\n"
+		exit 1
+	fi
+
+	if grep -q "^[^-]" "$FILE_PATH"; then
+		echo "Hyphen missing. Applying fix and creating backup..."
+		sed -i"$BACKUP_EXT" 's/^/-/' "$FILE_PATH"
+		
+		printf "${GREEN}Done. New value: $(cat "$FILE_PATH")${NC}\n"
+	else
+		printf "${GREEN}No fix needed. File already starts with a hyphen or is empty.${NC}\n"
+	fi
+}
+
+print_ocidomainfix() {
+    check_root
+    confirm_action
+
+	local TARGET="/etc/yum/vars/ocidomain"
+	local EXPECTED="oracle.com"
+	local BACKUP="${TARGET}.bak_$(date +%F_%H%M%S)"
+	local ACTUAL=$(cat "$TARGET" 2>/dev/null | xargs)
+
+	if [ "$ACTUAL" == "$EXPECTED" ]; then
+	    printf "${YELLOW}Verification: "$TARGET" is already set to "$EXPECTED". No action taken.${NC}\n"
+		exit 0
+	fi
+
+	if [ -f "$TARGET" ]; then
+		cp -p "$TARGET" "$BACKUP"
+		printf "${GREEN}Backup created at: "$BACKUP"${NC}\n"
+	fi
+
+	echo "$EXPECTED" > "$TARGET"
+
+	if [ "$(cat "$TARGET" | xargs)" == "$EXPECTED" ]; then
+		printf "${GREEN}Success: "$TARGET" has been updated to "$EXPECTED".${NC}\n"
+	fi
 }
 
 print_coredumpfix() {
@@ -2967,6 +2992,8 @@ case "$1" in
 	--removeclamav) uninstall_clamav ;;
 	--clamavdisable)  clamav_disable_auto ;;
     --clamavenable)   clamav_enable_auto  ;;
+	--ociregionfix) print_ociregionfix ;;
+	--ocidomainfix) print_ocidomainfix ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
