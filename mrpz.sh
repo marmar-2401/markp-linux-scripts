@@ -167,6 +167,7 @@ printf "${MAGENTA} 1.3.3 | 01/28/2026 | - Created a clamav uninstaller ${NC}\n"
 printf "${MAGENTA} 1.3.4 | 03/05/2026 | - Added ClamAV heartbeat and auto-restart enabler and disabler ${NC}\n"
 printf "${MAGENTA} 1.3.5 | 03/26/2026 | - Corrected ociregion check and created a fix option ${NC}\n"
 printf "${MAGENTA} 1.3.6 | 03/26/2026 | - Corrected ocidomain check and created a fix option ${NC}\n"
+printf "${MAGENTA} 1.3.7 | 03/26/2026 | - Created a jdk exclusion check and an enabler/disabler for it ${NC}\n"
 }
 
 print_help() {
@@ -199,6 +200,8 @@ printf "${YELLOW}--clamavdisable${NC} # Disables ClamAV heartbeat and auto-resta
 printf "${YELLOW}--clamavenable${NC} # Enables ClamAV heartbeat and auto-restart\n\n"
 printf "${YELLOW}--ociregionfix${NC} # Replaces the leading . with a - for ociregion\n\n"
 printf "${YELLOW}--ocidomainfix${NC} # Corrects the ocidomain\n\n"
+printf "${YELLOW}--jdkexcludefix${NC} # Creates the jdk exclusion\n\n"
+printf "${YELLOW}--disablejdkfix${NC} # Removes the jdk exclusion\n\n"
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
 printf "${YELLOW}--auditdisc${NC}	# Description for misconfigured audit rules\n\n"
 printf "${YELLOW}--listndisc${NC}	# Description for oracle listener issues\n\n"
@@ -1296,6 +1299,13 @@ if [[ "${HARDTYPE}" == "Oracle" ]]; then
 
 fi
 
+local ACTUAL_EXCLUDE=$(dnf config-manager --dump | grep -i "^exclude =" | head -1)
+
+if [[ "$ACTUAL_EXCLUDE" == *"jdk*"* ]]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "JDK Exclusion" "!!GOOD!!" "JDK is properly excluded in the dnf configuration"
+else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "JDK Exclusion" "!!BAD!!" "jdk* is missing from the exclusions run 'bash mrpz.sh --jdkexcludefix'"
+fi
 
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
 
@@ -1788,6 +1798,57 @@ print_histtimestamp() {
     printf "${GREEN}Complete!${NC}\n"
 }
 
+print_enablejdkfix() {
+    check_root
+    confirm_action
+	
+	local CONF="/etc/dnf/dnf.conf"
+    local BACKUP="${CONF}.bak_$(date +%F_%H%M%S)"
+
+	if grep -q "^exclude=.*jdk\*" "$CONF"; then
+	    printf "${YELLOW}Verification: jdk* is already excluded in "$CONF". No action taken.${NC}\n"
+		exit 0
+	fi
+
+	cp -p "$CONF" "$BACKUP"
+
+
+	if grep -q "^exclude=" "$CONF"; then
+		sed -i 's/^exclude=\(.*\)/exclude=\1, jdk*/' "$CONF"
+		sed -i 's/, ,/, /g' "$CONF"
+	else
+		sed -i '/\[main\]/a exclude=jdk*' "$CONF"
+	fi
+
+	printf "${GREEN}Success: jdk* added to excludes in "$CONF".${NC}\n"	
+}
+
+print_disablejdkfix() {
+    check_root
+    confirm_action
+	
+	local CONF="/etc/dnf/dnf.conf"
+	local BACKUP="${CONF}.bak_$(date +%F_%H%M%S)"
+
+	if ! grep -q "jdk\*" "$CONF"; then
+		printf "${YELLOW}Verification: jdk* is not in the exclude list. Nothing to remove.${NC}\n"
+		exit 0
+	fi
+
+	cp -p "$CONF" "$BACKUP"
+	# 1. Remove the literal string and any surrounding whitespace
+	sed -i 's/jdk\*//g' "$CONF"
+	# 2. Clean up "double commas" created by removing a middle item
+	sed -i 's/,,/,/g' "$CONF"
+	# 3. Clean up a leading comma if jdk* was the first item
+	sed -i 's/exclude=,/exclude=/g' "$CONF"
+	# 4. Clean up a trailing comma if jdk* was the last item
+	sed -i 's/, *$//g' "$CONF"
+	# 5. Clean up any accidental double spaces
+	sed -i 's/  */ /g' "$CONF"
+	
+	printf "${GREEN}Success: jdk* removed from excludes in $CONF.${NC}\n"
+}
 print_ociregionfix() {
     check_root
     confirm_action
@@ -2994,6 +3055,8 @@ case "$1" in
     --clamavenable)   clamav_enable_auto  ;;
 	--ociregionfix) print_ociregionfix ;;
 	--ocidomainfix) print_ocidomainfix ;;
+	--jdkexcludefix) print_enablejdkfix ;;
+	--disablejdkfix) print_disablejdkfix ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
