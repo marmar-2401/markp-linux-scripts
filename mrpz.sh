@@ -165,9 +165,7 @@ printf "${MAGENTA} 1.3.1 | 01/26/2026 | - ClamAV scan tester was added ${NC}\n"
 printf "${MAGENTA} 1.3.2 | 01/28/2026 | - ClamAV whitelist option created ${NC}\n"
 printf "${MAGENTA} 1.3.3 | 01/28/2026 | - Created a clamav uninstaller ${NC}\n"
 printf "${MAGENTA} 1.3.4 | 03/05/2026 | - Added ClamAV heartbeat and auto-restart enabler and disabler ${NC}\n"
-printf "${MAGENTA} 1.3.5 | 03/26/2026 | - Corrected ociregion check and created a fix option ${NC}\n"
-printf "${MAGENTA} 1.3.6 | 03/26/2026 | - Corrected ocidomain check and created a fix option ${NC}\n"
-printf "${MAGENTA} 1.3.7 | 03/26/2026 | - Created a jdk exclusion check and an enabler/disabler for it ${NC}\n"
+printf "${MAGENTA} 1.3.5 | 03/26/2026 | - Created a jdk exclusion check and an enabler/disabler for it ${NC}\n"
 }
 
 print_help() {
@@ -198,8 +196,6 @@ printf "${YELLOW}--removeclamav${NC} # Allows you to remove ClamAV installation\
 printf "${YELLOW}--whitelsclamav${NC} # Allows you to whitelist a false positive\n\n"
 printf "${YELLOW}--clamavdisable${NC} # Disables ClamAV heartbeat and auto-restart\n\n"
 printf "${YELLOW}--clamavenable${NC} # Enables ClamAV heartbeat and auto-restart\n\n"
-printf "${YELLOW}--ociregionfix${NC} # Replaces the leading . with a - for ociregion\n\n"
-printf "${YELLOW}--ocidomainfix${NC} # Corrects the ocidomain\n\n"
 printf "${YELLOW}--jdkexcludefix${NC} # Creates the jdk exclusion\n\n"
 printf "${YELLOW}--disablejdkfix${NC} # Removes the jdk exclusion\n\n"
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
@@ -1277,27 +1273,6 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!BAD!!" "Swap is less than 16 GBs (Size:$SWAP_GB GB)"
 fi
 
-if [[ "${HARDTYPE}" == "Oracle" ]]; then
-
-	local TARGET="/etc/yum/vars/ocidomain"
-	local EXPECTED="oracle.com"
-	local ACTUAL=$(cat "$TARGET" 2>/dev/null | xargs)
-
-	if [ "$ACTUAL" == "$EXPECTED" ]; then
-    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "OCI Domain" "!!GOOD!!" "OCI domain is set correctly to 'oracle.com'"
-	else
-    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "OCI Domain" "!!BAD!!" "OCI domain is set incorrectly run 'bash mrpz.sh --ocidomainfix' to fix"
-	fi
-
-	local FILE_VAL=$(cat /etc/yum/vars/ociregion 2>/dev/null)
-
-	if [[ "$FILE_VAL" == -* ]]; then
-    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "OCI Region" "!!GOOD!!" "OCI region contains a leading hyphen"
-	else
-    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "OCI Region" "!!BAD!!" "Missing hyphen to correct run 'bash mrpz.sh --ociregionfix"
-	fi
-
-fi
 
 local ACTUAL_EXCLUDE=$(dnf config-manager --dump | grep -i "^exclude =" | head -1)
 
@@ -3053,8 +3028,6 @@ case "$1" in
 	--removeclamav) uninstall_clamav ;;
 	--clamavdisable)  clamav_disable_auto ;;
     --clamavenable)   clamav_enable_auto  ;;
-	--ociregionfix) print_ociregionfix ;;
-	--ocidomainfix) print_ocidomainfix ;;
 	--jdkexcludefix) print_enablejdkfix ;;
 	--disablejdkfix) print_disablejdkfix ;;
 *)
