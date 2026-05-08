@@ -1289,15 +1289,12 @@ local VULN_CHECK=$(dnf updateinfo list --cve "$CVE_ID" -q)
 
 if [[ -n "$VULN_CHECK" ]]; then
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "CVE-2026-31431 Patch" "!!BAD!!" "Patch is available but not installed 'dnf upgrade --cve CVE-2026-31431'"
-    exit 1
 else
     INSTALLED_CHECK=$(dnf updateinfo list installed --cve "$CVE_ID" -q)
     if [[ -n "$INSTALLED_CHECK" ]]; then
 		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "CVE-2026-31431 Patch" "!!GOOD!!" "System Has Been Patched"
-        exit 0
     else
 		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "CVE-2026-31431 Patch" "!!BAD!!" "CVE Not Found In Repositories"
-        exit 2
     fi
 fi
 
