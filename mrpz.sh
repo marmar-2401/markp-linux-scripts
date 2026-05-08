@@ -166,6 +166,7 @@ printf "${MAGENTA} 1.3.2 | 01/28/2026 | - ClamAV whitelist option created ${NC}\
 printf "${MAGENTA} 1.3.3 | 01/28/2026 | - Created a clamav uninstaller ${NC}\n"
 printf "${MAGENTA} 1.3.4 | 03/05/2026 | - Added ClamAV heartbeat and auto-restart enabler and disabler ${NC}\n"
 printf "${MAGENTA} 1.3.5 | 03/26/2026 | - Created a jdk exclusion check and an enabler/disabler for it ${NC}\n"
+printf "${MAGENTA} 1.3.6 | 05/08/2026 | - Created a CVE-2026-31431 Patch Checker in OS Check ${NC}\n"
 }
 
 print_help() {
@@ -1280,6 +1281,24 @@ if [[ "$ACTUAL_EXCLUDE" == *"jdk*"* ]]; then
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "JDK Exclusion" "!!GOOD!!" "JDK is properly excluded in the dnf configuration"
 else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "JDK Exclusion" "!!BAD!!" "jdk* is missing from the exclusions run 'bash mrpz.sh --jdkexcludefix'"
+fi
+
+local CVE_ID="CVE-2026-31431"
+
+local VULN_CHECK=$(dnf updateinfo list --cve "$CVE_ID" -q)
+
+if [[ -n "$VULN_CHECK" ]]; then
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "CVE-2026-31431 Patch" "!!BAD!!" "Patch is available but not installed 'dnf upgrade --cve CVE-2026-31431'"
+    exit 1
+else
+    INSTALLED_CHECK=$(dnf updateinfo list installed --cve "$CVE_ID" -q)
+    if [[ -n "$INSTALLED_CHECK" ]]; then
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "CVE-2026-31431 Patch" "!!GOOD!!" "System Has Been Patched"
+        exit 0
+    else
+		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "CVE-2026-31431 Patch" "!!BAD!!" "CVE Not Found In Repositories"
+        exit 2
+    fi
 fi
 
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
