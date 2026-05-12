@@ -1318,7 +1318,7 @@ done
 
 # Logic: Priority goes to "Action Required" (!!BAD!!), then "Success" (!!GOOD!!), then "Missing Data"
 if [[ "$PATCH_AVAILABLE" -eq 1 ]]; then
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!BAD!!" "Patch available: 'dnf upgrade --cve CVE-2026-43284, CVE-2026-43500'"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!BAD!!" "Patch available: 'dnf upgrade --cve CVE-2026-43284 CVE-2026-43500'"
 elif [[ "$PATCH_INSTALLED" -eq 1 ]]; then
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!GOOD!!" "System Has Been Patched"
 else
