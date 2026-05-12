@@ -1284,7 +1284,7 @@ local INSTALLED_HAS_FIX=$(rpm -q --changelog kernel-uek 2>/dev/null | grep -c "$
 
 if [[ $RUNNING_HAS_FIX -gt 0 ]]; then
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
-        "CopyFail CVE Patch" "!!GOOD!!" "System Has Been Patched and is Active. Proof: rpm -q --changelog kernel-uek | grep $CVE_ID"
+        "CopyFail CVE Patch" "!!GOOD!!" "Patched and is Active. Proof: rpm -q --changelog kernel-uek | grep $CVE_ID"
 elif [[ $INSTALLED_HAS_FIX -gt 0 ]]; then
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" \
         "CopyFail CVE Patch" "!!ATTN!!" "Patch installed on disk; reboot required. Proof: rpm -q --changelog kernel-uek | grep $CVE_ID"
@@ -1305,7 +1305,7 @@ done
 
 if [[ $DF_RUNNING -eq 1 ]]; then
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
-        "Dirty Frag Patch" "!!GOOD!!" "System Has Been Patched and is Active. Proof: rpm -q --changelog kernel-uek | grep ${CVE_LIST[0]}"
+        "Dirty Frag Patch" "!!GOOD!!" "Patched and is Active. Proof: rpm -q --changelog kernel-uek | grep ${CVE_LIST[0]}"
 elif [[ $DF_INSTALLED -eq 1 ]]; then
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" \
         "Dirty Frag Patch" "!!ATTN!!" "Patch installed on disk; reboot required. Proof: rpm -q --changelog kernel-uek | grep ${CVE_LIST[0]}"
