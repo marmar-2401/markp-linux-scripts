@@ -1287,7 +1287,7 @@ if [[ $RUNNING_HAS_FIX -gt 0 ]]; then
         "CopyFail CVE Patch" "!!GOOD!!" "Patched and is Active. Proof: rpm -q --changelog kernel-uek | grep $CVE_ID"
 elif [[ $INSTALLED_HAS_FIX -gt 0 ]]; then
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" \
-        "CopyFail CVE Patch" "!!ATTN!!" "Patch installed on disk; reboot required. Proof: rpm -q --changelog kernel-uek | grep $CVE_ID"
+        "CopyFail CVE Patch" "!!ATTN!!" "Reboot required. Proof: rpm -q --changelog kernel-uek | grep $CVE_ID"
 else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
         "CopyFail CVE Patch" "!!BAD!!" "Update available: dnf upgrade --cve $CVE_ID"
@@ -1308,7 +1308,7 @@ if [[ $DF_RUNNING -eq 1 ]]; then
         "Dirty Frag Patch" "!!GOOD!!" "Patched and is Active. Proof: rpm -q --changelog kernel-uek | grep ${CVE_LIST[0]}"
 elif [[ $DF_INSTALLED -eq 1 ]]; then
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" \
-        "Dirty Frag Patch" "!!ATTN!!" "Patch installed on disk; reboot required. Proof: rpm -q --changelog kernel-uek | grep ${CVE_LIST[0]}"
+        "Dirty Frag Patch" "!!ATTN!!" "Reboot required. Proof: rpm -q --changelog kernel-uek | grep ${CVE_LIST[0]}"
 else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
         "Dirty Frag Patch" "!!BAD!!" "Update available: dnf upgrade --cve ${CVE_LIST[0]}"
