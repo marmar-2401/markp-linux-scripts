@@ -1322,7 +1322,8 @@ if [[ "$PATCH_AVAILABLE" -eq 1 ]]; then
 elif [[ "$PATCH_INSTALLED" -eq 1 ]]; then
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!GOOD!!" "System Has Been Patched"
 else
-    printf "${MAGENT
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!BAD!!" "CVEs Not Found In Repositories"
+fi
 
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
 
