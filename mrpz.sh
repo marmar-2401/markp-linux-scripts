@@ -1288,7 +1288,7 @@ local CVE_ID="CVE-2026-31431"
 local VULN_CHECK=$(dnf updateinfo list --cve "$CVE_ID" -q)
 
 if [[ -n "$VULN_CHECK" ]]; then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "CVE-2026-31431 Patch" "!!BAD!!" "Patch is available but not installed 'dnf upgrade --cve CVE-2026-31431'"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "CopyFail CVE Patch" "!!BAD!!" "Patch is available but not installed 'dnf upgrade --cve CVE-2026-31431'"
 else
     INSTALLED_CHECK=$(dnf updateinfo list installed --cve "$CVE_ID" -q)
     if [[ -n "$INSTALLED_CHECK" ]]; then
@@ -1297,6 +1297,32 @@ else
 		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "CVE-2026-31431 Patch" "!!BAD!!" "CVE Not Found In Repositories"
     fi
 fi
+
+local CVE_LIST=("CVE-2026-43284" "CVE-2026-43500")
+local PATCH_AVAILABLE=0
+local PATCH_INSTALLED=0
+
+for CVE_ID in "${CVE_LIST[@]}"; do
+    # Check if a patch is waiting to be installed
+    VULN_CHECK=$(dnf updateinfo list --cve "$CVE_ID" -q)
+    if [[ -n "$VULN_CHECK" ]]; then
+        PATCH_AVAILABLE=1
+    fi
+
+    # Check if the patch is already applied
+    INSTALLED_CHECK=$(dnf updateinfo list installed --cve "$CVE_ID" -q)
+    if [[ -n "$INSTALLED_CHECK" ]]; then
+        PATCH_INSTALLED=1
+    fi
+done
+
+# Logic: Priority goes to "Action Required" (!!BAD!!), then "Success" (!!GOOD!!), then "Missing Data"
+if [[ "$PATCH_AVAILABLE" -eq 1 ]]; then
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!BAD!!" "Patch available: 'dnf upgrade --cve CVE-2026-43284, CVE-2026-43500'"
+elif [[ "$PATCH_INSTALLED" -eq 1 ]]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!GOOD!!" "System Has Been Patched"
+else
+    printf "${MAGENT
 
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
 
