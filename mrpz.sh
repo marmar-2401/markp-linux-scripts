@@ -1284,15 +1284,15 @@ local VULN_AVAIL=$(dnf updateinfo list --cve "$CVE_ID" -q | grep "$CVE_ID")
 
 if [[ $ON_DISK -gt 0 ]]; then
     if [[ -n "$VULN_AVAIL" ]]; then
-        # Patch on disk but not active in running kernel
-        printf "${MAGENTA}%-20s:${NC}${YELLOW}%-10s${NC}- ${YELLOW}%s${NC}\n" "CopyFail CVE Patch" "!!ATTN!!" "Patch installed on disk; reboot required. Proof: rpm -q --changelog kernel-uek | grep $CVE_ID"
+        printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" \
+            "CopyFail CVE Patch" "!!ATTN!!" "Patch installed on disk; reboot required. Proof: rpm -q --changelog kernel-uek | grep $CVE_ID"
     else
-        # Patch on disk and active
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%-10s${NC}- ${YELLOW}%s${NC}\n" "CopyFail CVE Patch" "!!GOOD!!" "System Has Been Patched and is Active. Proof: rpm -q --changelog kernel-uek | grep $CVE_ID"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
+            "CopyFail CVE Patch" "!!GOOD!!" "System Has Been Patched and is Active. Proof: rpm -q --changelog kernel-uek | grep $CVE_ID"
     fi
 else
-    # Not on disk
-    printf "${MAGENTA}%-20s:${NC}${RED}%-10s${NC} - ${YELLOW}%s${NC}\n" "CopyFail CVE Patch" "!!BAD!!" "Update available: dnf upgrade --cve $CVE_ID"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+        "CopyFail CVE Patch" "!!BAD!!" "Update available: dnf upgrade --cve $CVE_ID"
 fi
 
 # --- Dirty Frag Check ---
@@ -1308,15 +1308,15 @@ done
 
 if [[ $ANY_ON_DISK -eq 1 ]]; then
     if [[ -n "$ANY_AVAIL" ]]; then
-        # Patch on disk but not active in running kernel
-        printf "${MAGENTA}%-20s:${NC}${YELLOW}%-10s${NC}- ${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!ATTN!!" "Patch installed on disk; reboot required. Proof: rpm -q --changelog kernel-uek | grep ${CVE_LIST[0]}"
+        printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" \
+            "Dirty Frag Patch" "!!ATTN!!" "Patch installed on disk; reboot required. Proof: rpm -q --changelog kernel-uek | grep ${CVE_LIST[0]}"
     else
-        # Patch on disk and active
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%-10s${NC}- ${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!GOOD!!" "System Has Been Patched and is Active. Proof: rpm -q --changelog kernel-uek | grep ${CVE_LIST[0]}"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
+            "Dirty Frag Patch" "!!GOOD!!" "System Has Been Patched and is Active. Proof: rpm -q --changelog kernel-uek | grep ${CVE_LIST[0]}"
     fi
 else
-    # Not on disk
-    printf "${MAGENTA}%-20s:${NC}${RED}%-10s${NC} - ${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!BAD!!" "Update available: dnf upgrade --cve ${CVE_LIST[0]}"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+        "Dirty Frag Patch" "!!BAD!!" "Update available: dnf upgrade --cve ${CVE_LIST[0]}"
 fi
 
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
