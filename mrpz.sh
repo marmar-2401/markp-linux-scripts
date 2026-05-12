@@ -1275,54 +1275,43 @@ else
 fi
 
 
-local ACTUAL_EXCLUDE=$(dnf config-manager --dump | grep -i "^exclude =" | head -1)
+# Ensure metadata is fresh
+dnf clean expire-cache -q
 
-if [[ "$ACTUAL_EXCLUDE" == *"jdk*"* ]]; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "JDK Exclusion" "!!GOOD!!" "JDK is properly excluded in the dnf configuration"
-else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "JDK Exclusion" "!!BAD!!" "jdk* is missing from the exclusions run 'bash mrpz.sh --jdkexcludefix'"
-fi
-
+# --- CopyFail Check ---
 local CVE_ID="CVE-2026-31431"
+# Only true if there is an unapplied update
+local VULN_AVAIL=$(dnf updateinfo list --cve "$CVE_ID" -q)
+# Check if it exists in the history of installed patches
+local INSTALLED_CHECK=$(dnf updateinfo list installed --cve "$CVE_ID" -q)
 
-local VULN_CHECK=$(dnf updateinfo list --cve "$CVE_ID" -q)
-
-if [[ -n "$VULN_CHECK" ]]; then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "CopyFail CVE Patch" "!!BAD!!" "Patch is available but not installed 'dnf upgrade --cve CVE-2026-31431'"
+if [[ -n "$VULN_AVAIL" ]]; then
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "CopyFail CVE Patch" "!!BAD!!" "Update available: dnf upgrade --cve $CVE_ID"
+elif [[ -n "$INSTALLED_CHECK" ]]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "CopyFail CVE Patch" "!!GOOD!!" "System Has Been Patched:'dnf updateinfo list --cve CVE-2026-31431'"
 else
-    INSTALLED_CHECK=$(dnf updateinfo list installed --cve "$CVE_ID" -q)
-    if [[ -n "$INSTALLED_CHECK" ]]; then
-		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "CVE-2026-31431 Patch" "!!GOOD!!" "System Has Been Patched"
-    else
-		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "CVE-2026-31431 Patch" "!!BAD!!" "CVE Not Found In Repositories"
-    fi
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "CopyFail CVE Patch" "!!BAD!!" "CVE Not Found in Repos"
 fi
 
+# --- Dirty Frag Check ---
 local CVE_LIST=("CVE-2026-43284" "CVE-2026-43500")
-local PATCH_AVAILABLE=0
-local PATCH_INSTALLED=0
+local ANY_AVAIL=""
+local ANY_INSTALLED=""
 
-for CVE_ID in "${CVE_LIST[@]}"; do
-    # Check if a patch is waiting to be installed
-    VULN_CHECK=$(dnf updateinfo list --cve "$CVE_ID" -q)
-    if [[ -n "$VULN_CHECK" ]]; then
-        PATCH_AVAILABLE=1
-    fi
-
-    # Check if the patch is already applied
-    INSTALLED_CHECK=$(dnf updateinfo list installed --cve "$CVE_ID" -q)
-    if [[ -n "$INSTALLED_CHECK" ]]; then
-        PATCH_INSTALLED=1
-    fi
+for CVE in "${CVE_LIST[@]}"; do
+    AVAIL=$(dnf updateinfo list --cve "$CVE" -q)
+    [[ -n "$AVAIL" ]] && ANY_AVAIL="1"
+    
+    INST=$(dnf updateinfo list installed --cve "$CVE" -q)
+    [[ -n "$INST" ]] && ANY_INSTALLED="1"
 done
 
-# Logic: Priority goes to "Action Required" (!!BAD!!), then "Success" (!!GOOD!!), then "Missing Data"
-if [[ "$PATCH_AVAILABLE" -eq 1 ]]; then
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!BAD!!" "Patch available: 'dnf upgrade --cve CVE-2026-43284 CVE-2026-43500'"
-elif [[ "$PATCH_INSTALLED" -eq 1 ]]; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!GOOD!!" "System Has Been Patched"
+if [[ -n "$ANY_AVAIL" ]]; then
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!BAD!!" "Update available: dnf upgrade --cve ${CVE_LIST[*]}"
+elif [[ -n "$ANY_INSTALLED" ]]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!GOOD!!" "System Has Been Patched: 'dnf updateinfo list --cve CVE-2026-43284,CVE-2026-43500'"
 else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!BAD!!" "CVEs Not Found In Repositories"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!BAD!!" "CVEs Not Found in Repos"
 fi
 
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
