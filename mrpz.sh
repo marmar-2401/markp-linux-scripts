@@ -1280,36 +1280,46 @@ dnf clean expire-cache -q
 
 # --- CopyFail Check ---
 local CVE_ID="CVE-2026-31431"
-# Only true if there is an unapplied update
-local VULN_AVAIL=$(dnf updateinfo list --cve "$CVE_ID" -q)
-# Check if it exists in the history of installed patches
-local INSTALLED_CHECK=$(dnf updateinfo list installed --cve "$CVE_ID" -q)
+local ON_DISK=$(rpm -q --changelog kernel-uek | grep -c "$CVE_ID")
+local VULN_AVAIL=$(dnf updateinfo list --cve "$CVE_ID" -q | grep "$CVE_ID")
 
-if [[ -n "$VULN_AVAIL" ]]; then
+if [[ $ON_DISK -gt 0 ]]; then
+    if [[ -n "$VULN_AVAIL" ]]; then
+        # Patch is on disk, but DNF still sees an "available" update (Needs Reboot)
+        printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${CYAN}%s${NC}\n" "CopyFail CVE Patch" "!!REBOOT!!" "Patch installed on disk; reboot required to activate"
+    else
+        # Patch is on disk and DNF sees no available updates
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "CopyFail CVE Patch" "!!GOOD!!" "System Has Been Patched and is Active"
+    fi
+elif [[ -n "$VULN_AVAIL" ]]; then
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "CopyFail CVE Patch" "!!BAD!!" "Update available: dnf upgrade --cve $CVE_ID"
-elif [[ -n "$INSTALLED_CHECK" ]]; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "CopyFail CVE Patch" "!!GOOD!!" "System Has Been Patched:'dnf updateinfo list --cve CVE-2026-31431'"
 else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "CopyFail CVE Patch" "!!BAD!!" "CVE Not Found in Repos"
 fi
 
 # --- Dirty Frag Check ---
 local CVE_LIST=("CVE-2026-43284" "CVE-2026-43500")
+local ANY_ON_DISK=0
 local ANY_AVAIL=""
-local ANY_INSTALLED=""
 
 for CVE in "${CVE_LIST[@]}"; do
-    AVAIL=$(dnf updateinfo list --cve "$CVE" -q)
+    # Check physical disk
+    if rpm -q --changelog kernel-uek | grep -q "$CVE"; then
+        ANY_ON_DISK=1
+    fi
+    # Check DNF available
+    AVAIL=$(dnf updateinfo list --cve "$CVE" -q | grep "$CVE")
     [[ -n "$AVAIL" ]] && ANY_AVAIL="1"
-    
-    INST=$(dnf updateinfo list installed --cve "$CVE" -q)
-    [[ -n "$INST" ]] && ANY_INSTALLED="1"
 done
 
-if [[ -n "$ANY_AVAIL" ]]; then
+if [[ $ANY_ON_DISK -eq 1 ]]; then
+    if [[ -n "$ANY_AVAIL" ]]; then
+        printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${CYAN}%s${NC}\n" "Dirty Frag Patch" "!!REBOOT!!" "Patch installed on disk; reboot required to activate"
+    else
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!GOOD!!" "System Has Been Patched and is Active"
+    fi
+elif [[ -n "$ANY_AVAIL" ]]; then
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!BAD!!" "Update available: dnf upgrade --cve ${CVE_LIST[*]}"
-elif [[ -n "$ANY_INSTALLED" ]]; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!GOOD!!" "System Has Been Patched: 'dnf updateinfo list --cve CVE-2026-43284,CVE-2026-43500'"
 else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Dirty Frag Patch" "!!BAD!!" "CVEs Not Found in Repos"
 fi
