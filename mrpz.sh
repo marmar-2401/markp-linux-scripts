@@ -1396,6 +1396,9 @@ print_cve_row "CopyFail CVE Patch"  "CVE-2026-31431"
 # ── Dirty Frag ────────────────────────────────────────────────────────────────
 print_cve_row "Dirty Frag Patch"    "CVE-2026-43284" "CVE-2026-43500"
 
+# ── Fragnesia ─────────────────────────────────────────────────────────────────
+print_cve_row "Fragnesia Patch"     "CVE-2026-46300"
+
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
 
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Backup" "!!ATTN!!" "Ensure system has a current backup"
