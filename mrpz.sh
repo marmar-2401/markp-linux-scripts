@@ -1280,7 +1280,7 @@ fi
 # Three-method detection – any method can fail without producing a wrong result:
 #   1. rpm --changelog via package-file ownership  (most accurate pkg lookup)
 #   2. rpm --changelog via package name            (fallback)
-#   3. dnf updateinfo --cve                        (authoritative "still needs fix")
+#   3. dnf updateinfo --available --cve            (authoritative "still needs fix")
 #   4. Running vs installed version compare        (last-resort reboot detection)
 #
 # Prints: GOOD | ATTN | BAD
@@ -1306,7 +1306,6 @@ _kernel_cve_status() {
     # Covers the "newer kernel installed but not yet booted" case.
     if [[ $RUNNING_HAS_FIX -eq 0 ]]; then
         local INSTALLED_CHANGELOG
-        # Try both common UEK package names
         for PKG in kernel-uek kernel-uek-core; do
             rpm -q "$PKG" &>/dev/null || continue
             INSTALLED_CHANGELOG=$(rpm -q --changelog "$PKG" 2>/dev/null)
@@ -1317,10 +1316,11 @@ _kernel_cve_status() {
         done
     fi
 
-    # ── Method 3: dnf updateinfo --cve (works even when changelogs are silent) ─
-    # If any CVE still appears in updateinfo, the fix is NOT yet installed.
+    # ── Method 3: dnf updateinfo --available --cve ───────────────────────────
+    # --available ensures only PENDING updates are matched.
+    # Without it, already-applied advisories also match → false BAD result.
     for CVE in "${CVES[@]}"; do
-        dnf updateinfo list --cve "$CVE" 2>/dev/null \
+        dnf updateinfo list --available --cve "$CVE" 2>/dev/null \
             | grep -qi 'kernel' && { UPDATE_AVAILABLE=1; break; }
     done
 
@@ -1343,16 +1343,16 @@ _kernel_cve_status() {
 
     # ── Decision: precedence order matters ───────────────────────────────────
     if [[ $UPDATE_AVAILABLE -eq 1 ]]; then
-        # dnf says a fix exists but isn't installed → definitely not patched
+        # dnf confirms a fix exists but is not yet installed → not patched
         echo "BAD"
     elif [[ $RUNNING_HAS_FIX -eq 1 ]]; then
-        # Changelog confirms the fix is in the booted kernel
+        # Changelog confirms fix is in the booted kernel
         echo "GOOD"
     elif [[ $INSTALLED_HAS_FIX -eq 1 || $NEEDS_REBOOT -eq 1 ]]; then
         # Fix is on disk but not yet running
         echo "ATTN"
     else
-        # No pending update, running == installed: assume patched / not applicable
+        # No pending update, running == installed: patched / not applicable
         echo "GOOD"
     fi
 }
