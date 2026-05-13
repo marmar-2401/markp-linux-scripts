@@ -1391,7 +1391,7 @@ print_cve_row() {
 dnf clean expire-cache -q
 
 # ── CopyFail ──────────────────────────────────────────────────────────────────
-print_cve_row "CopyFail CVE Patch"  "CVE-2026-31431"
+print_cve_row "CopyFail Patch"  "CVE-2026-31431"
 
 # ── Dirty Frag ────────────────────────────────────────────────────────────────
 print_cve_row "Dirty Frag Patch"    "CVE-2026-43284" "CVE-2026-43500"
