@@ -1276,6 +1276,22 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!BAD!!" "Swap is less than 16 GBs (Size:$SWAP_GB GB)"
 fi
 
+# ─────────────────────────────────────────────────────────────────────────────
+# _kernel_cve_status CVE [CVE …]
+#
+# Three-method detection – any method can fail without producing a wrong result:
+#   1. rpm --changelog via package-file ownership  (most accurate pkg lookup)
+#   2. rpm --changelog via package name            (fallback)
+#   3. dnf updateinfo --available --cve            (authoritative "still needs fix")
+#   4. Running vs installed version compare        (last-resort reboot detection)
+#
+# Prints: STATUS:METHOD
+#   GOOD:RPM_RUNNING   – changelog confirms fix is in booted kernel
+#   ATTN:RPM_INSTALLED – fix installed but reboot required
+#   ATTN:VERSION       – newer kernel on disk but not running
+#   ATTN:ASSUMED       – cannot confirm patch status, verify manually
+#   BAD:DNF            – pending update confirmed by dnf
+# ─────────────────────────────────────────────────────────────────────────────
 _kernel_cve_status() {
     local -a CVES=("$@")
     local RUNNING_HAS_FIX=0
@@ -1285,6 +1301,7 @@ _kernel_cve_status() {
     RUNNING_KERNEL=$(uname -r)
 
     # ── Method 1: Query running kernel by the file it actually owns ───────────
+    # Avoids "kernel-uek-$(uname -r)" name-mismatch failures entirely.
     local RUNNING_CHANGELOG
     RUNNING_CHANGELOG=$(rpm -qf "/boot/vmlinuz-${RUNNING_KERNEL}" \
                             --changelog 2>/dev/null)
@@ -1293,6 +1310,7 @@ _kernel_cve_status() {
     done
 
     # ── Method 2: Latest installed kernel-uek changelog (by package name) ─────
+    # Covers the "newer kernel installed but not yet booted" case.
     if [[ $RUNNING_HAS_FIX -eq 0 ]]; then
         local INSTALLED_CHANGELOG
         for PKG in kernel-uek kernel-uek-core; do
@@ -1306,12 +1324,16 @@ _kernel_cve_status() {
     fi
 
     # ── Method 3: dnf updateinfo --available --cve ───────────────────────────
+    # --available = pending updates only (already-applied advisories excluded).
+    # grep anchored to kernel-uek-<digit> to avoid false matches on
+    # kernel-uek-devel / kernel-uek-headers / kernel-uek-tools etc.
     for CVE in "${CVES[@]}"; do
         dnf updateinfo list --available --cve "$CVE" 2>/dev/null \
             | grep -qiE 'kernel-uek(-core)?-[0-9]' && { UPDATE_AVAILABLE=1; break; }
     done
 
     # ── Method 4: Kernel version comparison (last-resort reboot detection) ─────
+    # Catches "installed > running" when changelogs gave no signal.
     local NEEDS_REBOOT=0
     if [[ $RUNNING_HAS_FIX -eq 0 && $INSTALLED_HAS_FIX -eq 0 \
           && $UPDATE_AVAILABLE -eq 0 ]]; then
@@ -1337,8 +1359,8 @@ _kernel_cve_status() {
     elif [[ $NEEDS_REBOOT -eq 1 ]]; then
         echo "ATTN:VERSION"
     else
-        # No evidence either way — CVE may not yet be in updateinfo or not applicable
-        echo "GOOD:ASSUMED"
+        # Cannot confirm patch status — CVE not yet in updateinfo or changelog
+        echo "ATTN:ASSUMED"
     fi
 }
 
@@ -1356,16 +1378,9 @@ print_cve_row() {
 
     case "$STATUS" in
         GOOD)
-            case "$METHOD" in
-                RPM_RUNNING)
-                    local PROOF="Patched and active.  Proof: rpm -qf /boot/vmlinuz-\$(uname -r) --changelog | grep ${PROOF_CVE}"
-                    ;;
-                ASSUMED)
-                    local PROOF="No pending update in repos — CVE may not yet be in updateinfo or not applicable to this kernel"
-                    ;;
-            esac
             printf "${MAGENTA}%-20s:${NC}${GREEN}%-10s${NC}${YELLOW}%s${NC}\n" \
-                "$LABEL" "!!GOOD!!" "$PROOF"
+                "$LABEL" "!!GOOD!!" \
+                "Patched and active.  Proof: rpm -qf /boot/vmlinuz-\$(uname -r) --changelog | grep ${PROOF_CVE}"
             ;;
         ATTN)
             case "$METHOD" in
@@ -1374,6 +1389,9 @@ print_cve_row() {
                     ;;
                 VERSION)
                     local PROOF="Newer kernel installed but not running – reboot required"
+                    ;;
+                ASSUMED)
+                    local PROOF="Cannot confirm patch status — CVE not yet in updateinfo or changelog, verify manually: dnf upgrade --cve ${PROOF_CVE}"
                     ;;
             esac
             printf "${MAGENTA}%-20s:${NC}${YELLOW}%-10s${NC}${YELLOW}%s${NC}\n" \
