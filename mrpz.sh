@@ -115,7 +115,7 @@ check_sccadm_group() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.3.5 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.3.8 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -166,7 +166,9 @@ printf "${MAGENTA} 1.3.2 | 01/28/2026 | - ClamAV whitelist option created ${NC}\
 printf "${MAGENTA} 1.3.3 | 01/28/2026 | - Created a clamav uninstaller ${NC}\n"
 printf "${MAGENTA} 1.3.4 | 03/05/2026 | - Added ClamAV heartbeat and auto-restart enabler and disabler ${NC}\n"
 printf "${MAGENTA} 1.3.5 | 03/26/2026 | - Created a jdk exclusion check and an enabler/disabler for it ${NC}\n"
-printf "${MAGENTA} 1.3.6 | 05/08/2026 | - Created a CVE-2026-31431 Patch Checker in OS Check ${NC}\n"
+printf "${MAGENTA} 1.3.6 | 05/08/2026 | - Created a CopyFail Patch Checker in OS Check ${NC}\n"
+printf "${MAGENTA} 1.3.7 | 05/13/2026 | - Created a Dirty Frag Patch Checker in OS Check ${NC}\n"
+printf "${MAGENTA} 1.3.8 | 05/14/2026 | - Created a Fragnesia Patch Checker in OS Check ${NC}\n"
 }
 
 print_help() {
