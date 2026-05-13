@@ -1274,45 +1274,126 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!BAD!!" "Swap is less than 16 GBs (Size:$SWAP_GB GB)"
 fi
 
-# Ensure metadata is fresh
+# ─────────────────────────────────────────────────────────────────────────────
+# _kernel_cve_status CVE [CVE …]
+#
+# Three-method detection – any method can fail without producing a wrong result:
+#   1. rpm --changelog via package-file ownership  (most accurate pkg lookup)
+#   2. rpm --changelog via package name            (fallback)
+#   3. dnf updateinfo --cve                        (authoritative "still needs fix")
+#   4. Running vs installed version compare        (last-resort reboot detection)
+#
+# Prints: GOOD | ATTN | BAD
+# ─────────────────────────────────────────────────────────────────────────────
+_kernel_cve_status() {
+    local -a CVES=("$@")
+    local RUNNING_HAS_FIX=0
+    local INSTALLED_HAS_FIX=0
+    local UPDATE_AVAILABLE=0
+    local RUNNING_KERNEL
+    RUNNING_KERNEL=$(uname -r)
+
+    # ── Method 1: Query running kernel by the file it actually owns ───────────
+    # Avoids "kernel-uek-$(uname -r)" name-mismatch failures entirely.
+    local RUNNING_CHANGELOG
+    RUNNING_CHANGELOG=$(rpm -qf "/boot/vmlinuz-${RUNNING_KERNEL}" \
+                            --changelog 2>/dev/null)
+    for CVE in "${CVES[@]}"; do
+        grep -qF "$CVE" <<< "$RUNNING_CHANGELOG" && { RUNNING_HAS_FIX=1; break; }
+    done
+
+    # ── Method 2: Latest installed kernel-uek changelog (by package name) ─────
+    # Covers the "newer kernel installed but not yet booted" case.
+    if [[ $RUNNING_HAS_FIX -eq 0 ]]; then
+        local INSTALLED_CHANGELOG
+        # Try both common UEK package names
+        for PKG in kernel-uek kernel-uek-core; do
+            rpm -q "$PKG" &>/dev/null || continue
+            INSTALLED_CHANGELOG=$(rpm -q --changelog "$PKG" 2>/dev/null)
+            for CVE in "${CVES[@]}"; do
+                grep -qF "$CVE" <<< "$INSTALLED_CHANGELOG" \
+                    && { INSTALLED_HAS_FIX=1; break 2; }
+            done
+        done
+    fi
+
+    # ── Method 3: dnf updateinfo --cve (works even when changelogs are silent) ─
+    # If any CVE still appears in updateinfo, the fix is NOT yet installed.
+    for CVE in "${CVES[@]}"; do
+        dnf updateinfo list --cve "$CVE" 2>/dev/null \
+            | grep -qi 'kernel' && { UPDATE_AVAILABLE=1; break; }
+    done
+
+    # ── Method 4: Kernel version comparison (last-resort reboot detection) ─────
+    # Catches "installed > running" when changelogs gave no signal.
+    local NEEDS_REBOOT=0
+    if [[ $RUNNING_HAS_FIX -eq 0 && $INSTALLED_HAS_FIX -eq 0 \
+          && $UPDATE_AVAILABLE -eq 0 ]]; then
+        local RUNNING_PKG RUNNING_VER LATEST_VER
+        RUNNING_PKG=$(rpm -qf "/boot/vmlinuz-${RUNNING_KERNEL}" \
+                          --qf '%{NAME}' 2>/dev/null)
+        RUNNING_VER=$(rpm -qf "/boot/vmlinuz-${RUNNING_KERNEL}" \
+                          --qf '%{VERSION}-%{RELEASE}' 2>/dev/null)
+        LATEST_VER=$(rpm -q --qf '%{VERSION}-%{RELEASE}\n' \
+                         "${RUNNING_PKG:-kernel-uek}" 2>/dev/null \
+                     | sort -V | tail -1)
+        [[ -n "$LATEST_VER" && "$LATEST_VER" != "$RUNNING_VER" ]] \
+            && NEEDS_REBOOT=1
+    fi
+
+    # ── Decision: precedence order matters ───────────────────────────────────
+    if [[ $UPDATE_AVAILABLE -eq 1 ]]; then
+        # dnf says a fix exists but isn't installed → definitely not patched
+        echo "BAD"
+    elif [[ $RUNNING_HAS_FIX -eq 1 ]]; then
+        # Changelog confirms the fix is in the booted kernel
+        echo "GOOD"
+    elif [[ $INSTALLED_HAS_FIX -eq 1 || $NEEDS_REBOOT -eq 1 ]]; then
+        # Fix is on disk but not yet running
+        echo "ATTN"
+    else
+        # No pending update, running == installed: assume patched / not applicable
+        echo "GOOD"
+    fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# print_cve_row  LABEL  CVE [CVE …]
+# ─────────────────────────────────────────────────────────────────────────────
+print_cve_row() {
+    local LABEL="$1"; shift
+    local -a CVES=("$@")
+    local STATUS PROOF_CVE
+    STATUS=$(_kernel_cve_status "${CVES[@]}")
+    PROOF_CVE="${CVES[0]}"
+
+    case "$STATUS" in
+        GOOD)
+            printf "${MAGENTA}%-20s:${NC}${GREEN}%-10s${NC}${YELLOW}%s${NC}\n" \
+                "$LABEL" "!!GOOD!!" \
+                "Patched and active.  Proof: rpm -qf /boot/vmlinuz-\$(uname -r) --changelog | grep ${PROOF_CVE}"
+            ;;
+        ATTN)
+            printf "${MAGENTA}%-20s:${NC}${YELLOW}%-10s${NC}${YELLOW}%s${NC}\n" \
+                "$LABEL" "!!ATTN!!" \
+                "Installed – reboot required.  Proof: rpm -q --changelog kernel-uek | grep ${PROOF_CVE}"
+            ;;
+        BAD)
+            printf "${MAGENTA}%-20s:${NC}${RED}%-10s${NC}${YELLOW}%s${NC}\n" \
+                "$LABEL" "!!BAD!!" \
+                "Not patched.  Fix: dnf upgrade --cve ${PROOF_CVE}"
+            ;;
+    esac
+}
+
+# ── Ensure metadata is fresh ──────────────────────────────────────────────────
 dnf clean expire-cache -q
 
-# --- CopyFail Check ---
-local CVE_ID="CVE-2026-31431"
-local RUNNING_HAS_FIX=$(rpm -q --changelog kernel-uek-$(uname -r) 2>/dev/null | grep -c "$CVE_ID")
-local INSTALLED_HAS_FIX=$(rpm -q --changelog kernel-uek 2>/dev/null | grep -c "$CVE_ID")
+# ── CopyFail ──────────────────────────────────────────────────────────────────
+print_cve_row "CopyFail CVE Patch"  "CVE-2026-31431"
 
-if [[ $RUNNING_HAS_FIX -gt 0 ]]; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
-        "CopyFail CVE Patch" "!!GOOD!!" "Patched and is Active. Proof: rpm -q --changelog kernel-uek | grep $CVE_ID"
-elif [[ $INSTALLED_HAS_FIX -gt 0 ]]; then
-    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" \
-        "CopyFail CVE Patch" "!!ATTN!!" "Reboot required. Proof: rpm -q --changelog kernel-uek | grep $CVE_ID"
-else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
-        "CopyFail CVE Patch" "!!BAD!!" "Update available: dnf upgrade --cve $CVE_ID"
-fi
-
-# --- Dirty Frag Check ---
-local CVE_LIST=("CVE-2026-43284" "CVE-2026-43500")
-local DF_RUNNING=0
-local DF_INSTALLED=0
-
-for CVE in "${CVE_LIST[@]}"; do
-    rpm -q --changelog kernel-uek-$(uname -r) 2>/dev/null | grep -q "$CVE" && DF_RUNNING=1
-    rpm -q --changelog kernel-uek             2>/dev/null | grep -q "$CVE" && DF_INSTALLED=1
-done
-
-if [[ $DF_RUNNING -eq 1 ]]; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
-        "Dirty Frag Patch" "!!GOOD!!" "Patched and is Active. Proof: rpm -q --changelog kernel-uek | grep ${CVE_LIST[0]}"
-elif [[ $DF_INSTALLED -eq 1 ]]; then
-    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" \
-        "Dirty Frag Patch" "!!ATTN!!" "Reboot required. Proof: rpm -q --changelog kernel-uek | grep ${CVE_LIST[0]}"
-else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
-        "Dirty Frag Patch" "!!BAD!!" "Update available: dnf upgrade --cve ${CVE_LIST[0]}"
-fi
+# ── Dirty Frag ────────────────────────────────────────────────────────────────
+print_cve_row "Dirty Frag Patch"    "CVE-2026-43284" "CVE-2026-43500"
 
 printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
 
