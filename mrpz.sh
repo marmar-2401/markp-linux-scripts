@@ -1317,11 +1317,12 @@ _kernel_cve_status() {
     fi
 
     # ── Method 3: dnf updateinfo --available --cve ───────────────────────────
-    # --available ensures only PENDING updates are matched.
-    # Without it, already-applied advisories also match → false BAD result.
+    # --available = pending updates only (already-applied advisories excluded).
+    # grep anchored to kernel-uek-<digit> to avoid false matches on
+    # kernel-uek-devel / kernel-uek-headers / kernel-uek-tools etc.
     for CVE in "${CVES[@]}"; do
         dnf updateinfo list --available --cve "$CVE" 2>/dev/null \
-            | grep -qi 'kernel' && { UPDATE_AVAILABLE=1; break; }
+            | grep -qiE 'kernel-uek(-core)?-[0-9]' && { UPDATE_AVAILABLE=1; break; }
     done
 
     # ── Method 4: Kernel version comparison (last-resort reboot detection) ─────
@@ -1343,7 +1344,7 @@ _kernel_cve_status() {
 
     # ── Decision: precedence order matters ───────────────────────────────────
     if [[ $UPDATE_AVAILABLE -eq 1 ]]; then
-        # dnf confirms a fix exists but is not yet installed → not patched
+        # dnf confirms a kernel-uek fix exists but is not yet installed
         echo "BAD"
     elif [[ $RUNNING_HAS_FIX -eq 1 ]]; then
         # Changelog confirms fix is in the booted kernel
