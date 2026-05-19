@@ -1276,6 +1276,17 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!BAD!!" "Swap is less than 16 GBs (Size:$SWAP_GB GB)"
 fi
 
+local ACTUAL_EXCLUDE=$(dnf config-manager --dump | grep -i "^exclude =" | head -1)
+
+if [[ "$ACTUAL_EXCLUDE" == *"jdk*"* ]]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "JDK Exclusion" "!!GOOD!!" "JDK is properly excluded in the dnf configuration"
+else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "JDK Exclusion" "!!BAD!!" "jdk* is missing from the exclusions run 'bash mrpz.sh --jdkexcludefix'"
+fi
+
+
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # _kernel_cve_status CVE [CVE …]
 #
