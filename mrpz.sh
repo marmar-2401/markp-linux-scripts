@@ -115,7 +115,7 @@ check_sccadm_group() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.3.8 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.4.0 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -169,6 +169,9 @@ printf "${MAGENTA} 1.3.5 | 03/26/2026 | - Created a jdk exclusion check and an e
 printf "${MAGENTA} 1.3.6 | 05/08/2026 | - Created a CopyFail Patch Checker in OS Check ${NC}\n"
 printf "${MAGENTA} 1.3.7 | 05/13/2026 | - Created a Dirty Frag Patch Checker in OS Check ${NC}\n"
 printf "${MAGENTA} 1.3.8 | 05/14/2026 | - Created a Fragnesia Patch Checker in OS Check ${NC}\n"
+printf "${MAGENTA} 1.3.9 | 06/10/2026 | - Created Grub2 Checker ${NC}\n"
+printf "${MAGENTA} 1.4.0 | 06/10/2026 | - Created Grub2 Mode Checker ${NC}\n"
+printf "${MAGENTA} 1.4.1 | 06/10/2026 | - CVE Checker Removed ${NC}\n"
 }
 
 print_help() {
@@ -1284,155 +1287,27 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "JDK Exclusion" "!!BAD!!" "jdk* is missing from the exclusions run 'bash mrpz.sh --jdkexcludefix'"
 fi
 
+superuser=$(grep -i "set superusers" /boot/grub2/grub.cfg 2>/dev/null | awk -F'"' '{print $2}')
 
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# _kernel_cve_status CVE [CVE …]
-#
-# Three-method detection – any method can fail without producing a wrong result:
-#   1. rpm --changelog via package-file ownership  (most accurate pkg lookup)
-#   2. rpm --changelog via package name            (fallback)
-#   3. dnf updateinfo --available --cve            (authoritative "still needs fix")
-#   4. Running vs installed version compare        (last-resort reboot detection)
-#
-# Prints: STATUS:METHOD
-#   GOOD:RPM_RUNNING   – changelog confirms fix is in booted kernel
-#   ATTN:RPM_INSTALLED – fix installed but reboot required
-#   ATTN:VERSION       – newer kernel on disk but not running
-#   ATTN:ASSUMED       – cannot confirm patch status, verify manually
-#   BAD:DNF            – pending update confirmed by dnf
-# ─────────────────────────────────────────────────────────────────────────────
-_kernel_cve_status() {
-    local -a CVES=("$@")
-    local RUNNING_HAS_FIX=0
-    local INSTALLED_HAS_FIX=0
-    local UPDATE_AVAILABLE=0
-    local RUNNING_KERNEL
-    RUNNING_KERNEL=$(uname -r)
-
-    # ── Method 1: Query running kernel by the file it actually owns ───────────
-    # Avoids "kernel-uek-$(uname -r)" name-mismatch failures entirely.
-    local RUNNING_CHANGELOG
-    RUNNING_CHANGELOG=$(rpm -qf "/boot/vmlinuz-${RUNNING_KERNEL}" \
-                            --changelog 2>/dev/null)
-    for CVE in "${CVES[@]}"; do
-        grep -qF "$CVE" <<< "$RUNNING_CHANGELOG" && { RUNNING_HAS_FIX=1; break; }
-    done
-
-    # ── Method 2: Latest installed kernel-uek changelog (by package name) ─────
-    # Covers the "newer kernel installed but not yet booted" case.
-    if [[ $RUNNING_HAS_FIX -eq 0 ]]; then
-        local INSTALLED_CHANGELOG
-        for PKG in kernel-uek kernel-uek-core; do
-            rpm -q "$PKG" &>/dev/null || continue
-            INSTALLED_CHANGELOG=$(rpm -q --changelog "$PKG" 2>/dev/null)
-            for CVE in "${CVES[@]}"; do
-                grep -qF "$CVE" <<< "$INSTALLED_CHANGELOG" \
-                    && { INSTALLED_HAS_FIX=1; break 2; }
-            done
-        done
-    fi
-
-    # ── Method 3: dnf updateinfo --available --cve ───────────────────────────
-    # --available = pending updates only (already-applied advisories excluded).
-    # grep anchored to kernel-uek-<digit> to avoid false matches on
-    # kernel-uek-devel / kernel-uek-headers / kernel-uek-tools etc.
-    for CVE in "${CVES[@]}"; do
-        dnf updateinfo list --available --cve "$CVE" 2>/dev/null \
-            | grep -qiE 'kernel-uek(-core)?-[0-9]' && { UPDATE_AVAILABLE=1; break; }
-    done
-
-    # ── Method 4: Kernel version comparison (last-resort reboot detection) ─────
-    # Catches "installed > running" when changelogs gave no signal.
-    local NEEDS_REBOOT=0
-    if [[ $RUNNING_HAS_FIX -eq 0 && $INSTALLED_HAS_FIX -eq 0 \
-          && $UPDATE_AVAILABLE -eq 0 ]]; then
-        local RUNNING_PKG RUNNING_VER LATEST_VER
-        RUNNING_PKG=$(rpm -qf "/boot/vmlinuz-${RUNNING_KERNEL}" \
-                          --qf '%{NAME}' 2>/dev/null)
-        RUNNING_VER=$(rpm -qf "/boot/vmlinuz-${RUNNING_KERNEL}" \
-                          --qf '%{VERSION}-%{RELEASE}' 2>/dev/null)
-        LATEST_VER=$(rpm -q --qf '%{VERSION}-%{RELEASE}\n' \
-                         "${RUNNING_PKG:-kernel-uek}" 2>/dev/null \
-                     | sort -V | tail -1)
-        [[ -n "$LATEST_VER" && "$LATEST_VER" != "$RUNNING_VER" ]] \
-            && NEEDS_REBOOT=1
-    fi
-
-    # ── Decision: return STATUS:METHOD so proof message can be accurate ───────
-    if [[ $UPDATE_AVAILABLE -eq 1 ]]; then
-        echo "BAD:DNF"
-    elif [[ $RUNNING_HAS_FIX -eq 1 ]]; then
-        echo "GOOD:RPM_RUNNING"
-    elif [[ $INSTALLED_HAS_FIX -eq 1 ]]; then
-        echo "ATTN:RPM_INSTALLED"
-    elif [[ $NEEDS_REBOOT -eq 1 ]]; then
-        echo "ATTN:VERSION"
+if [ ! -f /boot/grub2/user.cfg ] && [ ! -f /boot/efi/EFI/oracle/user.cfg ]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Grub2 Mode" "!!GOOD!!" "No authentication restrictions are active."
+else
+    if [ -f /boot/grub2/grubenv ] && ! grub2-editenv list 2>/dev/null | grep -q "grub_users="; then
+        is_unrestricted=1
+    elif grep -E "menuentry |submenu " /boot/grub2/grub.cfg 2>/dev/null | grep -q -e "--unrestricted" || \
+         grep -q "grub_users" /boot/grub2/grub.cfg 2>/dev/null || \
+         grep -q "function bls_import" /boot/grub2/grub.cfg 2>/dev/null; then
+        is_unrestricted=1
     else
-        # Cannot confirm patch status — CVE not yet in updateinfo or changelog
-        echo "ATTN:ASSUMED"
+        is_unrestricted=0
     fi
-}
 
-# ─────────────────────────────────────────────────────────────────────────────
-# print_cve_row  LABEL  CVE [CVE …]
-# ─────────────────────────────────────────────────────────────────────────────
-print_cve_row() {
-    local LABEL="$1"; shift
-    local -a CVES=("$@")
-    local RESULT STATUS METHOD PROOF_CVE
-    RESULT=$(_kernel_cve_status "${CVES[@]}")
-    STATUS="${RESULT%%:*}"
-    METHOD="${RESULT##*:}"
-    PROOF_CVE="${CVES[0]}"
-
-    case "$STATUS" in
-        GOOD)
-            printf "${MAGENTA}%-20s:${NC}${GREEN}%-10s${NC}${YELLOW}%s${NC}\n" \
-                "$LABEL" "!!GOOD!!" \
-                "Patched and active.  Proof: rpm -qf /boot/vmlinuz-\$(uname -r) --changelog | grep ${PROOF_CVE}"
-            ;;
-        ATTN)
-            case "$METHOD" in
-                RPM_INSTALLED)
-                    local PROOF="Installed – reboot required.  Proof: rpm -q --changelog kernel-uek | grep ${PROOF_CVE}"
-                    ;;
-                VERSION)
-                    local PROOF="Newer kernel installed but not running – reboot required"
-                    ;;
-                ASSUMED)
-                    local PROOF="Cannot confirm patch status — CVE not yet in updateinfo or changelog, verify manually: dnf upgrade --cve ${PROOF_CVE}"
-                    ;;
-            esac
-            printf "${MAGENTA}%-20s:${NC}${YELLOW}%-10s${NC}${YELLOW}%s${NC}\n" \
-                "$LABEL" "!!ATTN!!" "$PROOF"
-            ;;
-        BAD)
-            printf "${MAGENTA}%-20s:${NC}${RED}%-10s${NC}${YELLOW}%s${NC}\n" \
-                "$LABEL" "!!BAD!!" \
-                "Not patched.  Fix: dnf upgrade --cve ${PROOF_CVE}"
-            ;;
-    esac
-}
-
-# ── Ensure metadata is fresh ──────────────────────────────────────────────────
-dnf clean expire-cache -q
-
-# ── CopyFail ──────────────────────────────────────────────────────────────────
-print_cve_row "CopyFail Patch"      "CVE-2026-31431"
-
-# ── Dirty Frag ────────────────────────────────────────────────────────────────
-print_cve_row "Dirty Frag Patch"    "CVE-2026-43284" "CVE-2026-43500"
-
-# ── Fragnesia ─────────────────────────────────────────────────────────────────
-print_cve_row "Fragnesia Patch"     "CVE-2026-46300"
-
-printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "OpenSCAP" "!!ATTN!!" "Run an OpenSCAP report to ensure compliance"
-
-printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Backup" "!!ATTN!!" "Ensure system has a current backup"
-
-printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "GRUB2 Password" "!!ATTN!!" "In OCI make sure hosts have listed GRUB2 password set"
+    if [ $is_unrestricted -eq 1 ]; then
+        printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Grub2 Mode" "!!ATTN!!" "Password is required for EDIT MODE ONLY (Normal boot is free). User:${superuser}"
+    else
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${RED}%s${NC}\n" "Grub2 Mode" "!!BAD!!" "Password is required to BOOT THE SYSTEM (Full lockdown). User:${superuser}"
+    fi
+fi
 
 printf "${GREEN}Check Complete!${NC}\n"
 }
