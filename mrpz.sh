@@ -917,7 +917,9 @@ fi
 
 if command -v dotnet &> /dev/null; then
     local DOTNETVER=$(dotnet --version 2>/dev/null)
-    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Dotnet" "!!ATTN!!" "${DOTNETVER}"
+    [ -z "$DOTNETVER" ] && DOTNETVER="Installed"
+
+    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}dotnet version %s${NC}\n" "Dotnet" "!!ATTN!!" "${DOTNETVER}"
     local LOCK_ENTRY=$(dnf versionlock list 2>/dev/null | grep -vE '^Last metadata|^$|^$|^\s*$' | grep "dotnet")
  
     if [ -z "$LOCK_ENTRY" ]; then
