@@ -916,7 +916,7 @@ else
 fi
 
 if command -v dotnet &> /dev/null; then
-    local DOTNETVER=$(dotnet --list-runtimes 2>/dev/null | head -n 1 | awk '{print $1, $2}'
+    local DOTNETVER=$(dotnet --list-runtimes 2>/dev/null | head -n 1 | awk '{print $1, $2}')
     [ -z "$DOTNETVER" ] && DOTNETVER="Runtime Installed"
 
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}dotnet version %s${NC}\n" "Dotnet" "!!ATTN!!" "${DOTNETVER}"
