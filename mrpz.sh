@@ -172,6 +172,7 @@ printf "${MAGENTA} 1.3.8 | 05/14/2026 | - Created a Fragnesia Patch Checker in O
 printf "${MAGENTA} 1.3.9 | 06/10/2026 | - Created Grub2 Checker ${NC}\n"
 printf "${MAGENTA} 1.4.0 | 06/10/2026 | - Created Grub2 Mode Checker ${NC}\n"
 printf "${MAGENTA} 1.4.1 | 06/10/2026 | - CVE Checker Removed ${NC}\n"
+printf "${MAGENTA} 1.4.2 | 06/19/2026 | - Dotnet & Versionlock Checker Created ${NC}\n"
 }
 
 print_help() {
@@ -916,10 +917,7 @@ else
 fi
 
 if command -v dotnet &> /dev/null; then
-    local DOTNETVER=$(dotnet --list-runtimes 2>/dev/null | head -n 1 | awk '{print $1, $2}')
-    [ -z "$DOTNETVER" ] && DOTNETVER="Runtime Installed"
-
-    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}dotnet version %s${NC}\n" "Dotnet" "!!ATTN!!" "${DOTNETVER}"
+    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Dotnet" "!!ATTN!!" "dotnet is present on system"
     local LOCK_ENTRY=$(dnf versionlock list 2>/dev/null | grep -vE '^Last metadata|^$|^$|^\s*$' | grep "dotnet")
  
     if [ -z "$LOCK_ENTRY" ]; then
