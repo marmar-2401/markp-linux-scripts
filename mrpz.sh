@@ -915,6 +915,20 @@ else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Podman" "!!GOOD!!" "No Podman"
 fi
 
+if command -v dotnet &> /dev/null; then
+    local DOTNETVER=$(dotnet --version 2>/dev/null)
+    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Dotnet" "!!ATTN!!" "${DOTNETVER}"
+    local LOCK_ENTRY=$(dnf versionlock list 2>/dev/null | grep -vE '^Last metadata|^$|^$|^\s*$' | grep "dotnet")
+ 
+    if [ -z "$LOCK_ENTRY" ]; then
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Dotnet Version Lock" "!!BAD!!" "No Dotnet Version Lock"
+    else
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Dotnet Version Lock" "!!GOOD!!" "Version Lock In Place: ${LOCK_ENTRY}"
+    fi
+else
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Dotnet" "!!GOOD!!" "No Dotnet"
+fi
+
 local RULE_FILE="/etc/udev/rules.d/50-console.rules"
 local RULE_CONTENT='KERNEL=="console", GROUP="root", MODE="0622"'
 local DEVICE="/dev/console"
