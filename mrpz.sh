@@ -918,12 +918,14 @@ fi
 
 if command -v dotnet &> /dev/null; then
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Dotnet" "!!ATTN!!" "dotnet is present on system"
-    local LOCK_ENTRY=$(dnf versionlock list 2>/dev/null | grep -vE '^Last metadata|^$|^$|^\s*$' | grep "dotnet")
+    
+    local LOCK_ENTRY=$(dnf versionlock list 2>/dev/null | grep -vE '^Last metadata|^$|^$|^\s*$' | grep "dotnet" | sed 's/^/                     - /')
  
     if [ -z "$LOCK_ENTRY" ]; then
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Dotnet Version Lock" "!!BAD!!" "No Dotnet Version Lock"
     else
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Dotnet Version Lock" "!!GOOD!!" "Version Lock In Place: ${LOCK_ENTRY}"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Dotnet Version Lock" "!!GOOD!!" "Version Lock In Place:"
+        printf "${YELLOW}%s${NC}\n" "${LOCK_ENTRY}"
     fi
 else
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Dotnet" "!!GOOD!!" "No Dotnet"
