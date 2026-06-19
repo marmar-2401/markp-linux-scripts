@@ -916,8 +916,8 @@ else
 fi
 
 if command -v dotnet &> /dev/null; then
-    local DOTNETVER=$(dotnet --version 2>/dev/null)
-    [ -z "$DOTNETVER" ] && DOTNETVER="Installed"
+    local DOTNETVER=$(dotnet --list-runtimes 2>/dev/null | head -n 1 | awk '{print $1, $2}'
+    [ -z "$DOTNETVER" ] && DOTNETVER="Runtime Installed"
 
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}dotnet version %s${NC}\n" "Dotnet" "!!ATTN!!" "${DOTNETVER}"
     local LOCK_ENTRY=$(dnf versionlock list 2>/dev/null | grep -vE '^Last metadata|^$|^$|^\s*$' | grep "dotnet")
