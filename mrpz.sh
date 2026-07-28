@@ -1887,7 +1887,6 @@ case "$1" in
 	--devconsolefix) print_devconsolefix ;;
 	--oscheck) print_oscheck ;;
 	--badextfs) print_badextfs ;;
-	--harddetect) print_harddetect ;;
 	--mqfix) print_mqfix ;;
  	--backupdisc) print_backupdisc ;;
   	--auditdisc) print_auditdisc ;;
