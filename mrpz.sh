@@ -196,8 +196,9 @@ exit 0
 
 print_ntpcheck() {
 local NTPSYNC=$(timedatectl | head -5 | tail -1 | awk '{ print $NF }')
-local NTPPERSISTENCE=$(systemctl status chronyd | grep -i enabled | awk ' { print $4 } ')
-local NTPSTATUS=$(systemctl status chronyd | grep running | awk '{print $3}')
+local CHRONYD_STATUS=$(systemctl status chronyd)
+local NTPPERSISTENCE=$(echo "${CHRONYD_STATUS}" | grep -i enabled | awk ' { print $4 } ')
+local NTPSTATUS=$(echo "${CHRONYD_STATUS}" | grep running | awk '{print $3}')
 
 printf "\n${MAGENTA}NTP Status${NC}\n"
 printf "${MAGENTA}===========${NC}\n"
@@ -220,10 +221,11 @@ else
         printf "NTP Status: ${RED}Not Running${NC}\n"
 fi
 
-local LEAPSTATUS=$(chronyc tracking | grep -i Leap | awk '{print $NF}')
-local TIMEDIFF=$(chronyc tracking | grep -i system | awk '{print $4}')
-local FASTORSLOW=$(chronyc tracking | grep -i system | awk '{print $6}')
-local STRATUM=$(chronyc tracking | grep Stratum | awk '{print $3}')
+local CHRONY_TRACKING=$(chronyc tracking)
+local LEAPSTATUS=$(echo "${CHRONY_TRACKING}" | grep -i Leap | awk '{print $NF}')
+local TIMEDIFF=$(echo "${CHRONY_TRACKING}" | grep -i system | awk '{print $4}')
+local FASTORSLOW=$(echo "${CHRONY_TRACKING}" | grep -i system | awk '{print $6}')
+local STRATUM=$(echo "${CHRONY_TRACKING}" | grep Stratum | awk '{print $3}')
 
 if [[ "${LEAPSTATUS}" == "Normal" ]]; then
         printf "Leap Status: ${GREEN}Normal${NC}\n"
@@ -498,8 +500,9 @@ print_oscheck() {
 check_root
 
 local OSTYPE=$(cat /etc/system-release)
-local HARDTYPE=$(print_harddetect | head -1)
-local PLATFORM=$(print_harddetect | tail -1)
+local HARDDETECT_OUTPUT=$(print_harddetect)
+local HARDTYPE=$(echo "${HARDDETECT_OUTPUT}" | head -1)
+local PLATFORM=$(echo "${HARDDETECT_OUTPUT}" | tail -1)
 local HOSTNAME=$(hostname)
 local SYSTEMTIME=$(date)
 
@@ -1035,7 +1038,7 @@ local bc_cpu_usage="bc"
 if rpm -q "$bc_cpu_usage" > /dev/null 2>&1; then
 	
 	local CPU_THRESHOLD=70
-	local CPU_IDLE=$(top -bn2 | grep "Cpu(s)" | tail -n1 | awk -F',' '{for(i=1;i<=NF;i++) if($i ~ /id/) print $i}' | awk '{print $1}')
+	local CPU_IDLE=$(top -bn1 | grep "Cpu(s)" | awk -F',' '{for(i=1;i<=NF;i++) if($i ~ /id/) print $i}' | awk '{print $1}')
 	if [ -z "$CPU_IDLE" ]; then CPU_IDLE=100; fi
     local TOTAL_CPU_USAGE=$(echo "100 - ${CPU_IDLE}" | bc)
 
