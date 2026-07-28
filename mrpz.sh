@@ -111,8 +111,6 @@ check_sccadm_group() {
     fi
 }
 
-
-
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
 printf "${CYAN}         ## Ver: 1.3.1 ##${NC}\n"
@@ -175,7 +173,6 @@ printf "${YELLOW}--ntpcheck${NC}	# Gives you system NTP related information\n\n"
 printf "\n${MAGENTA}General System Information Options:${NC}\n"
 printf "${YELLOW}--oscheck${NC}	# Gives you a general system information overview\n\n"
 printf "${YELLOW}--shortoscheck${NC}	# Gives you a general system information overview omitting good\n\n"
-printf "${YELLOW}--harddetect${NC}	# Detects the hardware platform a Linux host is running on\n\n"
 printf "${YELLOW}--bootreport <ENVUSER>${NC}	# Creates a report on commonly viewed startup checks\n\n"
 printf "${YELLOW}--linfo${NC}	# Creates a system information archive with important details\n\n"
 printf "${YELLOW}--hugeusage${NC}	# Checks the details regarding the hughpage usage on system\n\n"
