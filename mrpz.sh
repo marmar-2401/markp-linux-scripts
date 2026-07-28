@@ -1156,6 +1156,10 @@ fi
 local process_oralsnr=$(ps -ef | grep lsnr | grep -v grep | wc -l)
 local runtimehuge=$(sysctl -n vm.nr_hugepages)
 local persisthuge=$(grep -i "^vm.nr_hugepages" /etc/sysctl.d/99-sysctl.conf | awk -F = '{print $2}')
+runtimehuge=${runtimehuge//[[:space:]]/}
+persisthuge=${persisthuge//[[:space:]]/}
+runtimehuge=${runtimehuge:-0}
+persisthuge=${persisthuge:-0}
 if [ "${process_oralsnr}" -ne 0 ]; then
   oradb=true
 fi
