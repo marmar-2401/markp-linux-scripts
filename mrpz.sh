@@ -1887,7 +1887,7 @@ case "$1" in
    	--linfo) print_linfo ;;
 	--hugeusage) print_hugeusage ;;
 	--histtimestampfix) print_histtimestamp ;;
-	--coredumpfix) print_coredumpfix ;;;
+	--coredumpfix) print_coredumpfix ;;
 	--jdkexcludefix) print_enablejdkfix ;;
 	--disablejdkfix) print_disablejdkfix ;;
 *)
