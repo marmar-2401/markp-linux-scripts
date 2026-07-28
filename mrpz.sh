@@ -1116,7 +1116,7 @@ fi
 
 local process_oralsnr=$(ps -ef | grep lsnr | grep -v grep | wc -l)
 local runtimehuge=$(sysctl -n vm.nr_hugepages)
-local persisthuge=$(grep -i "^vm.nr_hugepages" /etc/sysctl.d/99-sysctl.conf | awk -F = '{print $2}')
+local persisthuge=$(grep -rhi "^vm.nr_hugepages" /etc/sysctl.conf /etc/sysctl.d/*.conf 2>/dev/null | tail -1 | awk -F = '{print $2}')
 runtimehuge=${runtimehuge//[[:space:]]/}
 persisthuge=${persisthuge//[[:space:]]/}
 runtimehuge=${runtimehuge:-0}
