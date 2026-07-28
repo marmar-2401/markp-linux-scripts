@@ -607,10 +607,10 @@ local PACKAGE_MANAGER_COMMAND=""
 
 if command -v dnf &>/dev/null; then
     PACKAGE_MANAGER_COMMAND="dnf"
-    UPDATE_DATE_RAW=$(dnf history list 2>/dev/null | awk -F'|' 'NR>1 && $4 ~ /U/ && $5+0 > 5 {print $3; exit}' | head -n 1)
+    UPDATE_DATE_RAW=$(yum history list -C 2>/dev/null | awk -F'|' 'NR>1 && $4 ~ /U/ && $5+0 > 5 {print $3; exit}' | head -n 1)
 else
     PACKAGE_MANAGER_COMMAND="yum"
-    UPDATE_DATE_RAW=$(yum history list 2>/dev/null | awk -F'|' 'NR>1 && $4 ~ /U/ && $5+0 > 5 {print $3; exit}' | head -n 1)
+    UPDATE_DATE_RAW=$(yum history list -C 2>/dev/null | awk -F'|' 'NR>1 && $4 ~ /U/ && $5+0 > 5 {print $3; exit}' | head -n 1)
 fi
 
 local DAYS_SINCE_UPDATE=-1
@@ -724,7 +724,7 @@ else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Sealert Usage" "!!GOOD!!" "${TOTAL_CPU}% Usage"
 fi
 
-yum repolist > /dev/null 2>&1
+yum repolist -C > /dev/null 2>&1
 
 if [ $? -eq 0 ]; then
     	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Repolist" "!!GOOD!!" "Repolist optimal"
@@ -732,7 +732,14 @@ else
     	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Repolist" "!!BAD!!" "Repolist incorrect (See '/etc/yum.repos.d')"
 fi
 
-local UNLABELED_FILES=$(find / -xdev -type f -context '*:unlabeled_t:*' -printf "%Z %p\n" 2>/dev/null)
+local UNLABELED_FILES=$(find / -xdev -type f \
+    -not -path "/tmp/*" \
+    -not -path "/var/tmp/*" \
+    -not -path "/proc/*" \
+    -not -path "/sys/*" \
+    -not -path "/run/*" \
+    -not -path "/dev/*" \
+    -context '*:unlabeled_t:*' -printf "%Z %p\n" 2>/dev/null)
 
 if [ -z "${UNLABELED_FILES}" ]; then
     	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "SELinux Unlabled" "!!GOOD!!" "Optimal"
@@ -815,7 +822,7 @@ else
 fi
 
 
-local FULL_UPDATE_OUTPUT=$(yum list updates 2>/dev/null)
+local FULL_UPDATE_OUTPUT=$(yum list updates -C 2>/dev/null)
 
 if echo "${FULL_UPDATE_OUTPUT}" | grep -q "Available Upgrades"; then
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Updates Available" "!!BAD!!" "Available updates."
@@ -1072,7 +1079,7 @@ else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle Listener" "!!BAD!!" "Oracle listener missing 'bash mrpz.sh --listndisc'"
 fi
 
-{ journalctl --since "7 days ago" -p err 2> /tmp/JOURNALCTL_TRUNCATION_CHECK.log; } | grep -q .
+{ journalctl --since "1 day ago" -p err 2> /tmp/JOURNALCTL_TRUNCATION_CHECK.log; } | grep -q .
 
 local JOURNAL_HAS_ACTUAL_ERRORS=$? 
 grep -q "is truncated, ignoring file" /tmp/JOURNALCTL_TRUNCATION_CHECK.log
