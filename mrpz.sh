@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-BLACK='\033[0;30m'
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -18,52 +17,38 @@ fi
 }
 
 check_sccadm() {
-local SCCADMINID=$(grep sccadm /etc/passwd | awk -F : '{print $3}')
+local SCCADMINID
+SCCADMINID=$(awk -F: '$1=="sccadm"{print $3; exit}' /etc/passwd)
 
-if [ "${EUID}" -ne ${SCCADMINID} ]; then
+if [ "${EUID}" -ne "${SCCADMINID}" ]; then
 	printf "${RED}Error: This script must be run as sccadm.${NC}\n"
 exit 1
 fi
 }
 
 confirm_action() {
-    read -p "Are you sure you want to continue? (y/n): " CHOICE
-    if [[ "$CHOICE" == "y" || "$CHOICE" == "Y" ]]; then
-        return 0
-    elif [[ "$CHOICE" == "n" || "$CHOICE" == "N" ]]; then
-        exit 1
-    else
-        echo "Invalid input. Please enter 'y' or 'n'."
-        confirm_action
-    fi
+    local CHOICE
+    while true; do
+        read -rp "Are you sure you want to continue? (y/n): " CHOICE
+        case "$CHOICE" in
+            y|Y) return 0 ;;
+            n|N) exit 1 ;;
+            *) echo "Invalid input. Please enter 'y' or 'n'." ;;
+        esac
+    done
 }
 
 appserver_check() {
-  local FILENAME="/tmp/appservercheck.txt"
-  > "$FILENAME"
-  awk -F':' '($1 ~ /scc$/) {print $1}' /etc/passwd >> "$FILENAME"
-
-  if [ -s "$FILENAME" ]; then
-    rm -f "$FILENAME" 
-    return 0          
+  if awk -F':' '($1 ~ /scc$/) {found=1; exit} END {exit !found}' /etc/passwd; then
+    return 0
   else
-    printf "${RED}Error: This script can only be ran on the app server!!!${NC}\n" >&2 
-    rm -f "$FILENAME" 
-    exit 1          
+    printf "${RED}Error: This script can only be ran on the app server!!!${NC}\n" >&2
+    exit 1
   fi
 }
 
 richapp_check() {
-  local FILENAME="/tmp/appservercheck.txt"
-  > "$FILENAME"
-  awk -F':' '($1 ~ /scc$/) {print $1}' /etc/passwd >> "$FILENAME"
-
-  if [ -s "$FILENAME" ]; then
-    rm -f "$FILENAME" 
-    return 0          
-  else
-    return 1       
-  fi
+  awk -F':' '($1 ~ /scc$/) {found=1; exit} END {exit !found}' /etc/passwd
 }
 
 check_linfo_commands() {
@@ -113,7 +98,7 @@ check_sccadm_group() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.3.1 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.3.2 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -160,6 +145,7 @@ printf "${MAGENTA} 1.2.8 | 01/07/2026 | - Swap size checker added ${NC}\n"
 printf "${MAGENTA} 1.2.9 | 03/26/2026 | - Created a jdk exclusion check and an enabler/disabler for it ${NC}\n"
 printf "${MAGENTA} 1.3.0 | 06/10/2026 | - Created Grub2 Checker ${NC}\n"
 printf "${MAGENTA} 1.3.1 | 06/10/2026 | - Created Grub2 Mode Checker ${NC}\n"
+printf "${MAGENTA} 1.3.2 | 08/04/2026 | - Added --diskcheck option for detailed disk space reporting ${NC}\n"
 }
 
 print_help() {
@@ -177,6 +163,7 @@ printf "${YELLOW}--bootreport <ENVUSER>${NC}	# Creates a report on commonly view
 printf "${YELLOW}--linfo${NC}	# Creates a system information archive with important details\n\n"
 printf "${YELLOW}--hugeusage${NC}	# Checks the details regarding the hughpage usage on system\n\n"
 printf "${YELLOW}--badextfs${NC}	# Gives you a list of corrupted EXT FS\n\n"
+printf "${YELLOW}--diskcheck${NC}	# Lists all filesystems over 80%% usage\n\n"
 printf "\n${MAGENTA}System Configuration Options:${NC}\n"
 printf "${YELLOW}--devconsolefix${NC}	# Checks and corrects the /dev/console rules on system\n\n"
 printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on system\n\n"
@@ -195,8 +182,6 @@ print_ntpcheck() {
 local NTPSYNC=$(timedatectl | head -5 | tail -1 | awk '{ print $NF }')
 local CHRONYD_STATUS=$(systemctl status chronyd)
 local NTPPERSISTENCE=$(echo "${CHRONYD_STATUS}" | grep -i enabled | awk ' { print $4 } ')
-local NTPSTATUS=$(echo "${CHRONYD_STATUS}" | grep running | awk '{print $3}')
-
 printf "\n${MAGENTA}NTP Status${NC}\n"
 printf "${MAGENTA}===========${NC}\n"
 
@@ -234,10 +219,10 @@ printf "Stratum: ${GREEN}${STRATUM} ${NC}\n"
 printf "Time Drift From NTP Source: ${CYAN}${TIMEDIFF} ${FASTORSLOW} from NTP time.${NC}\n"
 
 
+local COUNT=5
 for SERVER in $(grep -E "^(server|pool)" /etc/chrony.conf | awk '{print $2}'); do
 	printf "${MAGENTA}============================================= ${NC} \n"
 	printf "NTP source: ${YELLOW}${SERVER} ${NC} \n"
-	local COUNT=5
 	if ping -c "${COUNT}" "${SERVER}" > /dev/null 2>&1; then
         	printf "${GREEN}!!!Server is Reachable!!! ${NC}\n"
 	else
@@ -248,10 +233,16 @@ done
 }
 
 get_raw_mem_percentages() {
-    local TOTALMEM_KB=$(free -k | awk 'NR==2{print $2}' | tr -d '\r' || echo 0)
-    local USEDMEM_KB=$(free -k | awk 'NR==2{print $3}' | tr -d '\r' || echo 0)
-    local TOTALSWAP_KB=$(free -k | awk 'NR==3{print $2}' | tr -d '\r' || echo 0)
-    local USEDSWAP_KB=$(free -k | awk 'NR==3{print $3}' | tr -d '\r' || echo 0)
+    local FREE_OUTPUT
+    FREE_OUTPUT=$(free -k)
+    local TOTALMEM_KB=$(echo "$FREE_OUTPUT" | awk 'NR==2{print $2}' | tr -d '\r')
+    local USEDMEM_KB=$(echo "$FREE_OUTPUT" | awk 'NR==2{print $3}' | tr -d '\r')
+    local TOTALSWAP_KB=$(echo "$FREE_OUTPUT" | awk 'NR==3{print $2}' | tr -d '\r')
+    local USEDSWAP_KB=$(echo "$FREE_OUTPUT" | awk 'NR==3{print $3}' | tr -d '\r')
+    TOTALMEM_KB=${TOTALMEM_KB:-0}
+    USEDMEM_KB=${USEDMEM_KB:-0}
+    TOTALSWAP_KB=${TOTALSWAP_KB:-0}
+    USEDSWAP_KB=${USEDSWAP_KB:-0}
     local MEMUSEPERCENT="0"
 
     if (( TOTALMEM_KB > 0 )); then
@@ -316,6 +307,8 @@ printf "${GREEN}Fix is complete!!!${NC}\n"
 print_harddetect() {
 check_root
 local DETECTED_HARDWARE=""
+local LSSCSI_CACHE
+LSSCSI_CACHE=$(lsscsi 2>/dev/null)
 
 # VMware Checker
 check_vmware() {
@@ -325,7 +318,7 @@ while read -r _ _ VENDOR _; do
         	echo "VMware"
                 return 0
         fi
-done < <(lsscsi)
+done <<< "$LSSCSI_CACHE"
 return 1
 }
 
@@ -337,7 +330,7 @@ while read -r _ _ VENDOR _; do
         	echo "HPE"
                 return 0
         fi
-done < <(lsscsi)
+done <<< "$LSSCSI_CACHE"
 return 1
 }
 
@@ -349,13 +342,13 @@ while read -r _ _ VENDOR _; do
         	echo "Oracle"
                 return 0
         fi
-done < <(lsscsi)
+done <<< "$LSSCSI_CACHE"
 return 1
 }
 
 # AWS Checker
 check_aws() {
-if lsscsi 2>/dev/null | grep -q "Amazon Elastic Block Store"; then
+if grep -q "Amazon Elastic Block Store" <<< "$LSSCSI_CACHE"; then
 	echo "AWS"
 	return 0
 fi
@@ -370,7 +363,7 @@ while read -r _ _ VENDOR _; do
         	echo "Azure"
         	return 0
         fi
-done < <(lsscsi)
+done <<< "$LSSCSI_CACHE"
 return 1
 }
 
@@ -382,7 +375,7 @@ while read -r _ _ VENDOR _; do
         	echo "KVM"
                 return 0
 	fi
-done < <(lsscsi)
+done <<< "$LSSCSI_CACHE"
 return 1
 }
 
@@ -394,7 +387,7 @@ while read -r _ _ VENDOR _; do
                 echo "Dell"
                 return 0
 	fi
-done < <(lsscsi)
+done <<< "$LSSCSI_CACHE"
 return 1
 }
 
@@ -476,7 +469,6 @@ fi
 
 print_auditdisc() {
 check_root
-check_dependencies "printf"
 
 printf "${CYAN}Audit Rule Issues${NC}\n"
 printf "${CYAN}--------------------------${NC}\n\n"
@@ -485,7 +477,6 @@ printf "${YELLOW}Change audit configuration in '/etc/audit/rules.d/audit.rules' 
 
 print_listndisc() {
 check_root
-check_dependencies "printf"
 
 printf "${CYAN}Oracle Listener Issues${NC}\n"
 printf "${CYAN}--------------------------${NC}\n\n"
@@ -599,16 +590,8 @@ else
 fi
 
 local CURRENT_DATE=$(date +%Y-%m-%d)
-local UPDATE_DATE_RAW=""
-local PACKAGE_MANAGER_COMMAND=""
-
-if command -v dnf &>/dev/null; then
-    PACKAGE_MANAGER_COMMAND="dnf"
-    UPDATE_DATE_RAW=$(yum history list -C 2>/dev/null | awk -F'|' 'NR>1 && $4 ~ /U/ && $5+0 > 5 {print $3; exit}' | head -n 1)
-else
-    PACKAGE_MANAGER_COMMAND="yum"
-    UPDATE_DATE_RAW=$(yum history list -C 2>/dev/null | awk -F'|' 'NR>1 && $4 ~ /U/ && $5+0 > 5 {print $3; exit}' | head -n 1)
-fi
+local UPDATE_DATE_RAW
+UPDATE_DATE_RAW=$(yum history list -C 2>/dev/null | awk -F'|' 'NR>1 && $4 ~ /U/ && $5+0 > 5 {print $3; exit}' | head -n 1)
 
 local DAYS_SINCE_UPDATE=-1
 
@@ -643,20 +626,18 @@ local USAGE_THRESHOLD=80
 local BAD_DISKS_FOUND=false
 local BAD_FILESYSTEMS=""
 
-df -h | tail -n +2 | while read -r FILESYSTEM SIZE USED AVAIL USAGE_PERCENT MOUNTED_ON; do
-	local NUMERIC_USAGE=$(echo "${USAGE_PERCENT}" | sed 's/%//')
-
+while read -r FILESYSTEM SIZE USED AVAIL USAGE_PERCENT MOUNTED_ON; do
+	local NUMERIC_USAGE=${USAGE_PERCENT//%/}
 	if (( NUMERIC_USAGE > USAGE_THRESHOLD )); then
 		BAD_DISKS_FOUND=true
-        	BAD_FILESYSTEMS+="${MOUNTED_ON} (${USAGE_PERCENT} used})\n"
+		BAD_FILESYSTEMS+="${MOUNTED_ON} (${USAGE_PERCENT} used)\n"
 	fi
-done
+done < <(df -h | tail -n +2)
 
 if ${BAD_DISKS_FOUND}; then
-	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!BAD!!" "Filesystems over ${USAGE_THRESHOLD} %"
-        printf "%b" "${BAD_FILESYSTEMS}"
+	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!BAD!!" "Filesystems over ${USAGE_THRESHOLD} % (Run 'bash mrpz.sh --diskcheck')"
 else
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!GOOD!!" "No Filesystems Over ${USAGE_THRESHOLD} %"
+	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%-10s${NC}\n" "Disk Space Check" "!!GOOD!!" "No Filesystems Over ${USAGE_THRESHOLD} %"
 fi
 
 local OVERALL_STATUS=0
@@ -753,19 +734,17 @@ else
 fi
 
 local GOOD_KERNEL_MONTHS=6
-local KERNELDATE=$(uname -v | sed -E 's/^.*SMP\s*([A-Z_]+\s*)*//' | awk '{$1=""; sub(/^ /, ""); print}')
+local UNAME_V
+UNAME_V=$(uname -v)
+local KERNELDATE=$(echo "${UNAME_V}" | sed -E 's/^.*SMP\s*([A-Z_]+\s*)*//' | awk '{$1=""; sub(/^ /, ""); print}')
 
 get_kernel_build_date() {
-	local KERNEL_VERSION_STRING=$(uname -v)
-	local BUILD_DATE_STR=$(echo "${KERNEL_VERSION_STRING}" | grep -oP '\w{3} \w{3} \s*\d{1,2} \d{2}:\d{2}:\d{2} \w{3,4} \d{4}')
-    echo "${BUILD_DATE_STR}"
+	echo "${UNAME_V}" | grep -oP '\w{3} \w{3} \s*\d{1,2} \d{2}:\d{2}:\d{2} \w{3,4} \d{4}'
 }
 
 local KERNEL_BUILD_DATE_STR=$(get_kernel_build_date)
 local KERNEL_TIMESTAMP=$(date -d "${KERNEL_BUILD_DATE_STR}" +%s 2>/dev/null)
 local SIX_MONTHS_AGO_TIMESTAMP=$(date -d "-${GOOD_KERNEL_MONTHS} months" +%s)
-local KERNELVER=$(uname -r)
-
 if (( KERNEL_TIMESTAMP < SIX_MONTHS_AGO_TIMESTAMP )); then
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Kernel Age" "!!BAD!!" "Kernel > 6 months ${KERNELDATE}"
 else
@@ -827,10 +806,12 @@ else
 	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Updates Available" "!!GOOD!!" "No available updates"
 fi
 
-if mokutil --sb-state &>/dev/null; then 
-    if mokutil --sb-state | grep -q "SecureBoot enabled"; then
+local MOKUTIL_SB_OUTPUT
+MOKUTIL_SB_OUTPUT=$(mokutil --sb-state 2>/dev/null)
+if [ $? -eq 0 ]; then
+    if echo "${MOKUTIL_SB_OUTPUT}" | grep -q "SecureBoot enabled"; then
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!GOOD!!" "Enabled"
-    elif mokutil --sb-state | grep -q "SecureBoot disabled"; then
+    elif echo "${MOKUTIL_SB_OUTPUT}" | grep -q "SecureBoot disabled"; then
         printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!ATTN!!" "Disabled (but supported)"
     else
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Secure Boot" "!!BAD!!" "Secure boot issues (unknown state)"
@@ -949,6 +930,7 @@ else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "/dev/console" "!!BAD!!" "Issues (Run 'bash mrpz.sh --devconsolefix')"
 fi
 
+local MULTIPLE_IP_INTERFACES
 MULTIPLE_IP_INTERFACES=$(ip -br a | \
 grep -v "lo" | \
 awk '{
@@ -1076,7 +1058,7 @@ else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Oracle Listener" "!!BAD!!" "Oracle listener missing 'bash mrpz.sh --listndisc'"
 fi
 
-{ journalctl --since "1 day ago" -p err 2> /tmp/JOURNALCTL_TRUNCATION_CHECK.log; } | grep -q .
+{ journalctl --since "1 day ago" -p err -q 2> /tmp/JOURNALCTL_TRUNCATION_CHECK.log; } | grep -q .
 
 local JOURNAL_HAS_ACTUAL_ERRORS=$? 
 grep -q "is truncated, ignoring file" /tmp/JOURNALCTL_TRUNCATION_CHECK.log
@@ -1122,7 +1104,8 @@ else
 fi
 
 local process_oralsnr=$(ps -ef | grep lsnr | grep -v grep | wc -l)
-local runtimehuge=$(sysctl -n vm.nr_hugepages)
+local runtimehuge=${hugepages}
+local oradb=false
 local persisthuge=$(grep -rhi "^vm.nr_hugepages" /etc/sysctl.conf /etc/sysctl.d/*.conf 2>/dev/null | tail -1 | awk -F = '{print $2}')
 runtimehuge=${runtimehuge//[[:space:]]/}
 persisthuge=${persisthuge//[[:space:]]/}
@@ -1301,23 +1284,25 @@ printf "${GREEN}Check Complete!${NC}\n"
 }
 
 print_shortoscheck() {
-    print_oscheck | awk '{ stripped_line = $0; gsub(/\x1B\[[0-9;]*[a-zA-Z]/, "", stripped_line); if (tolower(stripped_line) !~ /!!good!!/) print $0 }' > /tmp/oscheck.txt
-    cat /tmp/oscheck.txt
-    rm -rf /tmp/oscheck.txt
+    print_oscheck | awk '{ stripped_line = $0; gsub(/\x1B\[[0-9;]*[a-zA-Z]/, "", stripped_line); if (tolower(stripped_line) !~ /!!good!!/) print $0 }'
 }
 
 print_hugeusage() {
-threshold=${1:-70}
+local threshold=${1:-70}
+local total_mem
 total_mem=$(free -m | awk '/^Mem:/ {print $2}')
+local hugepages
 hugepages=$(sysctl -n vm.nr_hugepages)
+local hugepage_size_kb
 hugepage_size_kb=$(grep Hugepagesize /proc/meminfo | awk '{print $2}')
-hugepages_mem=$(( hugepages * hugepage_size_kb / 1024 ))
+local hugepages_mem=$(( hugepages * hugepage_size_kb / 1024 ))
+local percent
 
 if [ "$total_mem" -gt 0 ]; then
-            percent=$(awk -v h="$hugepages_mem" -v t="$total_mem" 'BEGIN {printf "%.2f", (h/t)*100}')
-    else
-                percent=0
-        fi
+    percent=$(awk -v h="$hugepages_mem" -v t="$total_mem" 'BEGIN {printf "%.2f", (h/t)*100}')
+else
+    percent=0
+fi
 printf "\n${MAGENTA}Hugepage Usage${NC}\n"
 printf "${MAGENTA}==============${NC}\n"
 echo "Total Memory: ${total_mem} MB"
@@ -1435,9 +1420,11 @@ print_linfo() {
             echo "mokutil command not found."
         fi
         echo "--- EFI or BIOS Boot ---"
-        if dmesg 2>/dev/null | grep -q "EFI v"; then
+        local DMESG_OUT
+        DMESG_OUT=$(dmesg 2>/dev/null)
+        if echo "$DMESG_OUT" | grep -q "EFI v"; then
             echo "EFI boot"
-            dmesg 2>/dev/null | grep "EFI v"
+            echo "$DMESG_OUT" | grep "EFI v"
         else
             echo "BIOS boot"
         fi
@@ -1725,8 +1712,29 @@ printf "${MAGENTA}System information collection complete. Data is located in: ${
 printf "${MAGENTA}The newly collected information has been compressed into: ${NC}${NEW_ARCHIVE_NAME}\\n"
 }
 
-print_badextfs() {
+print_diskcheck() {
 	check_root
+	local USAGE_THRESHOLD=80
+	local BAD_FOUND=false
+
+	printf "\n${MAGENTA}Disk Space Check (>${USAGE_THRESHOLD}%%)${NC}\n"
+	printf "${MAGENTA}==============================${NC}\n"
+
+	while read -r FILESYSTEM SIZE USED AVAIL USAGE_PERCENT MOUNTED_ON; do
+		local NUMERIC_USAGE=${USAGE_PERCENT//%/}
+		if (( NUMERIC_USAGE > USAGE_THRESHOLD )); then
+			BAD_FOUND=true
+			printf "  ${RED}%-30s${NC} ${YELLOW}%s${NC} used  (Size: %s, Avail: %s)\n" \
+				"${MOUNTED_ON}" "${USAGE_PERCENT}" "${SIZE}" "${AVAIL}"
+		fi
+	done < <(df -h | tail -n +2)
+
+	if ! ${BAD_FOUND}; then
+		printf "${GREEN}All filesystems are under ${USAGE_THRESHOLD}%%.${NC}\n"
+	fi
+}
+
+print_badextfs() {
     local BAD_FS=()
     local FSCK_BIN="/usr/sbin/fsck"
     local DEVICE MOUNT_POINT FS_TYPE REST
@@ -1847,7 +1855,8 @@ print_ocidomainfix() {
 	local TARGET="/etc/yum/vars/ocidomain"
 	local EXPECTED="oracle.com"
 	local BACKUP="${TARGET}.bak_$(date +%F_%H%M%S)"
-	local ACTUAL=$(cat "$TARGET" 2>/dev/null | xargs)
+	local ACTUAL
+	read -r ACTUAL < "$TARGET" 2>/dev/null || ACTUAL=""
 
 	if [ "$ACTUAL" == "$EXPECTED" ]; then
 	    printf "${YELLOW}Verification: "$TARGET" is already set to "$EXPECTED". No action taken.${NC}\n"
@@ -1861,7 +1870,9 @@ print_ocidomainfix() {
 
 	echo "$EXPECTED" > "$TARGET"
 
-	if [ "$(cat "$TARGET" | xargs)" == "$EXPECTED" ]; then
+	local VERIFY
+	read -r VERIFY < "$TARGET" 2>/dev/null || VERIFY=""
+	if [ "$VERIFY" == "$EXPECTED" ]; then
 		printf "${GREEN}Success: "$TARGET" has been updated to "$EXPECTED".${NC}\n"
 	fi
 }
@@ -1884,9 +1895,9 @@ case "$1" in
 	--devconsolefix) print_devconsolefix ;;
 	--oscheck) print_oscheck ;;
 	--badextfs) print_badextfs ;;
+	--diskcheck) print_diskcheck ;;
 	--mqfix) print_mqfix ;;
- 	--backupdisc) print_backupdisc ;;
-  	--auditdisc) print_auditdisc ;;
+ 	--auditdisc) print_auditdisc ;;
 	--listndisc) print_listndisc ;;
  	--bootreport) print_bootreport "$2" ;;
   	--shortoscheck) print_shortoscheck ;;
