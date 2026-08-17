@@ -1240,21 +1240,60 @@ done
             "Coredump Permissions" "!!GOOD!!" "systemd-coredump ACLs and gdb verified"
 fi
 
-local SWAP_KB=$(grep SwapTotal /proc/meminfo | awk '{print $2}')
-local SWAP_GB=$((SWAP_KB / 1024 / 1024))
+local SWAP_MIN_GB=15
+local SWAP_KB
+local SWAP_MIN_KB
+local SWAP_GB
 
-if [ "$SWAP_GB" -ge 16 ]; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!GOOD!!" "Swap size:$SWAP_GB GB"
+SWAP_KB=$(awk '/^SwapTotal:/ {print $2}' /proc/meminfo)
+SWAP_KB=${SWAP_KB:-0}
+SWAP_MIN_KB=$((SWAP_MIN_GB * 1024 * 1024))
+SWAP_GB=$(awk -v kb="$SWAP_KB" 'BEGIN {printf "%.1f", kb / 1024 / 1024}')
+
+if (( SWAP_KB >= SWAP_MIN_KB )); then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
+        "Swap Size" \
+        "!!GOOD!!" \
+        "Swap is at least ${SWAP_MIN_GB} GB (Size:${SWAP_GB} GB)"
 else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Swap Size" "!!BAD!!" "Swap is less than 16 GBs (Size:$SWAP_GB GB)"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+        "Swap Size" \
+        "!!BAD!!" \
+        "Swap is less than ${SWAP_MIN_GB} GB (Size:${SWAP_GB} GB)"
 fi
 
-local ACTUAL_EXCLUDE=$(dnf config-manager --dump | grep -i "^exclude =" | head -1)
+local JDK_CONFIG=""
+local ACTUAL_EXCLUDE=""
 
-if [[ "$ACTUAL_EXCLUDE" == *"jdk*"* ]]; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "JDK Exclusion" "!!GOOD!!" "JDK is properly excluded in the dnf configuration"
+if [ -f /etc/dnf/dnf.conf ]; then
+    JDK_CONFIG="/etc/dnf/dnf.conf"
+elif [ -f /etc/yum.conf ]; then
+    JDK_CONFIG="/etc/yum.conf"
+fi
+
+if [ -z "$JDK_CONFIG" ]; then
+    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" \
+        "JDK Exclusion" \
+        "!!ATTN!!" \
+        "No supported DNF or YUM configuration file found"
 else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "JDK Exclusion" "!!BAD!!" "jdk* is missing from the exclusions run 'bash mrpz.sh --jdkexcludefix'"
+    ACTUAL_EXCLUDE=$(
+        grep -Ei '^[[:space:]]*exclude[[:space:]]*=' \
+            "$JDK_CONFIG" |
+            head -1
+    )
+
+    if [[ "$ACTUAL_EXCLUDE" == *"jdk*"* ]]; then
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
+            "JDK Exclusion" \
+            "!!GOOD!!" \
+            "JDK is properly excluded in $JDK_CONFIG"
+    else
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+            "JDK Exclusion" \
+            "!!BAD!!" \
+            "jdk* is missing from exclusions in $JDK_CONFIG (Run 'bash mrpz.sh --jdkexcludefix')"
+    fi
 fi
 
 superuser=$(grep -i "set superusers" /boot/grub2/grub.cfg 2>/dev/null | awk -F'"' '{print $2}')
