@@ -1180,24 +1180,23 @@ else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Unlabeled Context" "!!BAD!!" "Unlabeled context detected (Run 'ls -lZ / | grep -i unlabeled')"
 fi
 
-local BAD_FS=()
-local FSCK_BIN="/usr/sbin/fsck"
-local DEVICE MOUNT_POINT FS_TYPE REST 
+scan_ext4_filesystems
 
-while IFS=' ' read -r DEVICE MOUNT_POINT FS_TYPE REST || [ -n "$DEVICE" ]; do
-    [[ "$FS_TYPE" != "ext4" ]] && continue
-    [[ ! -b "$DEVICE" ]] && continue
-	
-    if ! $FSCK_BIN -n "$DEVICE" 2>&1 | grep -q 'clean'; then
-        BAD_FS+=("$DEVICE (Mount: $MOUNT_POINT)")
-    fi
-
-done < /proc/mounts
-
-if [ ${#BAD_FS[@]} -eq 0 ]; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "EXT FS Check" "!!GOOD!!" "Filesystems Appear OK"
+if (( ${#EXT4_BAD_FS[@]} > 0 )); then
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+        "EXT FS Check" \
+        "!!BAD!!" \
+        "${#EXT4_BAD_FS[@]} filesystem(s) reported errors"
+elif (( ${#EXT4_CHECK_ERRORS[@]} > 0 || EXT4_CHECKED == 0 )); then
+    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${YELLOW}%s${NC}\n" \
+        "EXT FS Check" \
+        "!!ATTN!!" \
+        "Check incomplete (run 'bash mrpz.sh --badextfs')"
 else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "EXT FS Check" "!!BAD!!" "FS Appear Unhealthy (Run 'bash mrpz.sh --badextfs')"
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
+        "EXT FS Check" \
+        "!!GOOD!!" \
+        "$EXT4_CHECKED filesystem(s) appear OK"
 fi
 
 local SEARCH_LINE='export HISTTIMEFORMAT="%F %T "'
@@ -1733,30 +1732,113 @@ print_diskcheck() {
 		printf "${GREEN}All filesystems are under ${USAGE_THRESHOLD}%%.${NC}\n"
 	fi
 }
+scan_ext4_filesystems() {
+    EXT4_BAD_FS=()
+    EXT4_CHECK_ERRORS=()
+    EXT4_SKIPPED_FS=()
+    EXT4_CHECKED=0
 
-print_badextfs() {
-    local BAD_FS=()
-    local FSCK_BIN="/usr/sbin/fsck"
+    local FSCK_BIN
     local DEVICE MOUNT_POINT FS_TYPE REST
-    
-    while IFS=' ' read -r DEVICE MOUNT_POINT FS_TYPE REST || [ -n "$DEVICE" ]; do
-        [[ "$FS_TYPE" != "ext4" ]] && continue
-        [[ ! -b "$DEVICE" ]] && continue
+    local FSCK_OUTPUT FSCK_STATUS
+    local -A SEEN_DEVICE=()
 
-        if ! $FSCK_BIN -n "$DEVICE" 2>&1 | grep -q 'clean'; then
-            BAD_FS+=("$DEVICE (Mount: $MOUNT_POINT)")
+    FSCK_BIN=$(command -v e2fsck 2>/dev/null ||
+               command -v fsck.ext4 2>/dev/null)
+
+    if [[ -z "$FSCK_BIN" ]]; then
+        EXT4_CHECK_ERRORS+=("Neither e2fsck nor fsck.ext4 was found")
+        return 0
+    fi
+
+    while IFS=' ' read -r DEVICE MOUNT_POINT FS_TYPE REST; do
+        [[ "$FS_TYPE" != "ext4" ]] && continue
+
+        # Avoid checking the same device more than once.
+        [[ -n "${SEEN_DEVICE[$DEVICE]+found}" ]] && continue
+        SEEN_DEVICE["$DEVICE"]=1
+
+        if [[ ! -b "$DEVICE" ]]; then
+            EXT4_SKIPPED_FS+=(
+                "$DEVICE (Mount: $MOUNT_POINT): not a block device"
+            )
+            continue
         fi
 
+        ((EXT4_CHECKED++))
+
+        # -f forces all checking passes.
+        # -n opens the filesystem read-only and makes no repairs.
+        FSCK_OUTPUT=$("$FSCK_BIN" -fn "$DEVICE" 2>&1)
+        FSCK_STATUS=$?
+
+        if (( FSCK_STATUS == 0 )); then
+            continue
+        fi
+
+        # 8, 16, 32 and 128 indicate operational/tool failures.
+        if (( FSCK_STATUS & (8 | 16 | 32 | 128) )); then
+            FSCK_OUTPUT=${FSCK_OUTPUT//$'\n'/; }
+
+            EXT4_CHECK_ERRORS+=(
+                "$DEVICE (Mount: $MOUNT_POINT): status $FSCK_STATUS: $FSCK_OUTPUT"
+            )
+        else
+            # Status 4 normally means errors remain uncorrected.
+            # With -n, detected errors are intentionally not repaired.
+            EXT4_BAD_FS+=(
+                "$DEVICE (Mount: $MOUNT_POINT): status $FSCK_STATUS"
+            )
+        fi
     done < /proc/mounts
-        
-    if [ ${#BAD_FS[@]} -eq 0 ]; then
-        printf "${GREEN}EXT Integrity Check Status: Clean${NC}\n"
-    else
-        printf "${RED}EXT Integrity Check Status: BAD${NC}\n"             
-            for FS in "${BAD_FS[@]}"; do
-                printf "  %s\n" "$FS"
-            done
-	fi
+}
+
+print_badextfs() {
+    check_root
+    scan_ext4_filesystems
+
+    printf "\n${MAGENTA}EXT4 Filesystem Integrity Check${NC}\n"
+    printf "${MAGENTA}===============================${NC}\n"
+
+    if (( EXT4_CHECKED == 0 )); then
+        printf "${YELLOW}Status: UNKNOWN — no ext4 block devices were checked.${NC}\n"
+    elif (( ${#EXT4_BAD_FS[@]} == 0 &&
+            ${#EXT4_CHECK_ERRORS[@]} == 0 )); then
+        printf "${GREEN}Status: CLEAN${NC}\n"
+        printf "Checked filesystems: %d\n" "$EXT4_CHECKED"
+    fi
+
+    if (( ${#EXT4_BAD_FS[@]} > 0 )); then
+        printf "${RED}Status: CORRUPTION DETECTED${NC}\n"
+
+        for FS in "${EXT4_BAD_FS[@]}"; do
+            printf "  ${RED}%s${NC}\n" "$FS"
+        done
+    fi
+
+    if (( ${#EXT4_CHECK_ERRORS[@]} > 0 )); then
+        printf "${YELLOW}Checker errors:${NC}\n"
+
+        for ERROR in "${EXT4_CHECK_ERRORS[@]}"; do
+            printf "  %s\n" "$ERROR"
+        done
+    fi
+
+    if (( ${#EXT4_SKIPPED_FS[@]} > 0 )); then
+        printf "${YELLOW}Skipped filesystems:${NC}\n"
+
+        for FS in "${EXT4_SKIPPED_FS[@]}"; do
+            printf "  %s\n" "$FS"
+        done
+    fi
+
+    if (( ${#EXT4_CHECK_ERRORS[@]} > 0 || EXT4_CHECKED == 0 )); then
+        return 2
+    elif (( ${#EXT4_BAD_FS[@]} > 0 )); then
+        return 1
+    fi
+
+    return 0
 }
 
 print_histtimestamp() {
