@@ -1186,7 +1186,7 @@ if (( ${#EXT4_BAD_FS[@]} > 0 )); then
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
         "EXT FS Check" \
         "!!BAD!!" \
-        "${#EXT4_BAD_FS[@]} filesystem(s) reported errors"
+        "${#EXT4_BAD_FS[@]} filesystem(s) reported errors (Run 'bash mrpz.sh --badextfs')"
 elif (( ${#EXT4_CHECK_ERRORS[@]} > 0 || EXT4_CHECKED == 0 )); then
     printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${YELLOW}%s${NC}\n" \
         "EXT FS Check" \
