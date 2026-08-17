@@ -1180,24 +1180,76 @@ else
 	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Unlabeled Context" "!!BAD!!" "Unlabeled context detected (Run 'ls -lZ / | grep -i unlabeled')"
 fi
 
-scan_ext4_filesystems
+scan_ext4_filesystems() {
+    EXT4_BAD_FS=()
+    EXT4_CHECK_ERRORS=()
+    EXT4_CHECKED=0
 
-if (( ${#EXT4_BAD_FS[@]} > 0 )); then
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
-        "EXT FS Check" \
-        "!!BAD!!" \
-        "${#EXT4_BAD_FS[@]} filesystem(s) reported errors (Run 'bash mrpz.sh --badextfs')"
-elif (( ${#EXT4_CHECK_ERRORS[@]} > 0 || EXT4_CHECKED == 0 )); then
-    printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${YELLOW}%s${NC}\n" \
-        "EXT FS Check" \
-        "!!ATTN!!" \
-        "Check incomplete (run 'bash mrpz.sh --badextfs')"
-else
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
-        "EXT FS Check" \
-        "!!GOOD!!" \
-        "$EXT4_CHECKED filesystem(s) appear OK"
-fi
+    local FSCK_BIN
+    local DEVICE MOUNT_POINT FS_TYPE REST
+    local FSCK_OUTPUT FSCK_STATUS FSCK_SUMMARY
+    local -A SEEN_DEVICE=()
+
+    FSCK_BIN=$(command -v fsck 2>/dev/null)
+
+    if [[ -z "$FSCK_BIN" ]]; then
+        EXT4_CHECK_ERRORS+=("fsck was not found")
+        return 0
+    fi
+
+    while IFS=' ' read -r DEVICE MOUNT_POINT FS_TYPE REST; do
+        [[ "$FS_TYPE" != "ext4" ]] && continue
+
+        # Do not check the same device multiple times.
+        [[ -n "${SEEN_DEVICE[$DEVICE]+found}" ]] && continue
+        SEEN_DEVICE["$DEVICE"]=1
+
+        if [[ ! -b "$DEVICE" ]]; then
+            EXT4_CHECK_ERRORS+=(
+                "$DEVICE (Mount: $MOUNT_POINT): not a block device"
+            )
+            continue
+        fi
+
+        ((EXT4_CHECKED++))
+
+        # Read-only check. Do not add -f for a mounted filesystem.
+        FSCK_OUTPUT=$(LC_ALL=C "$FSCK_BIN" -n "$DEVICE" 2>&1)
+        FSCK_STATUS=$?
+
+        FSCK_SUMMARY=$(
+            printf '%s\n' "$FSCK_OUTPUT" |
+                grep -v '^$' |
+                tail -n 1
+        )
+
+        case "$FSCK_STATUS" in
+            0)
+                # No errors reported.
+                ;;
+
+            1|2|4)
+                # Filesystem errors reported.
+                EXT4_BAD_FS+=(
+                    "$DEVICE (Mount: $MOUNT_POINT): status $FSCK_STATUS — $FSCK_SUMMARY"
+                )
+                ;;
+
+            8|16|32|128)
+                # fsck itself failed, was cancelled, or could not run.
+                EXT4_CHECK_ERRORS+=(
+                    "$DEVICE (Mount: $MOUNT_POINT): fsck failed with status $FSCK_STATUS — $FSCK_SUMMARY"
+                )
+                ;;
+
+            *)
+                EXT4_CHECK_ERRORS+=(
+                    "$DEVICE (Mount: $MOUNT_POINT): unexpected fsck status $FSCK_STATUS — $FSCK_SUMMARY"
+                )
+                ;;
+        esac
+    done < /proc/mounts
+}
 
 local SEARCH_LINE='export HISTTIMEFORMAT="%F %T "'
 local CONFIG_FILE='/etc/bashrc'
@@ -1732,7 +1784,7 @@ print_diskcheck() {
 		printf "${GREEN}All filesystems are under ${USAGE_THRESHOLD}%%.${NC}\n"
 	fi
 }
-scan_ext4_filesystems() {
+4_filesystems() {
     EXT4_BAD_FS=()
     EXT4_CHECK_ERRORS=()
     EXT4_SKIPPED_FS=()
