@@ -1320,9 +1320,9 @@ else
     fi
 fi
 
-if [[ "$(getenforce)" == "Disabled" ]]; then
+if ["$(getenforce)" == "Disabled" ]; then
   exit 0
-elseif [ "${HARDTYPE}" == "Oracle" && ]; then 
+elif [ "${HARDTYPE}" == "Oracle" && ]; then 
 	local log="/root/scc-ansible.log"
 
 	if [[ ! -f "$log" ]]; then
