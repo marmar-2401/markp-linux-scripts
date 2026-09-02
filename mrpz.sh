@@ -1370,11 +1370,11 @@ else
 	then
 		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
 			"FS W/O ssh_home_t" "!!GOOD!!" \
-			"All .ssh filesystems have the proper context"
+			"All .ssh filesystems have the proper context."
 	else
 		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
 			"FS W/O ssh_home_t" "!!BAD!!" \
-			"Run 'bash mrpz.sh --baddotsshcontext' for more info"
+			"Run 'bash mrpz.sh --baddotsshcontext' for more info."
 	fi
 fi
 
