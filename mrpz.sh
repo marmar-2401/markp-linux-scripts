@@ -1369,11 +1369,11 @@ else
 		awk '$1 !~ /:ssh_home_t:/ { bad=1 } END { exit bad }'
 	then
 		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
-			"FS W/O ssh_home_t" "!!GOOD!!" \
+			"SSH Key Context" "!!GOOD!!" \
 			"All .ssh filesystems have the proper context."
 	else
 		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
-			"FS W/O ssh_home_t" "!!BAD!!" \
+			"SSH Key Context" "!!BAD!!" \
 			"Run 'bash mrpz.sh --baddotsshcontext' for more info."
 	fi
 fi
