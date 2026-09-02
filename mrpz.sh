@@ -98,7 +98,7 @@ check_sccadm_group() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.3.2 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.3.3 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -146,6 +146,7 @@ printf "${MAGENTA} 1.2.9 | 03/26/2026 | - Created a jdk exclusion check and an e
 printf "${MAGENTA} 1.3.0 | 06/10/2026 | - Created Grub2 Checker ${NC}\n"
 printf "${MAGENTA} 1.3.1 | 06/10/2026 | - Created Grub2 Mode Checker ${NC}\n"
 printf "${MAGENTA} 1.3.2 | 08/04/2026 | - Added --diskcheck option for detailed disk space reporting ${NC}\n"
+printf "${MAGENTA} 1.3.3 | 09/02/2026 | - Added logic for one-click context and selinux issues ${NC}\n"
 }
 
 print_help() {
@@ -164,6 +165,7 @@ printf "${YELLOW}--linfo${NC}	# Creates a system information archive with import
 printf "${YELLOW}--hugeusage${NC}	# Checks the details regarding the hughpage usage on system\n\n"
 printf "${YELLOW}--badextfs${NC}	# Gives you a list of corrupted EXT FS\n\n"
 printf "${YELLOW}--diskcheck${NC}	# Lists all filesystems over 80%% usage\n\n"
+printf "${YELLOW}--baddotsshcontext${NC}	# Lists all filesystems with .ssh context missing ssh_home_t\n\n"
 printf "\n${MAGENTA}System Configuration Options:${NC}\n"
 printf "${YELLOW}--devconsolefix${NC}	# Checks and corrects the /dev/console rules on system\n\n"
 printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on system\n\n"
@@ -1318,6 +1320,45 @@ else
     fi
 fi
 
+if [[ "$(getenforce)" == "Disabled" ]]; then
+  exit 0
+elseif [ "${HARDTYPE}" == "Oracle" && ]; then 
+	local log="/root/scc-ansible.log"
+
+	if [[ ! -f "$log" ]]; then
+		printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${YELLOW}%s${NC}\n" \
+		"Ansible Log Check" "!!ATTN!!" \
+		"Ansible was not run; log is not present."
+	fi
+
+	local last_change_line=$(grep 'changed' "$log" | tail -n 1)
+	local failed_count=$(grep -oE 'failed=[0-9]+' <<< "$last_change_line" | cut -d= -f2)
+
+	if [[ "${failed_count:-0}" -gt 0 ]]; then
+		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+		"Ansible Log Check" "!!BAD!!" \
+		"Ansible log indicates failures."
+	else
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
+		"Ansible Log Check" "!!GOOD!!" \
+		"Ansible log indicates success."
+	fi
+	
+	if semanage fcontext -C -l | grep -q ':ssh_home_t:'; then
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Custom Context Check (ssh_home_t)" "!!GOOD!!" "Custom context ssh_home_t exists on system"
+	else
+		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Custom Context Check (ssh_home_t)" "!!BAD!!" "The custom context ssh_home_t is not on system"
+	fi
+
+    if sudo find / -name '.ssh' -exec ls -Zd {} \; 2>/dev/null |
+		awk '$1 !~ /:ssh_home_t:/ { found=1 } END { exit !found }'
+	then
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "FS Missing Context(ssh_home_t)" "!!GOOD!!" "All .ssh filesystems have the proper context"
+	else
+		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "FS Missing Context(ssh_home_t)" "!!BAD!!" " Run ("bash mrpz.sh --baddotsshcontext") for more info"
+	fi
+fi
+
 printf "${GREEN}Check Complete!${NC}\n"
 }
 
@@ -1879,6 +1920,22 @@ print_badextfs() {
     return 0
 }
 
+print_baddotsshcontext() {
+    local bad_contexts
+
+    bad_contexts=$(
+        sudo find / -name '.ssh' -exec ls -Zd {} \; 2>/dev/null |
+        awk '$1 !~ /:ssh_home_t:/'
+    )
+
+    if [[ -n "$bad_contexts" ]]; then
+		printf "${RED}.ssh Filesystems Missing The "ssh_home_t" Context:${NC}\n"
+        printf "${RED}${bad_contexts}"
+    else
+        printf "${GREEN}No .ssh Filesystems Have The Incorrect Context."
+    fi
+}
+
 print_histtimestamp() {
     check_root
     confirm_action
@@ -2027,6 +2084,7 @@ case "$1" in
 	--coredumpfix) print_coredumpfix ;;
 	--jdkexcludefix) print_enablejdkfix ;;
 	--disablejdkfix) print_disablejdkfix ;;
+	--baddotsshcontext) print_baddotsshcontext ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
