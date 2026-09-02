@@ -1320,42 +1320,57 @@ else
     fi
 fi
 
-if ["$(getenforce)" == "Disabled" ]; then
-  exit 0
-elif [ "${HARDTYPE}" == "Oracle" && ]; then 
+if [[ "$(getenforce)" == "Disabled" ]]; then
+	exit 0
+elif [[ "${HARDTYPE}" == "Oracle" ]]; then
 	local log="/root/scc-ansible.log"
 
 	if [[ ! -f "$log" ]]; then
 		printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${YELLOW}%s${NC}\n" \
-		"Ansible Log Check" "!!ATTN!!" \
-		"Ansible was not run; log is not present."
-	fi
-
-	local last_change_line=$(grep 'changed' "$log" | tail -n 1)
-	local failed_count=$(grep -oE 'failed=[0-9]+' <<< "$last_change_line" | cut -d= -f2)
-
-	if [[ "${failed_count:-0}" -gt 0 ]]; then
-		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
-		"Ansible Log Check" "!!BAD!!" \
-		"Ansible log indicates failures."
+			"Ansible Log Check" "!!ATTN!!" \
+			"Ansible was not run; log is not present."
 	else
-		printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
-		"Ansible Log Check" "!!GOOD!!" \
-		"Ansible log indicates success."
+		local last_change_line
+		local failed_count
+
+		last_change_line=$(grep 'changed' "$log" | tail -n 1)
+		failed_count=$(grep -oE 'failed=[0-9]+' <<< "$last_change_line" | cut -d= -f2)
+
+		if [[ -z "$last_change_line" ]]; then
+			printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${YELLOW}%s${NC}\n" \
+				"Ansible Log Check" "!!ATTN!!" \
+				"No Ansible recap was found in the log."
+		elif [[ "${failed_count:-0}" -gt 0 ]]; then
+			printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+				"Ansible Log Check" "!!BAD!!" \
+				"Ansible log indicates failures."
+		else
+			printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
+				"Ansible Log Check" "!!GOOD!!" \
+				"Ansible log indicates success."
+		fi
 	fi
-	
+
 	if semanage fcontext -C -l | grep -q ':ssh_home_t:'; then
-		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Custom Context Check (ssh_home_t)" "!!GOOD!!" "Custom context ssh_home_t exists on system"
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
+			"Custom Context Check (ssh_home_t)" "!!GOOD!!" \
+			"Custom context ssh_home_t exists on system"
 	else
-		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Custom Context Check (ssh_home_t)" "!!BAD!!" "The custom context ssh_home_t is not on system"
+		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+			"Custom Context Check (ssh_home_t)" "!!BAD!!" \
+			"The custom context ssh_home_t is not on system"
 	fi
 
-    if sudo find / -name '.ssh' -exec ls -Zd {} \; 2>/dev/null |
-		awk '$1 !~ /:ssh_home_t:/ { found=1 } END { exit !found }'
+	if sudo find / -name '.ssh' -exec ls -Zd {} \; 2>/dev/null |
+		awk '$1 !~ /:ssh_home_t:/ { bad=1 } END { exit bad }'
 	then
-		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "FS Missing Context(ssh_home_t)" "!!GOOD!!" "All .ssh filesystems have the proper context"
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
+			"FS Missing Context (ssh_home_t)" "!!GOOD!!" \
+			"All .ssh filesystems have the proper context"
 	else
-		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "FS Missing Context(ssh_home_t)" "!!BAD!!" " Run ("bash mrpz.sh --baddotsshcontext") for more info"
+		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+			"FS Missing Context (ssh_home_t)" "!!BAD!!" \
+			"Run 'bash mrpz.sh --baddotsshcontext' for more info"
 	fi
 fi
 
