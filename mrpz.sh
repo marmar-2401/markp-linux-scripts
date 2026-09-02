@@ -1353,11 +1353,11 @@ elif [[ "${HARDTYPE}" == "Oracle" ]]; then
 
 	if semanage fcontext -C -l | grep -q ':ssh_home_t:'; then
 		printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
-			"Context Check ssh_home_t" "!!GOOD!!" \
+			"ssh_home_t Check" "!!GOOD!!" \
 			"Custom context ssh_home_t exists on system"
 	else
 		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
-			"Custom Context Check (ssh_home_t)" "!!BAD!!" \
+			"ssh_home_t Check" "!!BAD!!" \
 			"The custom context ssh_home_t is not on system"
 	fi
 
@@ -1365,11 +1365,11 @@ elif [[ "${HARDTYPE}" == "Oracle" ]]; then
 		awk '$1 !~ /:ssh_home_t:/ { bad=1 } END { exit bad }'
 	then
 		printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
-			"FS Missing Context (ssh_home_t)" "!!GOOD!!" \
+			"FS W/O ssh_home_t" "!!GOOD!!" \
 			"All .ssh filesystems have the proper context"
 	else
 		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
-			"FS Missing Context (ssh_home_t)" "!!BAD!!" \
+			"FS W/O ssh_home_t" "!!BAD!!" \
 			"Run 'bash mrpz.sh --baddotsshcontext' for more info"
 	fi
 fi
@@ -1944,10 +1944,10 @@ print_baddotsshcontext() {
     )
 
     if [[ -n "$bad_contexts" ]]; then
-		printf "${RED}.ssh Filesystems Missing The "ssh_home_t" Context:${NC}\n"
-        printf "${RED}${bad_contexts}"
+		printf "${RED}Filesystems Missing The "ssh_home_t" Context:${NC}\n"
+        printf "${RED}${bad_contexts} \n"
     else
-        printf "${GREEN}No .ssh Filesystems Have The Incorrect Context."
+        printf "${GREEN}Filesystems Have The Incorrect Context."
     fi
 }
 
