@@ -1945,9 +1945,9 @@ print_baddotsshcontext() {
 
     if [[ -n "$bad_contexts" ]]; then
 		printf "${RED}Filesystems Missing The "ssh_home_t" Context:${NC}\n"
-        printf "${RED}${bad_contexts} \n"
+        printf "${RED}${bad_contexts}${WHITE} \n"
     else
-        printf "${GREEN}Filesystems Have The Incorrect Context."
+        printf "${GREEN}Filesystems Have The Correct Context.${WHITE} \n"
     fi
 }
 
