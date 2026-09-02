@@ -1351,14 +1351,18 @@ else
 		fi
 	fi
 
-	if semanage fcontext -C -l | grep -q ':ssh_home_t:'; then
-		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
-			"ssh_home_t Check" "!!GOOD!!" \
-			"Custom context ssh_home_t exists on system"
+	if ! command -v semanage >/dev/null 2>&1; then
+    	printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" \
+        "ssh_home_t Check" "!!ATTN!!" \
+        "Skipped: semanage is not installed."
+	elif semanage fcontext -C -l | grep -q ':ssh_home_t:'; then
+    	printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
+        "ssh_home_t Check" "!!GOOD!!" \
+        "Custom context ssh_home_t exists on system"
 	else
-		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
-			"ssh_home_t Check" "!!BAD!!" \
-			"The custom context ssh_home_t is not on system"
+    	printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+        "ssh_home_t Check" "!!BAD!!" \
+        "The custom context ssh_home_t is not on system"
 	fi
 
 	if sudo find / -name '.ssh' -exec ls -Zd {} \; 2>/dev/null |
