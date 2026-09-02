@@ -1326,7 +1326,7 @@ elif [[ "${HARDTYPE}" == "Oracle" ]]; then
 	local log="/root/scc-ansible.log"
 
 	if [[ ! -f "$log" ]]; then
-		printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${YELLOW}%s${NC}\n" \
+		printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" \
 			"Ansible Log Check" "!!ATTN!!" \
 			"Ansible was not run; log is not present."
 	else
@@ -1337,7 +1337,7 @@ elif [[ "${HARDTYPE}" == "Oracle" ]]; then
 		failed_count=$(grep -oE 'failed=[0-9]+' <<< "$last_change_line" | cut -d= -f2)
 
 		if [[ -z "$last_change_line" ]]; then
-			printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - ${NC}${YELLOW}%s${NC}\n" \
+			printf "${MAGENTA}%-20s:${NC}${YELLOW}%s- ${NC}${YELLOW}%s${NC}\n" \
 				"Ansible Log Check" "!!ATTN!!" \
 				"No Ansible recap was found in the log."
 		elif [[ "${failed_count:-0}" -gt 0 ]]; then
@@ -1345,14 +1345,14 @@ elif [[ "${HARDTYPE}" == "Oracle" ]]; then
 				"Ansible Log Check" "!!BAD!!" \
 				"Ansible log indicates failures."
 		else
-			printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
+			printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
 				"Ansible Log Check" "!!GOOD!!" \
 				"Ansible log indicates success."
 		fi
 	fi
 
 	if semanage fcontext -C -l | grep -q ':ssh_home_t:'; then
-		printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
 			"ssh_home_t Check" "!!GOOD!!" \
 			"Custom context ssh_home_t exists on system"
 	else
@@ -1364,7 +1364,7 @@ elif [[ "${HARDTYPE}" == "Oracle" ]]; then
 	if sudo find / -name '.ssh' -exec ls -Zd {} \; 2>/dev/null |
 		awk '$1 !~ /:ssh_home_t:/ { bad=1 } END { exit bad }'
 	then
-		printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
 			"FS W/O ssh_home_t" "!!GOOD!!" \
 			"All .ssh filesystems have the proper context"
 	else
