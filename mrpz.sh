@@ -1353,7 +1353,7 @@ elif [[ "${HARDTYPE}" == "Oracle" ]]; then
 
 	if semanage fcontext -C -l | grep -q ':ssh_home_t:'; then
 		printf "${MAGENTA}%-20s:${NC}${GREEN}%s - ${NC}${YELLOW}%s${NC}\n" \
-			"Custom Context Check (ssh_home_t)" "!!GOOD!!" \
+			"Context Check ssh_home_t" "!!GOOD!!" \
 			"Custom context ssh_home_t exists on system"
 	else
 		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
