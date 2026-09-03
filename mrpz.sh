@@ -1384,10 +1384,40 @@ else
     printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "DNF Package Conflict" "!!BAD!!" "Package conflicts exist (Run 'dnf check' for more info)"
 fi
 
-if dnf upgrade --assumeno &> /dev/null; then
-    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "DNF Update Conflict" "!!GOOD!!" "No update/upgrade conflicts are present on system."
+local dnf_rc=0
+local output=$(
+    LC_ALL=C dnf --color=never upgrade --assumeno --best 2>&1
+) || dnf_rc=$?
+
+local conflict_re='Problem([[:space:]][0-9]+)?:|conflicting requests|nothing provides|cannot install (the best update candidate|both)|package .* requires|skipping packages with conflicts'
+
+local dnf_error_re='(^|[[:space:]])Error:|failed to download metadata|curl error|cannot download|all mirrors were tried|gpg check failed|failed to open lock|could not acquire.*lock|rpmdb.*(error|failed)'
+
+local success_re='Dependencies resolved\.|Nothing to do\.|Transaction Summary:'
+
+if printf '%s\n' "$output" | grep -Eqi "$conflict_re"; then
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+        "DNF Update Conflict" \
+        "!!BAD!!" \
+        "Dependency conflicts prevent a complete upgrade. Run 'dnf upgrade --assumeno --best' for details."
+
+elif printf '%s\n' "$output" | grep -Eqi "$dnf_error_re"; then
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+        "DNF Update Conflict" \
+        "!!BAD!!" \
+        "DNF could not complete the check. This may be a repository, network, GPG, RPMDB, or lock problem."
+
+elif printf '%s\n' "$output" | grep -Eqi "$success_re"; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
+        "DNF Update Conflict" \
+        "!!GOOD!!" \
+        "No dependency conflicts were found in the simulated upgrade."
+
 else
-    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "DNF Update Conflict" "!!BAD!!" "Update/upgrade conflicts exist (Run 'dnf upgrade --assumeno' for more info)"
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
+        "DNF Update Conflict" \
+        "!!BAD!!" \
+        "DNF result was inconclusive (exit ${dnf_rc}). Review the command output manually."
 fi
 
 printf "${GREEN}Check Complete!${NC}\n"
