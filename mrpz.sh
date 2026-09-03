@@ -1378,6 +1378,18 @@ else
 	fi
 fi
 
+if dnf check &> /dev/null; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "DNF Package Conflict" "!!GOOD!!" "No package conflicts are present on system."
+else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${RED}%s${NC}\n" "DNF Package Conflict" "!!BAD!!" "Package conflicts exist (Run 'dnf check' for more info)"
+fi
+
+if dnf upgrade --assumeno &> /dev/null; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "DNF Update Conflict" "!!GOOD!!" "No update/upgrade conflicts are present on system."
+else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${RED}%s${NC}\n" "DNF Update Conflict" "!!BAD!!" "Update/upgrade conflicts exist (Run 'dnf upgrade --assumeno' for more info)"
+fi
+
 printf "${GREEN}Check Complete!${NC}\n"
 }
 
