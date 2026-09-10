@@ -1285,16 +1285,18 @@ else
             head -1
     )
 
-    if [[ "$ACTUAL_EXCLUDE" == *"jdk*"* ]]; then
+    if printf '%s\n' "$ACTUAL_EXCLUDE" |
+        grep -Eiq '(^|[[:space:],=])jdk[^[:space:],]*([[:space:],]|$)'; then
+
         printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
             "JDK Exclusion" \
             "!!GOOD!!" \
-            "JDK is properly excluded in $JDK_CONFIG"
+            "JDK exclusion pattern found in $JDK_CONFIG"
     else
         printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
             "JDK Exclusion" \
             "!!BAD!!" \
-            "jdk* is missing from exclusions in $JDK_CONFIG (Run 'bash mrpz.sh --jdkexcludefix')"
+            "No JDK exclusion pattern was found in $JDK_CONFIG (Run 'bash mrpz.sh --jdkexcludefix')"
     fi
 fi
 
