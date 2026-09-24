@@ -1425,9 +1425,9 @@ fi
 
 if [ "${HARDTYPE}" == "AWS" ]; then
     if grep -Eq '^[[:space:]]*preserve_hostname:[[:space:]]*true([[:space:]]*#.*)?$' /etc/cloud/cloud.cfg; then
-        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "AWS Preserve Hostname" "!!GOOD!!" "True is set hostname with withstand reboot"
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Preserve Hostname" "!!GOOD!!" "True is set hostname with withstand reboot"
     else
-        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "AWS Preserve Hostname" "!!BAD!!" "Check /etc/cloud/cloud.cfg to make sure true is set"
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Preserve Hostname" "!!BAD!!" "Check /etc/cloud/cloud.cfg to make sure true is set"
     fi
 fi
 
