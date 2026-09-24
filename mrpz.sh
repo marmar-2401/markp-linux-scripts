@@ -98,7 +98,7 @@ check_sccadm_group() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.3.3 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.3.4 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -147,6 +147,7 @@ printf "${MAGENTA} 1.3.0 | 06/10/2026 | - Created Grub2 Checker ${NC}\n"
 printf "${MAGENTA} 1.3.1 | 06/10/2026 | - Created Grub2 Mode Checker ${NC}\n"
 printf "${MAGENTA} 1.3.2 | 08/04/2026 | - Added --diskcheck option for detailed disk space reporting ${NC}\n"
 printf "${MAGENTA} 1.3.3 | 09/02/2026 | - Added logic for one-click context and selinux issues ${NC}\n"
+printf "${MAGENTA} 1.3.4 | 09/24/2026 | - Preserve hostname check was added ${NC}\n"
 }
 
 print_help() {
