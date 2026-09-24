@@ -1422,6 +1422,14 @@ else
         "DNF result was inconclusive (exit ${dnf_rc}). Review the command output manually."
 fi
 
+if [ "${HARDTYPE}" == "AWS" ]; then
+    if grep -Eq '^[[:space:]]*preserve_hostname:[[:space:]]*true([[:space:]]*#.*)?$' /etc/cloud/cloud.cfg; then
+        printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "AWS Preserve Hostname" "!!GOOD!!" "True is set hostname with withstand reboot"
+    else
+        printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "AWS Preserve Hostname" "!!BAD!!" "Check /etc/cloud/cloud.cfg to make sure true is set"
+    fi
+fi
+
 printf "${GREEN}Check Complete!${NC}\n"
 }
 
