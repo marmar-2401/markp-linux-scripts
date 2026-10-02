@@ -1907,8 +1907,8 @@ print_diskcheck() {
 }
 
 fix_persistent_journal() {
-    confirm_action()
-    check_root()
+    confirm_action
+    check_root
     local journal_conf="/etc/systemd/journald.conf.d/99-persistent-storage.conf"
     local journal_error=""
     local journal_ok=false
