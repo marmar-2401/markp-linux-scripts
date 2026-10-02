@@ -1907,6 +1907,8 @@ print_diskcheck() {
 }
 
 fix_persistent_journal() {
+    confirm_action()
+    check_root()
     local journal_conf="/etc/systemd/journald.conf.d/99-persistent-storage.conf"
     local journal_error=""
     local journal_ok=false
@@ -1948,11 +1950,10 @@ fix_persistent_journal() {
     fi
 
     if [[ "$journal_ok" == true ]]; then
-        echo good
-    else
-        echo bad
-        printf 'ERROR: %s\n' "$journal_error" >&2
-    fi
+    	printf '%bStatus: Good%b\n' "$GREEN" "$NC"
+	else
+    	printf '%bStatus: Bad - %s%b\n' "$RED" "$journal_error" "$NC"
+	fi
 }
 
 
