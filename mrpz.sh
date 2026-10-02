@@ -98,7 +98,7 @@ check_sccadm_group() {
 
 print_version() {
 printf "\n${CYAN}         ################${NC}\n"
-printf "${CYAN}         ## Ver: 1.3.4 ##${NC}\n"
+printf "${CYAN}         ## Ver: 1.3.5 ##${NC}\n"
 printf "${CYAN}         ################${NC}\n"
 printf "${CYAN}=====================================${NC}\n"
 printf "${CYAN} __   __   ____    _____    _____ ${NC}\n"
@@ -148,6 +148,7 @@ printf "${MAGENTA} 1.3.1 | 06/10/2026 | - Created Grub2 Mode Checker ${NC}\n"
 printf "${MAGENTA} 1.3.2 | 08/04/2026 | - Added --diskcheck option for detailed disk space reporting ${NC}\n"
 printf "${MAGENTA} 1.3.3 | 09/02/2026 | - Added logic for one-click context and selinux issues ${NC}\n"
 printf "${MAGENTA} 1.3.4 | 09/24/2026 | - Preserve hostname check was added ${NC}\n"
+printf "${MAGENTA} 1.3.5 | 10/02/2026 | - Journal persistence checker along with fix script added ${NC}\n"
 }
 
 print_help() {
@@ -173,7 +174,7 @@ printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on 
 printf "${YELLOW}--histtimestampfix${NC}	# Corrects history timestamp variable in /etc/bashrc\n\n"
 printf "${YELLOW}--coredumpfix${NC}	# Corrects coredump permissions\n\n"
 printf "${YELLOW}--jdkexcludefix${NC} # Creates the jdk exclusion\n\n"
-printf "${YELLOW}--disablejdkfix${NC} # Removes the jdk exclusion\n\n"
+printf "${YELLOW}--journalfix${NC} # Makes sure journal file exists and is persistent\n\n"
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
 printf "${YELLOW}--auditdisc${NC}	# Description for misconfigured audit rules\n\n"
 printf "${YELLOW}--listndisc${NC}	# Description for oracle listener issues\n\n"
@@ -1074,6 +1075,26 @@ else
     printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Journal" "!!GOOD!!" "No journal errors within 7 days"
 fi
 
+local journal_ok=false
+local journal_pid=$(systemctl show -p MainPID systemd-journald.service 2>/dev/null) || journal_pid=""
+local journal_pid=${journal_pid#MainPID=}
+
+if [[ "$journal_pid" =~ ^[1-9][0-9]*$ ]]; then
+    for journal_fd in /proc/"$journal_pid"/fd/*; do
+        journal_file=$(readlink "$journal_fd" 2>/dev/null) || journal_file=""
+
+        if [[ "$journal_file" == /var/log/journal/*/system.journal && -s "$journal_file" ]]; then
+            journal_ok=true
+        fi
+    done
+fi
+
+if [[ "$journal_ok" == true ]]; then
+    printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" "Journal Persistence" "!!GOOD!!" "Journal file exists & is persistent"
+else
+    printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" "Journal Persistence" "!!BAD!!" "Journal files does not exist/persist Run'bash mrpz.sh --journalfix'"
+fi
+
 if command -v firewall-cmd &>/dev/null; then 
     if richapp_check >/dev/null 2>&1; then
         if firewall-cmd --list-rich-rules 2>/dev/null | grep -q 'rule'; then
@@ -1884,6 +1905,58 @@ print_diskcheck() {
 		printf "${GREEN}All filesystems are under ${USAGE_THRESHOLD}%%.${NC}\n"
 	fi
 }
+
+fix_persistent_journal() {
+    local journal_conf="/etc/systemd/journald.conf.d/99-persistent-storage.conf"
+    local journal_error=""
+    local journal_ok=false
+    local journal_pid=""
+    local journal_fd journal_file
+
+    if ! mkdir -p /etc/systemd/journald.conf.d /var/log/journal; then
+        journal_error="Could not create the required directories."
+
+    elif ! systemd-tmpfiles --create --prefix /var/log/journal; then
+        journal_error="Could not prepare the journal directory."
+
+    elif ! printf '%s\n' '[Journal]' 'Storage=persistent' > "$journal_conf"; then
+        journal_error="Could not write $journal_conf."
+
+    elif ! systemctl restart systemd-journald.service; then
+        journal_error="Could not restart systemd-journald."
+
+    elif ! journalctl --flush; then
+        journal_error="Could not flush the journal to persistent storage."
+
+    else
+        journal_pid=$(systemctl show -p MainPID systemd-journald.service 2>/dev/null) || journal_pid=""
+        journal_pid=${journal_pid#MainPID=}
+
+        if [[ "$journal_pid" =~ ^[1-9][0-9]*$ ]]; then
+            for journal_fd in /proc/"$journal_pid"/fd/*; do
+                journal_file=$(readlink "$journal_fd" 2>/dev/null) || journal_file=""
+
+                if [[ "$journal_file" == /var/log/journal/*/system.journal && -s "$journal_file" ]]; then
+                    journal_ok=true
+                fi
+            done
+        fi
+
+        if [[ "$journal_ok" != true ]]; then
+            journal_error="No active persistent system journal was detected after the repair."
+        fi
+    fi
+
+    if [[ "$journal_ok" == true ]]; then
+        echo good
+    else
+        echo bad
+        printf 'ERROR: %s\n' "$journal_error" >&2
+    fi
+}
+
+
+
 scan_ext4_filesystems() {
     EXT4_BAD_FS=()
     EXT4_CHECK_ERRORS=()
@@ -2157,6 +2230,7 @@ case "$1" in
 	--jdkexcludefix) print_enablejdkfix ;;
 	--disablejdkfix) print_disablejdkfix ;;
 	--baddotsshcontext) print_baddotsshcontext ;;
+	--journalfix) fix_persistent_journal ;;
 *)
 printf "${RED}Error:${NC} Unknown Option Ran With Script ${RED}Option Entered: ${NC}$1\n"
 printf "${GREEN}Run 'bash mrpz.sh --help' To Learn Usage ${NC} \n"
