@@ -167,7 +167,7 @@ printf "${YELLOW}--linfo${NC}	# Creates a system information archive with import
 printf "${YELLOW}--hugeusage${NC}	# Checks the details regarding the hughpage usage on system\n\n"
 printf "${YELLOW}--badextfs${NC}	# Gives you a list of corrupted EXT FS\n\n"
 printf "${YELLOW}--diskcheck${NC}	# Lists all filesystems over 80%% usage\n\n"
-printf "${YELLOW}--baddotsshcontext${NC}	# Lists all filesystems with .ssh context missing ssh_home_t\n\n"
+printf "${YELLOW}--baddotsshcontext${NC}	# Lists host .ssh paths missing ssh_home_t (container storage excluded)\n\n"
 printf "\n${MAGENTA}System Configuration Options:${NC}\n"
 printf "${YELLOW}--devconsolefix${NC}	# Checks and corrects the /dev/console rules on system\n\n"
 printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on system\n\n"
@@ -488,6 +488,35 @@ printf "${CYAN}--------------------------${NC}\n\n"
 printf "${YELLOW} Run 'ps -ef | egrep '_pmon_|tnslsnr' | grep -v 'grep -E _pmon_|tnslsnr'' to check to see if listeners are present!${NC}\n"
 }
 #End of problem Description Section
+
+scan_bad_dotssh_contexts() (
+    # Keep pipefail local to this scan so find/ls errors cannot produce GOOD.
+    set -o pipefail
+
+    # Prune container stores before descending into them, including dated
+    # rootless backups such as .local/share/containers.20260429.032916.
+    # Do not exclude an entire SCC/user filesystem or filter by container type:
+    # host .ssh paths outside these stores still need to be checked.
+    # Add a precise -path entry here for any other custom storage root.
+    LC_ALL=C find / \
+        \( -path '/proc' \
+           -o -path '/sys' \
+           -o -path '/dev' \
+           -o -path '/run' \
+           -o -path '/var/lib/containers' \
+           -o -path '/var/lib/containers.*' \
+           -o -path '/var/lib/docker' \
+           -o -path '/var/lib/docker.*' \
+           -o -path '/var/lib/containerd' \
+           -o -path '/var/lib/containerd.*' \
+           -o -path '*/.local/share/containers' \
+           -o -path '*/.local/share/containers.*' \
+           -o -path '*/.local/share/docker' \
+           -o -path '*/.local/share/docker.*' \
+        \) -prune -o \
+        -name '.ssh' -exec ls -Zd --quoting-style=escape -- {} + |
+        LC_ALL=C awk '$1 !~ /:ssh_home_t:/'
+)
 
 print_oscheck() {
 check_root
@@ -1390,16 +1419,21 @@ else
         "The custom context ssh_home_t is not on system"
 	fi
 
-	if sudo find / -name '.ssh' -exec ls -Zd {} \; 2>/dev/null |
-		awk '$1 !~ /:ssh_home_t:/ { bad=1 } END { exit bad }'
-	then
-		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
-			"SSH Key Context" "!!GOOD!!" \
-			"All .ssh filesystems have the proper context."
-	else
+	local bad_ssh_contexts ssh_context_scan_rc=0
+	bad_ssh_contexts=$(scan_bad_dotssh_contexts) || ssh_context_scan_rc=$?
+
+	if [[ -n "$bad_ssh_contexts" ]]; then
 		printf "${MAGENTA}%-20s:${NC}${RED}%s - ${NC}${YELLOW}%s${NC}\n" \
 			"SSH Key Context" "!!BAD!!" \
 			"Run 'bash mrpz.sh --baddotsshcontext' for more info."
+	elif (( ssh_context_scan_rc != 0 )); then
+		printf "${MAGENTA}%-20s:${NC}${YELLOW}%s - %s${NC}\n" \
+			"SSH Key Context" "!!ATTN!!" \
+			"Scan incomplete. Run 'bash mrpz.sh --baddotsshcontext' for details."
+	else
+		printf "${MAGENTA}%-20s:${NC}${GREEN}%s- ${NC}${YELLOW}%s${NC}\n" \
+			"SSH Key Context" "!!GOOD!!" \
+			"All checked host .ssh paths have the proper context (container storage excluded)."
 	fi
 fi
 
@@ -2068,19 +2102,24 @@ print_badextfs() {
 }
 
 print_baddotsshcontext() {
-    local bad_contexts
+    check_root
+    local bad_contexts scan_rc=0
 
-    bad_contexts=$(
-        sudo find / -name '.ssh' -exec ls -Zd {} \; 2>/dev/null |
-        awk '$1 !~ /:ssh_home_t:/'
-    )
+    bad_contexts=$(scan_bad_dotssh_contexts) || scan_rc=$?
 
+    printf "${CYAN}Scope: Host .ssh paths; container storage excluded.${NC}\n"
     if [[ -n "$bad_contexts" ]]; then
-		printf "${RED}Filesystems Missing The "ssh_home_t" Context:${NC}\n"
-        printf "${RED}${bad_contexts}${WHITE} \n"
-    else
-        printf "${GREEN}Filesystems Have The Correct Context.${WHITE} \n"
+        printf "${RED}Host .ssh Paths Missing The ssh_home_t Context:${NC}\n"
+        printf '%b%s%b\n' "$RED" "$bad_contexts" "$NC"
+    elif (( scan_rc == 0 )); then
+        printf "${GREEN}All checked host .ssh paths have the correct context.${NC}\n"
     fi
+
+    if (( scan_rc != 0 )); then
+        printf "${YELLOW}SSH context scan incomplete (exit %s); review the errors above.${NC}\n" "$scan_rc" >&2
+        return 2
+    fi
+    return 0
 }
 
 print_histtimestamp() {
