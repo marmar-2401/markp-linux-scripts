@@ -174,6 +174,7 @@ printf "${YELLOW}--mqfix${NC}	# Checks and corrects the message queue limits on 
 printf "${YELLOW}--histtimestampfix${NC}	# Corrects history timestamp variable in /etc/bashrc\n\n"
 printf "${YELLOW}--coredumpfix${NC}	# Corrects coredump permissions\n\n"
 printf "${YELLOW}--jdkexcludefix${NC} # Creates the jdk exclusion\n\n"
+printf "${YELLOW}--disablejdkfix${NC} # Removes the jdk exclusion\n\n"
 printf "${YELLOW}--journalfix${NC} # Makes sure journal file exists and is persistent\n\n"
 printf "\n${MAGENTA}Problem Description Section:${NC}\n"
 printf "${YELLOW}--auditdisc${NC}	# Description for misconfigured audit rules\n\n"
